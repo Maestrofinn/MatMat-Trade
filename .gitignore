@@ -127,3 +127,10 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# additional gitignore from user
+data/reference*
+data/*.zip
+data/metadata.json
+outputs/*
+outputs/*/*
