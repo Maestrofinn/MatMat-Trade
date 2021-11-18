@@ -22,7 +22,6 @@ from local_paths import output_dir
 
 # local library
 from utils import Tools
-print('f')
 
 
 ###########################
