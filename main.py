@@ -15,6 +15,7 @@ import copy
 import numpy as np
 import pandas as pd
 import pymrio
+import matplotlib.pyplot as plt
 
 # local folder
 from local_paths import data_dir
@@ -46,7 +47,7 @@ concat_settings = str(base_year) + '_' + \
 	agg_name['region']
 
 # set if rebuilding calibration from exiobase
-calib = False 
+calib = False
 
 
 ###########################
@@ -169,8 +170,15 @@ counterfactual.save_all(
 
 # concat results for visualisation
 ## ToDo
-
-
+print(list(reference.get_extensions()))
+#print(reference.ghg_emissions_desag.D_cba.sum(axis=0).FR) #empreinte carbone totale (peut faire si gaz en kgCO2eq)
+print(type(reference.ghg_emissions_desag.D_cba))
+ghg_list = list(reference.ghg_emissions_desag.D_cba.index.get_level_values(1)[:7])
+for ghg in ghg_list:
+    with plt.style.context('ggplot'):
+        reference.ghg_emissions_desag.plot_account(ghg, figsize=(8,5))
+        plt.savefig('figures/ref_'+ghg+'.png', dpi=300)
+        plt.show()
 ###########################
 # VISUALIZE
 ###########################
