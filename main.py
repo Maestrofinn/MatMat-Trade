@@ -170,15 +170,34 @@ counterfactual.save_all(
 
 # concat results for visualisation
 ## ToDo
-print(list(reference.get_extensions()))
 #print(reference.ghg_emissions_desag.D_cba.sum(axis=0).FR) #empreinte carbone totale (peut faire si gaz en kgCO2eq)
-print(type(reference.ghg_emissions_desag.D_cba))
 ghg_list = list(reference.ghg_emissions_desag.D_cba.index.get_level_values(1)[:7])
-for ghg in ghg_list:
-    with plt.style.context('ggplot'):
-        reference.ghg_emissions_desag.plot_account(ghg, figsize=(8,5))
-        plt.savefig('figures/ref_'+ghg+'.png', dpi=300)
-        plt.show()
+sectors_list=list(reference.get_sectors())
+reg_list = list(reference.get_regions())
+
+#for ghg in ghg_list:
+#    with plt.style.context('ggplot'):
+#        reference.ghg_emissions_desag.plot_account(ghg, figsize=(8,5))
+#        plt.savefig('figures/ref_'+ghg+'.png', dpi=300)
+#        plt.show()
+ref_dcba = reference.ghg_emissions_desag.D_cba
+filtre_co2 = ref_dcba.index.get_level_values(1)=='CO2'
+CO2_total_by_sector = ref_dcba.iloc[filtre_co2]
+print(CO2_total_by_sector)
+width=0.7
+fig,ax=plt.subplots()
+position = [-6*width/5,-3*width/5,0,3*width/5,6*width/5]
+rects=[]
+x=3*np.arange(len(sectors_list))
+for i in range(len(reg_list)):
+	rects.append(ax.barh(x+position[i],np.array(CO2_total_by_sector['FR'].loc[reg_list[i]])[0],
+	width,label=reg_list[i]))
+ax.set_yticks(x)
+ax.set_yticklabels(sectors_list)
+ax.legend()
+plt.xlabel("kg")
+plt.title("Provenance des émissions de CO2 françaises par secteurs")
+plt.show()
 ###########################
 # VISUALIZE
 ###########################
