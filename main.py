@@ -180,7 +180,7 @@ reg_list = list(reference.get_regions())
 #        reference.ghg_emissions_desag.plot_account(ghg, figsize=(8,5))
 #        plt.savefig('figures/ref_'+ghg+'.png', dpi=300)
 #        plt.show()
-ref_dcba = reference.ghg_emissions_desag.D_cba
+ref_dcba = pd.DataFrame(reference.ghg_emissions_desag.D_cba)
 filtre_co2 = ref_dcba.index.get_level_values(1)=='CO2'
 CO2_total_by_sector = ref_dcba.iloc[filtre_co2]
 print(CO2_total_by_sector)
@@ -198,6 +198,22 @@ ax.legend()
 plt.xlabel("kg")
 plt.title("Provenance des émissions de CO2 françaises par secteurs")
 plt.show()
+
+#Other version :
+ghg_list = list(reference.ghg_emissions_desag.D_cba.index.get_level_values(1)[:6])
+print(ghg_list)
+for ghg in ghg_list:
+    df = pd.DataFrame(None, index = reference.get_sectors(), columns = reference.get_regions())
+    for reg in reference.get_regions():
+        df.loc[:,reg]=ref_dcba.transpose().loc['FR',(reg,ghg)]
+    ax=df.plot.barh(stacked=True)
+    plt.grid()
+    plt.xlabel("kg")
+    plt.title("Provenance des émissions de "+ghg+" françaises par secteurs")
+    plt.savefig('figures/french_'+ghg+'emissions_provenance_sectors')
+    plt.show()
+
+
 ###########################
 # VISUALIZE
 ###########################
