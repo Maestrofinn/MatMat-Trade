@@ -25,7 +25,6 @@ class Tools:
     def extract_ghg_emissions(IOT):
 
         ghg_emissions = ['CO2', 'CH4', 'N2O', 'SF6', 'HFC', 'PFC']
-
         extension_list = list()
 
         for ghg_emission in ghg_emissions:
@@ -69,7 +68,8 @@ class Tools:
 
 
     def calc_accounts(S, L, Y, nr_sectors):
-
+        ghg_list = ['CO2', 'CH4', 'N2O', 'SF6', 'HFC', 'PFC']
+        mult_to_CO2eq = {'CO2':1, 'CH4':28 , 'N2O':265 , 'SF6':23500 , 'HFC':1 , 'PFC':1}
         Y_diag = ioutil.diagonalize_blocks(Y.values, blocksize=nr_sectors)
         Y_diag = pd.DataFrame(
             Y_diag,
@@ -79,7 +79,8 @@ class Tools:
         x_diag = L.dot(Y_diag)
 
         region_list = x_diag.index.get_level_values('region').unique()
-
+        for ghg in ghg_list:
+            S.loc[ghg] *= mult_to_CO2eq[ghg]
         D_cba = pd.concat(
             [
                 S[region].dot(x_diag.loc[region])\
@@ -106,7 +107,6 @@ class Tools:
             keys = region_list,
             names = ['region']
         )
-
         return (D_cba, D_imp)
 
 

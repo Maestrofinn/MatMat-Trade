@@ -171,44 +171,18 @@ counterfactual.save_all(
 # concat results for visualisation
 ## ToDo
 #print(reference.ghg_emissions_desag.D_cba.sum(axis=0).FR) #empreinte carbone totale (peut faire si gaz en kgCO2eq)
-ghg_list = list(reference.ghg_emissions_desag.D_cba.index.get_level_values(1)[:6])
+ghg_list = ['CO2', 'CH4', 'N2O', 'SF6', 'HFC', 'PFC']
 sectors_list=list(reference.get_sectors())
 reg_list = list(reference.get_regions())
 
-#for ghg in ghg_list:
-#    with plt.style.context('ggplot'):
-#        reference.ghg_emissions_desag.plot_account(ghg, figsize=(8,5))
-#        plt.savefig('figures/ref_'+ghg+'.png', dpi=300)
-#        plt.show()
 ref_dcba = pd.DataFrame(reference.ghg_emissions_desag.D_cba)
-filtre_co2 = ref_dcba.index.get_level_values(1)=='CO2'
-CO2_total_by_sector = ref_dcba.iloc[filtre_co2]['FR']
+ref_dpba=pd.DataFrame(reference.ghg_emissions_desag.D_pba)
+ges_direc_fr = ref_dpba['FR']
 
-# with plt.style.context('ggplot'):
-# 	CO2_total_by_sector.plot.barh(stacked=True)
-# 	plt.title("Répartition des émissions de chaque région par secteur")
-# 	plt.savefig('figures/French_CO2_by_sector_each_region.png')
-	#plt.show()
-# with plt.style.context('ggplot'):
-# 	CO2_total_by_sector.transpose().plot.barh(stacked=True)
-# 	plt.title("Origine des émissions de CO2 pour chaque secteur")
-# 	plt.savefig('figures/French_CO2_by_origin_each_sector.png')
-# 	#plt.show()
-
-ch4toco2=72
-n20toco2=289
-sf6toco2=15100
 
 Total_ghg_desag_fr = ref_dcba['FR']
 sumonsectors = Total_ghg_desag_fr.sum(axis=1)
-#print(sumonsectors)
-sumonsectors.iloc[sumonsectors.index.get_level_values(1)=='CH4'] *= ch4toco2
-sumonsectors.iloc[sumonsectors.index.get_level_values(1)=='N2O'] *= n20toco2
-sumonsectors.iloc[sumonsectors.index.get_level_values(1)=='SF6'] *= sf6toco2
-#print(sumonsectors)
-
 total_ges_by_origin = sumonsectors.sum(level=0)
-print(total_ges_by_origin)
 liste_agg_ghg=[]
 for ghg in ghg_list:
 	liste_agg_ghg.append(sumonsectors.iloc[sumonsectors.index.get_level_values(1)==ghg].sum(level=0))
@@ -217,24 +191,23 @@ dict_pour_plot = {'Total':total_ges_by_origin,'CO2':liste_agg_ghg[0],
 'CH4':liste_agg_ghg[1],'N2O':liste_agg_ghg[2],'SF6':liste_agg_ghg[3],
 'HFC':liste_agg_ghg[4],'PFC':liste_agg_ghg[5]}
 pour_plot=pd.DataFrame(data=dict_pour_plot,index=reg_list)
-print(pour_plot)
 pour_plot.transpose().plot.bar(stacked=True)
+plt.title("Empreinte carbone de la France")
+plt.ylabel("kgCO2eq")
 plt.savefig("figures/empreinte_carbone_fr_importation.png")
-plt.show()
+#plt.show()
 
 #Other version :
-ghg_list = list(reference.ghg_emissions_desag.D_cba.index.get_level_values(1)[:6])
-print(ghg_list)
 for ghg in ghg_list:
     df = pd.DataFrame(None, index = reference.get_sectors(), columns = reference.get_regions())
     for reg in reference.get_regions():
         df.loc[:,reg]=ref_dcba.transpose().loc['FR',(reg,ghg)]
     ax=df.plot.barh(stacked=True)
     plt.grid()
-    plt.xlabel("kg")
+    plt.xlabel("kgCO2eq")
     plt.title("Provenance des émissions de "+ghg+" françaises par secteurs")
     plt.savefig('figures/french_'+ghg+'emissions_provenance_sectors')
-    plt.show()
+    #plt.show()
 
 
 ###########################
