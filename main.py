@@ -170,18 +170,23 @@ counterfactual.save_all(
 
 # concat results for visualisation
 ## ToDo
-#print(reference.ghg_emissions_desag.D_cba.sum(axis=0).FR) #empreinte carbone totale (peut faire si gaz en kgCO2eq)
 ghg_list = ['CO2', 'CH4', 'N2O', 'SF6', 'HFC', 'PFC']
 sectors_list=list(reference.get_sectors())
 reg_list = list(reference.get_regions())
 
 ref_dcba = pd.DataFrame(reference.ghg_emissions_desag.D_cba)
 ref_dpba=pd.DataFrame(reference.ghg_emissions_desag.D_pba)
-ges_direc_fr = ref_dpba['FR']
+
+#émissions directes liées à la production en France
+ges_direct_fr = pd.concat([ref_dpba['FR']], keys=['FR'], names=['region'])
+#émissions importées pour de la consommation en France
+ges_imp_fr = reference.ghg_emissions_desag.D_imp['FR'].iloc[reference.ghg_emissions_desag.D_imp['FR'].index.get_level_values(0)!='FR']
+#concatenation
+empreinte_df = ges_direct_fr.append(ges_imp_fr)
+print(empreinte_df)
 
 
-Total_ghg_desag_fr = ref_dcba['FR']
-sumonsectors = Total_ghg_desag_fr.sum(axis=1)
+sumonsectors = empreinte_df.sum(axis=1)
 total_ges_by_origin = sumonsectors.sum(level=0)
 liste_agg_ghg=[]
 for ghg in ghg_list:
@@ -195,19 +200,19 @@ pour_plot.transpose().plot.bar(stacked=True)
 plt.title("Empreinte carbone de la France")
 plt.ylabel("kgCO2eq")
 plt.savefig("figures/empreinte_carbone_fr_importation.png")
-#plt.show()
+plt.show()
 
-#Other version :
+
 for ghg in ghg_list:
     df = pd.DataFrame(None, index = reference.get_sectors(), columns = reference.get_regions())
     for reg in reference.get_regions():
-        df.loc[:,reg]=ref_dcba.transpose().loc['FR',(reg,ghg)]
+        df.loc[:,reg]=empreinte_df.loc[(reg,ghg)]
     ax=df.plot.barh(stacked=True)
     plt.grid()
     plt.xlabel("kgCO2eq")
     plt.title("Provenance des émissions de "+ghg+" françaises par secteurs")
     plt.savefig('figures/french_'+ghg+'emissions_provenance_sectors')
-    #plt.show()
+plt.show()
 
 
 ###########################
