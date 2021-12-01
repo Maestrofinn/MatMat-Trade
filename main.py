@@ -47,7 +47,7 @@ concat_settings = str(base_year) + '_' + \
 	agg_name['region']
 
 # set if rebuilding calibration from exiobase
-calib = False
+calib = True
 
 
 ###########################
@@ -176,13 +176,16 @@ reg_list = list(reference.get_regions())
 
 ref_dcba = pd.DataFrame(reference.ghg_emissions_desag.D_cba)
 ref_dpba=pd.DataFrame(reference.ghg_emissions_desag.D_pba)
-
 #empreinte carbone française
 empreinte_df = ref_dcba['FR']
-print(empreinte_df)
 
+empreinte_df2 = ref_dpba['FR'] + reference.ghg_emissions_desag.D_imp.sum(level=1)['FR'] - reference.ghg_emissions_desag.D_exp['FR']
+sumonsectors2 = empreinte_df2.sum(axis=1)
 sumonsectors = empreinte_df.sum(axis=1)
 total_ges_by_origin = sumonsectors.sum(level=0)
+total_ges_by_origin2 = sumonsectors2.sum()
+print(total_ges_by_origin2)
+print(total_ges_by_origin.sum())
 liste_agg_ghg=[]
 for ghg in ghg_list:
 	liste_agg_ghg.append(sumonsectors.iloc[sumonsectors.index.get_level_values(1)==ghg].sum(level=0))
@@ -193,7 +196,7 @@ dict_pour_plot = {'Total':total_ges_by_origin,'CO2':liste_agg_ghg[0],
 pour_plot=pd.DataFrame(data=dict_pour_plot,index=reg_list)
 pour_plot.transpose().plot.bar(stacked=True)
 plt.title("Empreinte carbone de la France")
-plt.ylabel("kgCO2eq")
+plt.ylabel("MtCO2eq")
 plt.savefig("figures/empreinte_carbone_fr_importation.png")
 plt.show()
 
@@ -207,7 +210,7 @@ for ghg in ghg_list:
     plt.xlabel("kgCO2eq")
     plt.title("Provenance des émissions de "+ghg+" françaises par secteurs")
     plt.savefig('figures/french_'+ghg+'emissions_provenance_sectors')
-plt.show()
+#plt.show()
 
 
 ###########################
