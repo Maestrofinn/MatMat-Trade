@@ -47,7 +47,7 @@ concat_settings = str(base_year) + '_' + \
 	agg_name['region']
 
 # set if rebuilding calibration from exiobase
-calib = True
+calib = False
 
 
 ###########################
@@ -138,10 +138,12 @@ counterfactual.remove_extension('ghg_emissions_desag')
 
 # read param sets to shock reference system
 ## ToDo
-
+quantity = 0.5
+sector = 'Clothing'
 
 # build conterfactual(s) using param sets
 ## ToDo
+counterfactual.Z = Tools.shock(list(reference.get_sectors()),reference.Z,'BRICS','Europe',sector,quantity)
 
 
 # calculate counterfactual(s) system
@@ -174,7 +176,7 @@ ghg_list = ['CO2', 'CH4', 'N2O', 'SF6', 'HFC', 'PFC']
 sectors_list=list(reference.get_sectors())
 reg_list = list(reference.get_regions())
 
-ref_dcba = pd.DataFrame(reference.ghg_emissions_desag.D_cba)
+ref_dcba = pd.DataFrame(counterfactual.ghg_emissions_desag.D_cba)
 ref_dpba=pd.DataFrame(reference.ghg_emissions_desag.D_pba)
 #empreinte carbone française
 empreinte_df = ref_dcba['FR']
@@ -202,15 +204,15 @@ plt.show()
 
 
 for ghg in ghg_list:
-    df = pd.DataFrame(None, index = reference.get_sectors(), columns = reference.get_regions())
-    for reg in reference.get_regions():
-        df.loc[:,reg]=empreinte_df.loc[(reg,ghg)]
-    ax=df.plot.barh(stacked=True)
-    plt.grid()
-    plt.xlabel("kgCO2eq")
-    plt.title("Provenance des émissions de "+ghg+" françaises par secteurs")
-    plt.savefig('figures/french_'+ghg+'emissions_provenance_sectors')
-#plt.show()
+	df = pd.DataFrame(None, index = reference.get_sectors(), columns = reference.get_regions())
+	for reg in reference.get_regions():
+		df.loc[:,reg]=empreinte_df.loc[(reg,ghg)]
+	ax=df.plot.barh(stacked=True, figsize=(18,12))
+	plt.grid()
+	plt.xlabel("kgCO2eq")
+	plt.title("Provenance des émissions de "+ghg+" françaises par secteurs")
+	plt.savefig('figures/french_'+ghg+'emissions_provenance_sectors')
+	#plt.show()
 
 
 ###########################

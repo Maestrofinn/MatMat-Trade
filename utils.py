@@ -120,3 +120,16 @@ class Tools:
         )
 
         return extension
+
+    def shock(sector_list,Z,region1,region2,sector,quantity):
+        #sector : secteur concerné par la politique de baisse d'émissions importées
+        #region1 : region dont on veut diminuer les émissions importées en France
+        #region2 : region de report pour alimenter la demande
+        #quantity : proportion dont on veut faire baisser les émissions importées pour le secteur de la région concernée.
+        Z_modif=pd.DataFrame(Z)
+        variation_table=pd.DataFrame(None,index=sector_list,columns='FR')
+        for sec in sector_list:
+            variation_table.loc[sec]=quantity*Z_modif.loc[(region1,sector),('FR',sec)]
+            Z_modif.loc[(region1,sector),('FR',sec)]*=(1-quantity)
+            Z_modif.loc[(region2,sector),('FR',sec)]+=variation_table.loc[sec]
+        return(Z_modif)
