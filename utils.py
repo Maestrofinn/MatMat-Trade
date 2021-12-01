@@ -15,6 +15,7 @@ import os
 
 # scientific
 import numpy as np
+from numpy.core.fromnumeric import var
 import pandas as pd
 import pymrio
 from pymrio.tools import ioutil as ioutil

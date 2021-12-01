@@ -135,16 +135,17 @@ counterfactual = reference.copy()
 counterfactual.remove_extension('ghg_emissions_desag')
 # read param sets to shock reference system
 ## ToDo
-quantity = 0.5
+quantity = 0.8
 sector = 'Clothing'
-
+move_out = 'BRICS'
+move_in = 'Europe'
 # build conterfactual(s) using param sets
 ## ToDo
-
-counterfactual.Z = Tools.shock(list(reference.get_sectors()),reference.Z,'BRICS','Europe',sector,quantity)
+counterfactual.Z = Tools.shock(list(reference.get_sectors()),reference.Z,move_out,move_in,sector,quantity)
 counterfactual.A = None
 counterfactual.x = None
 counterfactual.L = None
+
 # calculate counterfactual(s) system
 counterfactual.calc_all()
 
@@ -152,7 +153,6 @@ counterfactual.ghg_emissions_desag = Tools.recal_extensions_per_region(
 	counterfactual,
 	'ghg_emissions'
 )
-
 
 ###########################
 # FORMAT RESULTS
@@ -231,5 +231,7 @@ def delta_CF(ref,contr):
 	con_dcba = pd.DataFrame(contr.ghg_emissions_desag.D_cba)
 	cf_ref = ref_dcba['FR'].sum(axis=1).sum(level=0)
 	cf_con = con_dcba['FR'].sum(axis=1).sum(level=0)
-	return (cf_con/cf_ref - 1)*100
-print(delta_CF(reference,counterfactual))
+	return 100*(cf_con/cf_ref - 1), 100*(cf_con.sum()/cf_ref.sum() -1)
+res = delta_CF(reference,counterfactual)
+print(delta_CF(reference,counterfactual)[0])
+print(delta_CF(reference,counterfactual)[1])
