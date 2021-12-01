@@ -170,56 +170,46 @@ counterfactual.save_all(
 
 
 
-
-
 # concat results for visualisation
 ## ToDo
 ghg_list = ['CO2', 'CH4', 'N2O', 'SF6', 'HFC', 'PFC']
 sectors_list=list(reference.get_sectors())
 reg_list = list(reference.get_regions())
 
-ref_dcba = pd.DataFrame(counterfactual.ghg_emissions_desag.D_cba)
-ref_dpba=pd.DataFrame(reference.ghg_emissions_desag.D_pba)
-
-#empreinte carbone française
-empreinte_df = ref_dcba['FR']
-sumonsectors = empreinte_df.sum(axis=1)
-total_ges_by_origin = sumonsectors.sum(level=0)
-print()
-print("Empreinte carbone française : %s"%total_ges_by_origin.sum())
-print()
-liste_agg_ghg=[]
-for ghg in ghg_list:
-	liste_agg_ghg.append(sumonsectors.iloc[sumonsectors.index.get_level_values(1)==ghg].sum(level=0))
-xs = ['total']+ghg_list
-dict_pour_plot = {'Total':total_ges_by_origin,'CO2':liste_agg_ghg[0],
-'CH4':liste_agg_ghg[1],'N2O':liste_agg_ghg[2],'SF6':liste_agg_ghg[3],
-'HFC':liste_agg_ghg[4],'PFC':liste_agg_ghg[5]}
-pour_plot=pd.DataFrame(data=dict_pour_plot,index=reg_list)
-pour_plot.transpose().plot.bar(stacked=True)
-plt.title("Empreinte carbone de la France")
-plt.ylabel("MtCO2eq")
-plt.savefig("figures/empreinte_carbone_fr_importation.png")
-plt.show()
-
-
-for ghg in ghg_list:
-    df = pd.DataFrame(None, index = reference.get_sectors(), columns = reference.get_regions())
-    for reg in reference.get_regions():
-        df.loc[:,reg]=empreinte_df.loc[(reg,ghg)]
-    plt.grid()
-    plt.xlabel("MtCO2eq")
-    plt.title("Provenance des émissions de "+ghg+" françaises par secteurs")
-    plt.savefig('figures/french_'+ghg+'emissions_provenance_sectors')
-#plt.show()
-	ax=df.plot.barh(stacked=True, figsize=(18,12))
-
-ax=empreinte_df.sum(level=0).T.plot.barh(stacked=True)
-plt.grid()
-plt.xlabel("MtCO2eq")
-plt.title("Provenance des émissions totales françaises par secteurs")
-plt.savefig('figures/french_total_emissions_provenance_sectors')
-#plt.show()
+def visualisation(scenario,scenario_name):
+	ghg_list = ['CO2', 'CH4', 'N2O', 'SF6', 'HFC', 'PFC']
+	dcba = pd.DataFrame(scenario.ghg_emissions_desag.D_cba)
+	empreinte_df = dcba['FR']
+	sumonsectors = empreinte_df.sum(axis=1)
+	total_ges_by_origin = sumonsectors.sum(level=0)
+	liste_agg_ghg=[]
+	for ghg in ghg_list:
+		liste_agg_ghg.append(sumonsectors.iloc[sumonsectors.index.get_level_values(1)==ghg].sum(level=0))
+	xs = ['total']+ghg_list
+	dict_pour_plot = {'Total':total_ges_by_origin,'CO2':liste_agg_ghg[0],
+	'CH4':liste_agg_ghg[1],'N2O':liste_agg_ghg[2],'SF6':liste_agg_ghg[3],
+	'HFC':liste_agg_ghg[4],'PFC':liste_agg_ghg[5]}
+	pour_plot=pd.DataFrame(data=dict_pour_plot,index=scenario.get_regions())
+	pour_plot.transpose().plot.bar(stacked=True)
+	plt.title(scenario_name+"_Empreinte carbone de la France")
+	plt.ylabel("MtCO2eq")
+	plt.savefig("figures/"+scenario_name+"_empreinte_carbone_fr_importation.png")
+	for ghg in ghg_list:
+		df = pd.DataFrame(None, index = scenario.get_sectors(), columns = scenario.get_regions())
+		for reg in scenario.get_regions():
+			df.loc[:,reg]=empreinte_df.loc[(reg,ghg)]
+		ax=df.plot.barh(stacked=True, figsize=(18,12))
+		plt.grid()
+		plt.xlabel("MtCO2eq")
+		plt.title(scenario_name+"Provenance des émissions de "+ghg+" françaises par secteurs")
+		plt.savefig('figures/'+scenario_name+'_french_'+ghg+'emissions_provenance_sectors')
+	
+		ax=empreinte_df.sum(level=0).T.plot.barh(stacked=True)
+		plt.grid()
+		plt.xlabel("MtCO2eq")
+		plt.title(scenario_name+"Provenance des émissions totales françaises par secteurs")
+		plt.savefig('figures/'+scenario_name+'french_total_emissions_provenance_sectors')
+		#plt.show()
 
 ###########################
 # VISUALIZE
@@ -227,7 +217,18 @@ plt.savefig('figures/french_total_emissions_provenance_sectors')
 
 # reference analysis
 ## ToDo
-
-
+#visualisation(reference,"Ref",plot=False)
+#visualisation(counterfactual,"Cont",plot=False)
 # whole static comparative analysis
 ## ToDo
+
+def delta_CF(ref,contr):
+	""" Compare les EC des deux scenarios, éventuellement par secteur
+	"""
+	ghg_list = ['CO2', 'CH4', 'N2O', 'SF6', 'HFC', 'PFC']
+	ref_dcba = pd.DataFrame(ref.ghg_emissions_desag.D_cba)
+	con_dcba = pd.DataFrame(contr.ghg_emissions_desag.D_cba)
+	cf_ref = ref_dcba['FR'].sum(axis=1).sum(level=0)
+	cf_con = con_dcba['FR'].sum(axis=1).sum(level=0)
+	return cf_con/cf_ref - 1
+print(delta_CF(reference,counterfactual))

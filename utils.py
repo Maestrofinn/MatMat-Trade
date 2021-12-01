@@ -18,7 +18,7 @@ import numpy as np
 import pandas as pd
 import pymrio
 from pymrio.tools import ioutil as ioutil
-
+import matplotlib.pyplot as plt
 
 class Tools:
 
@@ -127,9 +127,9 @@ class Tools:
         #region2 : region de report pour alimenter la demande
         #quantity : proportion dont on veut faire baisser les émissions importées pour le secteur de la région concernée.
         Z_modif=pd.DataFrame(Z)
-        variation_table=pd.DataFrame(None,index=sector_list,columns='FR')
+        variation_table=pd.DataFrame(None,index=sector_list,columns=['FR'])
         for sec in sector_list:
             variation_table.loc[sec]=quantity*Z_modif.loc[(region1,sector),('FR',sec)]
             Z_modif.loc[(region1,sector),('FR',sec)]*=(1-quantity)
-            Z_modif.loc[(region2,sector),('FR',sec)]+=variation_table.loc[sec]
+            Z_modif.loc[(region2,sector),('FR',sec)]+=np.array(variation_table.loc[sec])
         return(Z_modif)
