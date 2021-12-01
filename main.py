@@ -133,8 +133,6 @@ reference.ghg_emissions_desag = Tools.recal_extensions_per_region(
 # init counterfactual(s)
 counterfactual = reference.copy()
 counterfactual.remove_extension('ghg_emissions_desag')
-
-
 # read param sets to shock reference system
 ## ToDo
 quantity = 0.5
@@ -142,11 +140,14 @@ sector = 'Clothing'
 
 # build conterfactual(s) using param sets
 ## ToDo
+
 counterfactual.Z = Tools.shock(list(reference.get_sectors()),reference.Z,'BRICS','Europe',sector,quantity)
-
-
+counterfactual.A = None
+counterfactual.x = None
+counterfactual.L = None
 # calculate counterfactual(s) system
 counterfactual.calc_all()
+
 counterfactual.ghg_emissions_desag = Tools.recal_extensions_per_region(
 	counterfactual,
 	'ghg_emissions'
@@ -191,7 +192,7 @@ def visualisation(scenario,scenario_name):
 	'HFC':liste_agg_ghg[4],'PFC':liste_agg_ghg[5]}
 	pour_plot=pd.DataFrame(data=dict_pour_plot,index=scenario.get_regions())
 	pour_plot.transpose().plot.bar(stacked=True)
-	plt.title(scenario_name+"_Empreinte carbone de la France")
+	plt.title("Empreinte carbone de la France (scenario "+scenario_name+")")
 	plt.ylabel("MtCO2eq")
 	plt.savefig("figures/"+scenario_name+"_empreinte_carbone_fr_importation.png")
 	for ghg in ghg_list:
@@ -201,13 +202,13 @@ def visualisation(scenario,scenario_name):
 		ax=df.plot.barh(stacked=True, figsize=(18,12))
 		plt.grid()
 		plt.xlabel("MtCO2eq")
-		plt.title(scenario_name+"Provenance des émissions de "+ghg+" françaises par secteurs")
+		plt.title("Provenance des émissions de "+ghg+" françaises par secteurs (scenario "+scenario_name+")")
 		plt.savefig('figures/'+scenario_name+'_french_'+ghg+'emissions_provenance_sectors')
 	
-		ax=empreinte_df.sum(level=0).T.plot.barh(stacked=True)
+		ax=empreinte_df.sum(level=0).T.plot.barh(stacked=True, figsize=(18,12))
 		plt.grid()
 		plt.xlabel("MtCO2eq")
-		plt.title(scenario_name+"Provenance des émissions totales françaises par secteurs")
+		plt.title("Provenance des émissions totales françaises par secteurs (scenario "+scenario_name+")")
 		plt.savefig('figures/'+scenario_name+'french_total_emissions_provenance_sectors')
 		#plt.show()
 
@@ -217,8 +218,8 @@ def visualisation(scenario,scenario_name):
 
 # reference analysis
 ## ToDo
-#visualisation(reference,"Ref",plot=False)
-#visualisation(counterfactual,"Cont",plot=False)
+#visualisation(reference,"Ref")
+#visualisation(counterfactual,"Cont")
 # whole static comparative analysis
 ## ToDo
 
@@ -230,5 +231,5 @@ def delta_CF(ref,contr):
 	con_dcba = pd.DataFrame(contr.ghg_emissions_desag.D_cba)
 	cf_ref = ref_dcba['FR'].sum(axis=1).sum(level=0)
 	cf_con = con_dcba['FR'].sum(axis=1).sum(level=0)
-	return cf_con/cf_ref - 1
+	return (cf_con/cf_ref - 1)*100
 print(delta_CF(reference,counterfactual))

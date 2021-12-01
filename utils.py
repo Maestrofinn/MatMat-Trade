@@ -56,7 +56,7 @@ class Tools:
                     )
                 else:
                     component = component.sum(axis = 0).to_frame(ghg_emission).T
-                    component.loc[ghg_emission] *= mult_to_CO2eq[ghg_emission]*0.000000001
+                    component.loc[ghg_emission] *= mult_to_CO2eq[ghg_emission]*1e-9
                     component.index.name = index_name
 
                 setattr(extension, elt, component)
@@ -126,7 +126,7 @@ class Tools:
         #region1 : region dont on veut diminuer les émissions importées en France
         #region2 : region de report pour alimenter la demande
         #quantity : proportion dont on veut faire baisser les émissions importées pour le secteur de la région concernée.
-        Z_modif=pd.DataFrame(Z)
+        Z_modif=Z.copy()
         variation_table=pd.DataFrame(None,index=sector_list,columns=['FR'])
         for sec in sector_list:
             variation_table.loc[sec]=quantity*Z_modif.loc[(region1,sector),('FR',sec)]
