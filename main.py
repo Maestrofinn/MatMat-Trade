@@ -24,7 +24,6 @@ from local_paths import output_dir
 # local library
 from utils import Tools
 
-
 ###########################
 # SETTINGS
 ###########################
@@ -170,6 +169,9 @@ counterfactual.save_all(
 )
 
 
+
+
+
 # concat results for visualisation
 ## ToDo
 ghg_list = ['CO2', 'CH4', 'N2O', 'SF6', 'HFC', 'PFC']
@@ -178,16 +180,14 @@ reg_list = list(reference.get_regions())
 
 ref_dcba = pd.DataFrame(counterfactual.ghg_emissions_desag.D_cba)
 ref_dpba=pd.DataFrame(reference.ghg_emissions_desag.D_pba)
+
 #empreinte carbone française
 empreinte_df = ref_dcba['FR']
-
-empreinte_df2 = ref_dpba['FR'] + reference.ghg_emissions_desag.D_imp.sum(level=1)['FR'] - reference.ghg_emissions_desag.D_exp['FR']
-sumonsectors2 = empreinte_df2.sum(axis=1)
 sumonsectors = empreinte_df.sum(axis=1)
 total_ges_by_origin = sumonsectors.sum(level=0)
-total_ges_by_origin2 = sumonsectors2.sum()
-print(total_ges_by_origin2)
-print(total_ges_by_origin.sum())
+print()
+print("Empreinte carbone française : %s"%total_ges_by_origin.sum())
+print()
 liste_agg_ghg=[]
 for ghg in ghg_list:
 	liste_agg_ghg.append(sumonsectors.iloc[sumonsectors.index.get_level_values(1)==ghg].sum(level=0))
@@ -204,16 +204,22 @@ plt.show()
 
 
 for ghg in ghg_list:
-	df = pd.DataFrame(None, index = reference.get_sectors(), columns = reference.get_regions())
-	for reg in reference.get_regions():
-		df.loc[:,reg]=empreinte_df.loc[(reg,ghg)]
+    df = pd.DataFrame(None, index = reference.get_sectors(), columns = reference.get_regions())
+    for reg in reference.get_regions():
+        df.loc[:,reg]=empreinte_df.loc[(reg,ghg)]
+    plt.grid()
+    plt.xlabel("MtCO2eq")
+    plt.title("Provenance des émissions de "+ghg+" françaises par secteurs")
+    plt.savefig('figures/french_'+ghg+'emissions_provenance_sectors')
+#plt.show()
 	ax=df.plot.barh(stacked=True, figsize=(18,12))
-	plt.grid()
-	plt.xlabel("kgCO2eq")
-	plt.title("Provenance des émissions de "+ghg+" françaises par secteurs")
-	plt.savefig('figures/french_'+ghg+'emissions_provenance_sectors')
-	#plt.show()
 
+ax=empreinte_df.sum(level=0).T.plot.barh(stacked=True)
+plt.grid()
+plt.xlabel("MtCO2eq")
+plt.title("Provenance des émissions totales françaises par secteurs")
+plt.savefig('figures/french_total_emissions_provenance_sectors')
+#plt.show()
 
 ###########################
 # VISUALIZE
