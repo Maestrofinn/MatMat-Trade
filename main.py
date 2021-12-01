@@ -177,14 +177,9 @@ reg_list = list(reference.get_regions())
 ref_dcba = pd.DataFrame(reference.ghg_emissions_desag.D_cba)
 ref_dpba=pd.DataFrame(reference.ghg_emissions_desag.D_pba)
 
-#émissions directes liées à la production en France
-ges_direct_fr = pd.concat([ref_dpba['FR']], keys=['FR'], names=['region'])
-#émissions importées pour de la consommation en France
-ges_imp_fr = reference.ghg_emissions_desag.D_imp['FR'].iloc[reference.ghg_emissions_desag.D_imp['FR'].index.get_level_values(0)!='FR']
-#concatenation
-empreinte_df = ges_direct_fr.append(ges_imp_fr)
+#empreinte carbone française
+empreinte_df = ref_dcba['FR']
 print(empreinte_df)
-
 
 sumonsectors = empreinte_df.sum(axis=1)
 total_ges_by_origin = sumonsectors.sum(level=0)
