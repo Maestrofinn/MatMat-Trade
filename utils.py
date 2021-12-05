@@ -18,12 +18,13 @@ import numpy as np
 from numpy.core.fromnumeric import var
 import pandas as pd
 import pymrio
-from pymrio.tools import ioutil as ioutil
+from pymrio.tools import ioutil
 import matplotlib.pyplot as plt
 
 class Tools:
 
     def extract_ghg_emissions(IOT):
+
         mult_to_CO2eq = {'CO2':1, 'CH4':28 , 'N2O':265 , 'SF6':23500 , 'HFC':1 , 'PFC':1}
         ghg_emissions = ['CO2', 'CH4', 'N2O', 'SF6', 'HFC', 'PFC']
         extension_list = list()
@@ -70,6 +71,7 @@ class Tools:
 
 
     def calc_accounts(S, L, Y, nr_sectors):
+
         Y_diag = ioutil.diagonalize_blocks(Y.values, blocksize=nr_sectors)
         Y_diag = pd.DataFrame(
             Y_diag,
@@ -80,9 +82,22 @@ class Tools:
 
         region_list = x_diag.index.get_level_values('region').unique()
         
+        # calc carbon footprint
         D_cba = pd.concat(
             [
                 S[region].dot(x_diag.loc[region])\
+                for region in region_list
+            ],
+            axis = 0,
+            keys = region_list,
+            names = ['region']
+        )
+
+        # calc production based account
+        x_tot = x_diag.sum(axis = 1, level = 0)
+        D_pba = pd.concat(
+            [
+                S.mul(x_tot[region])
                 for region in region_list
             ],
             axis = 0,
@@ -106,14 +121,31 @@ class Tools:
             keys = region_list,
             names = ['region']
         )
-        return (D_cba, D_imp)
+
+        x_exp = x_trade.sum(axis = 1, level = 0)
+        D_exp = pd.concat(
+            [
+                S.mul(x_exp[region])
+                for region in region_list
+            ],
+            axis = 0,
+            keys = region_list,
+            names = ['region']
+        )
+    
+        return (D_cba, D_pba, D_imp, D_exp)
 
 
     def recal_extensions_per_region(IOT, extension_name):
 
         extension = getattr(IOT, extension_name).copy()
 
-        (extension.D_cba, extension.D_imp) = Tools.calc_accounts(
+        (
+            extension.D_cba,
+            extension.D_pba,
+            extension.D_imp,
+            extension.D_exp,
+        ) = Tools.calc_accounts(
             getattr(IOT, extension_name).S, 
             IOT.L,
             IOT.Y.sum(level="region", axis=1), 
@@ -121,6 +153,7 @@ class Tools:
         )
 
         return extension
+
 
     def shock(sector_list,Z,region1,region2,sector,quantity):
         #sector : secteur concerné par la politique de baisse d'émissions importées
