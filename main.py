@@ -191,8 +191,14 @@ counterfactual.save_all(
 ghg_list = ['CO2', 'CH4', 'N2O', 'SF6', 'HFC', 'PFC']
 sectors_list=list(reference.get_sectors())
 reg_list = list(reference.get_regions())
-def visualisation(scenario,scenario_name,save=True,saveghg=True):
-	dcba = pd.DataFrame(scenario.ghg_emissions_desag.D_cba)
+def visualisation(scenario,scenario_name,type_emissions='D_cba',saveghg=False):
+	ghg_list = ['CO2', 'CH4', 'N2O', 'SF6', 'HFC', 'PFC']
+	dict_fig_name = {'D_cba' : '_empreinte_carbone_fr_importation','D_pba' : '_emissions_territoriales_fr','D_imp' : '_emissions_importees_fr','D_exp' : '_emissions_exportees_fr'}
+	dict_plot_title = {'D_cba' : 'Empreinte carbone de la France', 'D_pba' : 'Emissions territoriales françaises','D_imp' : 'Emissions importées en France','D_exp' : 'Emissions exportées par la France'}
+	d_ = pd.DataFrame(getattr(scenario.ghg_emissions_desag,type_emissions))
+	emissions_df = d_['FR']
+	sumonsectors = emissions_df.sum(axis=1)
+	total_ges_by_origin = sumonsectors.sum(level=0)
 	liste_agg_ghg=[]
 	for ghg in ghg_list:
 		liste_agg_ghg.append(dcba['FR'].sum(axis=1).iloc[dcba['FR'].sum(axis=1).index.get_level_values(1)==ghg].sum(level=0))
@@ -201,29 +207,31 @@ def visualisation(scenario,scenario_name,save=True,saveghg=True):
 	'HFC':liste_agg_ghg[4],'PFC':liste_agg_ghg[5]}
 	pour_plot=pd.DataFrame(data=dict_pour_plot,index=scenario.get_regions())
 	pour_plot.transpose().plot.bar(stacked=True)
-	plt.title("Empreinte carbone de la France (scenario "+scenario_name+")")
+	plt.title(dict_plot_title[type_emissions]+" (scenario "+scenario_name+")")
 	plt.ylabel("MtCO2eq")
-	if save:
-		plt.savefig("figures/"+scenario_name+"_empreinte_carbone_fr_importation.png")
-
+	if saveghg :
+		plt.savefig("figures/"+scenario_name+dict_fig_name[type_emissions]+".png")
+	plt.close()
 	for ghg in ghg_list:
 		df = pd.DataFrame(None, index = scenario.get_sectors(), columns = scenario.get_regions())
 		for reg in scenario.get_regions():
-			df.loc[:,reg]=dcba['FR'].loc[(reg,ghg)]
+			df.loc[:,reg]=emissions_df.loc[(reg,ghg)]
 		ax=df.plot.barh(stacked=True, figsize=(18,12))
 		plt.grid()
 		plt.xlabel("MtCO2eq")
-		plt.title("Provenance des émissions de "+ghg+" françaises par secteurs (scenario "+scenario_name+")")
-		if saveghg:
-			plt.savefig('figures/'+scenario_name+'_french_'+ghg+'emissions_provenance_sectors')
-		plt.close('all')
-	ax=dcba['FR'].sum(level=0).T.plot.barh(stacked=True, figsize=(18,12))
-	plt.grid()
-	plt.xlabel("MtCO2eq")
-	plt.title("Provenance des émissions totales françaises par secteurs (scenario "+scenario_name+")")
-	if save:
-		plt.savefig('figures/'+scenario_name+'_french_total_emissions_provenance_sectors')
-	#plt.show()
+		plt.title(dict_plot_title[type_emissions]+" de "+ghg+" par secteurs (scenario "+scenario_name+")")
+		if saveghg :
+			plt.savefig('figures/'+scenario_name+'_french_'+ghg+dict_fig_name[type_emissions]+'_provenance_sectors')
+		plt.close()
+	
+		ax=emissions_df.sum(level=0).T.plot.barh(stacked=True, figsize=(18,12))
+		plt.grid()
+		plt.xlabel("MtCO2eq")
+		plt.title(dict_plot_title[type_emissions]+" de tous GES par secteurs (scenario "+scenario_name+")")
+		if saveghg :
+			plt.savefig('figures/'+scenario_name+dict_fig_name[type_emissions]+'_provenance_sectors')
+		#plt.show()
+		plt.close()
 
 	ax=scenario.ghg_emissions_desag.D_pba['FR'].sum(level=0).T.plot.barh(stacked=True, figsize=(18,12))
 	plt.grid()
@@ -257,8 +265,9 @@ def visualisation(scenario,scenario_name,save=True,saveghg=True):
 
 # reference analysis
 ## ToDo
-#visualisation(reference,"Ref",saveghg=False)
-visualisation(counterfactual,"Cont",saveghg=False)
+for type in ['D_cba', 'D_pba', 'D_imp', 'D_exp'] :
+	visualisation(reference,"Ref",type,True)
+	visualisation(counterfactual,"Cont",type,True)
 # whole static comparative analysis
 ## ToDo
 
@@ -269,14 +278,17 @@ def delta_CF(ref,contr):
 	con_dcba = pd.DataFrame(contr.ghg_emissions_desag.D_cba)
 	cf_ref = ref_dcba['FR'].sum(axis=1).sum(level=0)
 	cf_con = con_dcba['FR'].sum(axis=1).sum(level=0)
-	return 100*(cf_con/cf_ref - 1), 100*(cf_con.sum()/cf_ref.sum() -1)
+	return 100*(cf_con/cf_ref - 1), 100*(cf_con.sum()/cf_ref.sum() -1), cf_ref, cf_con
 res = delta_CF(reference,counterfactual)
 print("Variation EC française par provenance")
 print(res[0])
 print(res[1])
+print('Empreinte carbone référence :', res[2].sum(), 'MtCO2eq')
+print('Empreinte carbone contrefactuel :', res[3].sum(), 'MtCO2eq')
 
 def compa_monetaire(ref,contr):
 	#unité = M€
 	return counterfactual.x - reference.x
 print("Variation de richesse de la transformation")
 print(compa_monetaire(reference,counterfactual).sum(level=0).sum())
+
