@@ -134,3 +134,4 @@ data/*.zip
 data/metadata.json
 outputs/*
 outputs/*/*
+figures/*

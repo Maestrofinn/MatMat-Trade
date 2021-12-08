@@ -11,6 +11,9 @@ import sys
 import os
 import copy
 
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
+
 # scientific
 import numpy as np
 import pandas as pd
@@ -135,25 +138,37 @@ counterfactual = reference.copy()
 counterfactual.remove_extension('ghg_emissions_desag')
 # read param sets to shock reference system
 ## ToDo
-quantity = 0.8
-sector = 'Clothing'
-move_out = 'BRICS'
-move_in = 'Europe'
+
+nbsect = len(list(reference.get_sectors()))
+sectors = list(reference.get_sectors())+list(reference.get_sectors())+list(reference.get_sectors())
+quantities = [1 for i in range(len(sectors)) ]
+moves =[]
+for i in range(len(quantities)):
+	if i<nbsect:
+		moves.append(['BRICS','Europe'])
+	if i>= nbsect and i<2*nbsect:
+		moves.append(['RoW','Europe'])
+	if i>= 2*nbsect:
+		moves.append(['Other_OECD','Europe'])
 # build conterfactual(s) using param sets
 ## ToDo
-counterfactual.Z = Tools.shock(list(reference.get_sectors()),reference.Z,move_out,move_in,sector,quantity)
+for i in range(len(quantities)):
+	counterfactual.Z,counterfactual.Y = Tools.shock(list(reference.get_sectors()),counterfactual.Z,counterfactual.Y,moves[i][0],
+	moves[i][1],sectors[i],quantities[i])
 counterfactual.A = None
 counterfactual.x = None
 counterfactual.L = None
 
 # calculate counterfactual(s) system
 counterfactual.calc_all()
-
+#print(counterfactual.Z)
 counterfactual.ghg_emissions_desag = Tools.recal_extensions_per_region(
 	counterfactual,
 	'ghg_emissions'
 )
 
+#print(counterfactual.x)
+#print(reference.x)
 ###########################
 # FORMAT RESULTS
 ###########################
@@ -176,41 +191,65 @@ counterfactual.save_all(
 ghg_list = ['CO2', 'CH4', 'N2O', 'SF6', 'HFC', 'PFC']
 sectors_list=list(reference.get_sectors())
 reg_list = list(reference.get_regions())
-
-def visualisation(scenario,scenario_name):
-	ghg_list = ['CO2', 'CH4', 'N2O', 'SF6', 'HFC', 'PFC']
+def visualisation(scenario,scenario_name,save=True,saveghg=True):
 	dcba = pd.DataFrame(scenario.ghg_emissions_desag.D_cba)
-	empreinte_df = dcba['FR']
-	sumonsectors = empreinte_df.sum(axis=1)
-	total_ges_by_origin = sumonsectors.sum(level=0)
 	liste_agg_ghg=[]
 	for ghg in ghg_list:
-		liste_agg_ghg.append(sumonsectors.iloc[sumonsectors.index.get_level_values(1)==ghg].sum(level=0))
-	xs = ['total']+ghg_list
-	dict_pour_plot = {'Total':total_ges_by_origin,'CO2':liste_agg_ghg[0],
+		liste_agg_ghg.append(dcba['FR'].sum(axis=1).iloc[dcba['FR'].sum(axis=1).index.get_level_values(1)==ghg].sum(level=0))
+	dict_pour_plot = {'Total':dcba['FR'].sum(axis=1).sum(level=0),'CO2':liste_agg_ghg[0],
 	'CH4':liste_agg_ghg[1],'N2O':liste_agg_ghg[2],'SF6':liste_agg_ghg[3],
 	'HFC':liste_agg_ghg[4],'PFC':liste_agg_ghg[5]}
 	pour_plot=pd.DataFrame(data=dict_pour_plot,index=scenario.get_regions())
 	pour_plot.transpose().plot.bar(stacked=True)
 	plt.title("Empreinte carbone de la France (scenario "+scenario_name+")")
 	plt.ylabel("MtCO2eq")
-	plt.savefig("figures/"+scenario_name+"_empreinte_carbone_fr_importation.png")
+	if save:
+		plt.savefig("figures/"+scenario_name+"_empreinte_carbone_fr_importation.png")
+
 	for ghg in ghg_list:
 		df = pd.DataFrame(None, index = scenario.get_sectors(), columns = scenario.get_regions())
 		for reg in scenario.get_regions():
-			df.loc[:,reg]=empreinte_df.loc[(reg,ghg)]
+			df.loc[:,reg]=dcba['FR'].loc[(reg,ghg)]
 		ax=df.plot.barh(stacked=True, figsize=(18,12))
 		plt.grid()
 		plt.xlabel("MtCO2eq")
 		plt.title("Provenance des émissions de "+ghg+" françaises par secteurs (scenario "+scenario_name+")")
-		plt.savefig('figures/'+scenario_name+'_french_'+ghg+'emissions_provenance_sectors')
-	
-		ax=empreinte_df.sum(level=0).T.plot.barh(stacked=True, figsize=(18,12))
-		plt.grid()
-		plt.xlabel("MtCO2eq")
-		plt.title("Provenance des émissions totales françaises par secteurs (scenario "+scenario_name+")")
-		plt.savefig('figures/'+scenario_name+'french_total_emissions_provenance_sectors')
-		#plt.show()
+		if saveghg:
+			plt.savefig('figures/'+scenario_name+'_french_'+ghg+'emissions_provenance_sectors')
+		plt.close('all')
+	ax=dcba['FR'].sum(level=0).T.plot.barh(stacked=True, figsize=(18,12))
+	plt.grid()
+	plt.xlabel("MtCO2eq")
+	plt.title("Provenance des émissions totales françaises par secteurs (scenario "+scenario_name+")")
+	if save:
+		plt.savefig('figures/'+scenario_name+'_french_total_emissions_provenance_sectors')
+	#plt.show()
+
+	ax=scenario.ghg_emissions_desag.D_pba['FR'].sum(level=0).T.plot.barh(stacked=True, figsize=(18,12))
+	plt.grid()
+	plt.xlabel("MtCO2eq")
+	plt.title("Emissions nationales et lieu de 1er export (scenario "+scenario_name+")")
+	if save:
+	    plt.savefig('figures/'+scenario_name+'_emissions_nationales_destination_pays_produit')
+	#plt.show()
+	ax=scenario.ghg_emissions_desag.D_exp['FR'].sum(level=0).T.plot.barh(stacked=True, figsize=(18,12))
+	plt.grid()
+	plt.xlabel("MtCO2eq")
+	plt.title("Exportations de ghg par la France (scenario "+scenario_name+")")
+	if save:
+		plt.savefig('figures/'+scenario_name+'_exportation_FR_destination_produit')
+	#plt.show()
+	ax=scenario.ghg_emissions_desag.D_imp['FR'].sum(level=0).T.plot.barh(stacked=True, figsize=(18,12))
+	plt.grid()
+	plt.xlabel("MtCO2eq")
+	plt.title("Importations de ghg par la France (scenario "+scenario_name+")")
+	if save:
+		plt.savefig('figures/'+scenario_name+'_importations_ghg_pays_produit')
+	#plt.show()
+	empr=dcba['FR'].sum(axis=1).sum(level=0).sum()
+	em=scenario.ghg_emissions_desag.D_pba['FR'].sum(axis=1).sum(level=0).sum()
+	print("\n Empreinte carbone de la consommation française (MtCO2eq) - Scénario "+scenario_name+" :%s \n"%empr)
+	print("Emissions de la production française (MtCO2eq) - Scénario "+scenario_name+" : %s \n"%em)
 
 ###########################
 # VISUALIZE
@@ -218,20 +257,26 @@ def visualisation(scenario,scenario_name):
 
 # reference analysis
 ## ToDo
-#visualisation(reference,"Ref")
-#visualisation(counterfactual,"Cont")
+#visualisation(reference,"Ref",saveghg=False)
+visualisation(counterfactual,"Cont",saveghg=False)
 # whole static comparative analysis
 ## ToDo
 
 def delta_CF(ref,contr):
 	""" Compare les EC des deux scenarios, éventuellement par secteur
 	"""
-	ghg_list = ['CO2', 'CH4', 'N2O', 'SF6', 'HFC', 'PFC']
 	ref_dcba = pd.DataFrame(ref.ghg_emissions_desag.D_cba)
 	con_dcba = pd.DataFrame(contr.ghg_emissions_desag.D_cba)
 	cf_ref = ref_dcba['FR'].sum(axis=1).sum(level=0)
 	cf_con = con_dcba['FR'].sum(axis=1).sum(level=0)
 	return 100*(cf_con/cf_ref - 1), 100*(cf_con.sum()/cf_ref.sum() -1)
 res = delta_CF(reference,counterfactual)
-print(delta_CF(reference,counterfactual)[0])
-print(delta_CF(reference,counterfactual)[1])
+print("Variation EC française par provenance")
+print(res[0])
+print(res[1])
+
+def compa_monetaire(ref,contr):
+	#unité = M€
+	return counterfactual.x - reference.x
+print("Variation de richesse de la transformation")
+print(compa_monetaire(reference,counterfactual).sum(level=0).sum())

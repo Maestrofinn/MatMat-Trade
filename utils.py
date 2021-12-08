@@ -155,15 +155,17 @@ class Tools:
         return extension
 
 
-    def shock(sector_list,Z,region1,region2,sector,quantity):
+    def shock(sector_list,Z,Y,region1,region2,sector,quantity):
         #sector : secteur concerné par la politique de baisse d'émissions importées
         #region1 : region dont on veut diminuer les émissions importées en France
         #region2 : region de report pour alimenter la demande
         #quantity : proportion dont on veut faire baisser les émissions importées pour le secteur de la région concernée.
         Z_modif=Z.copy()
-        variation_table=pd.DataFrame(None,index=sector_list,columns=['FR'])
+        Y_modif = Y.copy()
         for sec in sector_list:
-            variation_table.loc[sec]=quantity*Z_modif.loc[(region1,sector),('FR',sec)]
-            Z_modif.loc[(region1,sector),('FR',sec)]*=(1-quantity)
-            Z_modif.loc[(region2,sector),('FR',sec)]+=np.array(variation_table.loc[sec])
-        return(Z_modif)
+            Z_modif.loc[(region1,sector),('FR',sec)]=(1-quantity)*Z.loc[(region1,sector),('FR',sec)]
+            Z_modif.loc[(region2,sector),('FR',sec)]+=quantity*Z.loc[(region1,sector),('FR',sec)]
+        for demcat in list(Y.columns.get_level_values(1).unique()):
+            Y_modif.loc[(region1,sector),('FR',demcat)]=(1-quantity)*Y.loc[(region1,sector),('FR',demcat)]
+            Y_modif.loc[(region2,sector),('FR',demcat)]+= quantity*Y.loc[(region1,sector),('FR',demcat)]
+        return Z_modif,Y_modif
