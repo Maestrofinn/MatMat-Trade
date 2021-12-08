@@ -141,27 +141,29 @@ counterfactual.remove_extension('ghg_emissions_desag')
 ## ToDo
 nbsect = len(list(reference.get_sectors()))
 
-def get_least(sector):
-	#dans cette version on ne se laisse pas la possibilité de relocaliser en FR
+def get_least(sector,reloc):
+	#par défaut on ne se laisse pas la possibilité de relocaliser en FR
 	S = reference.ghg_emissions_desag.S.sum()
 	regs = list(reference.get_regions())[1:]
+	if reloc:
+		regs = list(reference.get_regions())
 	ind=0
-	for i in range(1,4):
+	for i in range(1,len(regs)):
 		if S[regs[i],sector] < S[regs[ind],sector]:
 			ind=i
 	return regs[ind]
 
 #construction du scénario least intense
-def scenar_best():
+def scenar_best(reloc=False):
 	sectors_list = list(reference.get_sectors())
 	sectors_gl = []
 	moves_gl = []
 	for sector in sectors_list:
-		best = get_least(sector)
+		best = get_least(sector,reloc)
 		for i in range(3):
 			sectors_gl.append(sector)
 		for reg in list(reference.get_regions()):
-			if reg!=best:
+			if reg!=best and reg!='FR':
 				moves_gl.append([reg,best])
 	quantities = [1 for i in range(len(sectors_gl))]
 	return sectors_gl, moves_gl, quantities
@@ -181,7 +183,7 @@ def scenar_pref_europe():
 
 # build conterfactual(s) using param sets
 ## ToDo
-sectors,moves,quantities = scenar_pref_europe()
+sectors,moves,quantities = scenar_best(reloc=True)
 for i in range(len(quantities)):
     counterfactual.Z,counterfactual.Y = Tools.shock(list(reference.get_sectors()),counterfactual.Z,counterfactual.Y,moves[i][0],
     moves[i][1],sectors[i],quantities[i])
