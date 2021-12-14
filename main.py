@@ -73,7 +73,7 @@ if not os.path.isfile(data_dir / file_name):
 
 # import or build calibration data
 if calib:
-
+    print("Début calib")
     # import exiobase data
     reference = pymrio.parse_exiobase3(
         data_dir / file_name
@@ -111,6 +111,7 @@ if calib:
     reference.save_all(
         data_dir / ('reference' + '_' + concat_settings)
     )
+    print("Fin calib")
 
 else:
 
@@ -137,6 +138,7 @@ reference.ghg_emissions_desag = Tools.recal_extensions_per_region(
 # init counterfactual(s)
 counterfactual = reference.copy()
 counterfactual.remove_extension('ghg_emissions_desag')
+
 # read param sets to shock reference system
 ## ToDo
 nbsect = len(list(reference.get_sectors()))
@@ -154,36 +156,44 @@ def get_least(sector,reloc):
 	return regs[ind]
 
 #construction du scénario least intense
-def scenar_best(reloc=False):
-	sectors_list = list(reference.get_sectors())
-	sectors_gl = []
-	moves_gl = []
-	for sector in sectors_list:
-		best = get_least(sector,reloc)
-		for i in range(3):
-			sectors_gl.append(sector)
-		for reg in list(reference.get_regions()):
-			if reg!=best and reg!='FR':
-				moves_gl.append([reg,best])
-	quantities = [1 for i in range(len(sectors_gl))]
-	return sectors_gl, moves_gl, quantities
+def scenar_best(reloc=False,deloc=False):
+    sectors_list = list(reference.get_sectors())
+    sectors_gl = []
+    moves_gl = []
+    for sector in sectors_list:
+        best = get_least(sector,reloc)
+        if deloc:
+            for i in range(len(list(reference.get_regions()))-1):
+                sectors_gl.append(sector)
+        else:
+            for i in range(len(list(reference.get_regions()))-2):
+                sectors_gl.append(sector)
+        for reg in list(reference.get_regions()):
+            if deloc:
+                if reg!=best:
+                    moves_gl.append([reg,best])
+            else:
+                if reg!=best :
+                    if reg!='FR':
+                        moves_gl.append([reg,best])
+    quantities = [1 for i in range(len(sectors_gl))]
+    return sectors_gl, moves_gl, quantities
 
 def scenar_pref_europe():
-	sectors = list(reference.get_sectors())+list(reference.get_sectors())+list(reference.get_sectors())
-	quantities = [1 for i in range(len(sectors)) ]
-	moves =[]
-	for i in range(len(quantities)):
-		if i<nbsect:
-			moves.append(['BRICS','Europe'])
-		if i>= nbsect and i<2*nbsect:
-			moves.append(['RoW','Europe'])
-		if i>= 2*nbsect:
-			moves.append(['Other_OECD','Europe'])
-	return sectors,moves,quantities
+    nbreg = len(list(reference.get_regions()))
+    sectors = (nbreg-1)*list(reference.get_sectors())
+    quantities = [1 for i in range(len(sectors)) ]
+    moves =[]
+    for i in range(nbreg):
+        reg = reference.get_regions()[i]
+        if reg != 'Europe':
+            for j in range(len(list(reference.get_sectors()))):
+                moves.append([reg,'Europe'])
+    return sectors,moves,quantities
 
 # build conterfactual(s) using param sets
 ## ToDo
-sectors,moves,quantities = scenar_best(reloc=True)
+sectors,moves,quantities = scenar_best(reloc=True,deloc=True)
 for i in range(len(quantities)):
     counterfactual.Z,counterfactual.Y = Tools.shock(list(reference.get_sectors()),counterfactual.Z,counterfactual.Y,moves[i][0],
     moves[i][1],sectors[i],quantities[i])
@@ -242,29 +252,28 @@ def visualisation(scenario,scenario_name,type_emissions='D_cba',saveghg=False):
     pour_plot.transpose().plot.bar(stacked=True)
     plt.title(dict_plot_title[type_emissions]+" (scenario "+scenario_name+")")
     plt.ylabel("MtCO2eq")
-    if saveghg :
-        plt.savefig("figures/"+scenario_name+dict_fig_name[type_emissions]+".png")
+    plt.savefig("figures/"+scenario_name+dict_fig_name[type_emissions]+".png")
     plt.close()
-    for ghg in ghg_list:
-        df = pd.DataFrame(None, index = scenario.get_sectors(), columns = scenario.get_regions())
-        for reg in scenario.get_regions():
-            df.loc[:,reg]=emissions_df.loc[(reg,ghg)]
-        ax=df.plot.barh(stacked=True, figsize=(18,12))
-        plt.grid()
-        plt.xlabel("MtCO2eq")
-        plt.title(dict_plot_title[type_emissions]+" de "+ghg+" par secteurs (scenario "+scenario_name+")")
-        if saveghg :
+
+    if saveghg :
+        for ghg in ghg_list:
+            df = pd.DataFrame(None, index = scenario.get_sectors(), columns = scenario.get_regions())
+            for reg in scenario.get_regions():
+                df.loc[:,reg]=emissions_df.loc[(reg,ghg)]
+            ax=df.plot.barh(stacked=True, figsize=(18,12))
+            plt.grid()
+            plt.xlabel("MtCO2eq")
+            plt.title(dict_plot_title[type_emissions]+" de "+ghg+" par secteurs (scenario "+scenario_name+")")
             plt.savefig('figures/'+scenario_name+'_french_'+ghg+dict_fig_name[type_emissions]+'_provenance_sectors')
-        plt.close()
-   
-        ax=emissions_df.sum(level=0).T.plot.barh(stacked=True, figsize=(18,12))
-        plt.grid()
-        plt.xlabel("MtCO2eq")
-        plt.title(dict_plot_title[type_emissions]+" de tous GES par secteurs (scenario "+scenario_name+")")
-        if saveghg :
-            plt.savefig('figures/'+scenario_name+dict_fig_name[type_emissions]+'_provenance_sectors')
-        #plt.show()
-        plt.close()
+            plt.close()
+    
+    ax=emissions_df.sum(level=0).T.plot.barh(stacked=True, figsize=(18,12))
+    plt.grid()
+    plt.xlabel("MtCO2eq")
+    plt.title(dict_plot_title[type_emissions]+" de tous GES par secteurs (scenario "+scenario_name+")")
+    plt.savefig('figures/'+scenario_name+dict_fig_name[type_emissions]+'_provenance_sectors')
+    #plt.show()
+    plt.close()
 
 ###########################
 # VISUALIZE
@@ -284,12 +293,12 @@ def heat_S():
 	sns.heatmap(df_n,cmap='coolwarm', annot=df_n.round(1), linewidths=1, linecolor='black').set_title("Intensité d'émissions")
 	plt.savefig('figures/heatmap_intensite')
 	plt.show()
-
+heat_S()
 # reference analysis
 ## ToDo
-#for type in ['D_cba', 'D_pba', 'D_imp', 'D_exp'] :
-    #visualisation(reference,"Ref",type,False)
-    #visualisation(counterfactual,"Cont",type,False)
+for type in ['D_cba', 'D_pba', 'D_imp', 'D_exp'] :
+    visualisation(reference,"Ref",type,saveghg=False)
+    visualisation(counterfactual,"Cont",type,saveghg=False)
 # whole static comparative analysis
 ## ToDo
 
@@ -313,4 +322,3 @@ def compa_monetaire(ref,contr):
     return counterfactual.x - reference.x
 print("Variation de richesse de la transformation")
 print(compa_monetaire(reference,counterfactual).sum(level=0).sum())
-
