@@ -20,6 +20,7 @@ import pandas as pd
 import pymrio
 import matplotlib.pyplot as plt
 import seaborn as sns
+sns.set_theme()
 
 # local folder
 from local_paths import data_dir
@@ -145,13 +146,25 @@ nbsect = len(list(reference.get_sectors()))
 
 def get_least(sector,reloc):
 	#par défaut on ne se laisse pas la possibilité de relocaliser en FR
-	S = reference.ghg_emissions_desag.S.sum()
+	M = reference.ghg_emissions_desag.M.sum()
 	regs = list(reference.get_regions())[1:]
 	if reloc:
 		regs = list(reference.get_regions())
 	ind=0
 	for i in range(1,len(regs)):
-		if S[regs[i],sector] < S[regs[ind],sector]:
+		if M[regs[i],sector] < M[regs[ind],sector]:
+			ind=i
+	return regs[ind]
+
+def get_worst(sector,reloc):
+	#par défaut on ne se laisse pas la possibilité de relocaliser en FR
+	M = reference.ghg_emissions_desag.M.sum()
+	regs = list(reference.get_regions())[1:]
+	if reloc:
+		regs = list(reference.get_regions())
+	ind=0
+	for i in range(1,len(regs)):
+		if M[regs[i],sector] > M[regs[ind],sector]:
 			ind=i
 	return regs[ind]
 
@@ -178,6 +191,30 @@ def scenar_best(reloc=False,deloc=False):
                         moves_gl.append([reg,best])
     quantities = [1 for i in range(len(sectors_gl))]
     return sectors_gl, moves_gl, quantities
+
+def scenar_worst(reloc=False,deloc=False):
+    sectors_list = list(reference.get_sectors())
+    sectors_gl = []
+    moves_gl = []
+    for sector in sectors_list:
+        worst = get_worst(sector,reloc)
+        if deloc:
+            for i in range(len(list(reference.get_regions()))-1):
+                sectors_gl.append(sector)
+        else:
+            for i in range(len(list(reference.get_regions()))-2):
+                sectors_gl.append(sector)
+        for reg in list(reference.get_regions()):
+            if deloc:
+                if reg!=worst:
+                    moves_gl.append([reg,worst])
+            else:
+                if reg!=worst :
+                    if reg!='FR':
+                        moves_gl.append([reg,worst])
+    quantities = [1 for i in range(len(sectors_gl))]
+    return sectors_gl, moves_gl, quantities
+
 
 def scenar_pref_europe():
     nbreg = len(list(reference.get_regions()))
@@ -236,7 +273,7 @@ reg_list = list(reference.get_regions())
 def visualisation(scenario,scenario_name,type_emissions='D_cba',saveghg=False):
     ghg_list = ['CO2', 'CH4', 'N2O', 'SF6', 'HFC', 'PFC']
     dict_fig_name = {'D_cba' : '_empreinte_carbone_fr_importation','D_pba' : '_emissions_territoriales_fr','D_imp' : '_emissions_importees_fr','D_exp' : '_emissions_exportees_fr'}
-    dict_plot_title = {'D_cba' : 'Empreinte carbone de la France', 'D_pba' : 'Emissions territoriales françaises','D_imp' : 'Emissions importées en France','D_exp' : 'Emissions exportées par la France'}
+    dict_plot_title = {'D_cba' : 'Empreinte carbone de la France', 'D_pba' : 'Emissions territoriales françaises','D_imp' : 'Emissions importées en France','D_exp' : 'Emissions exportées vers la France'}
     d_ = pd.DataFrame(getattr(scenario.ghg_emissions_desag,type_emissions))
     emissions_df = d_['FR']
     sumonsectors = emissions_df.sum(axis=1)
@@ -278,22 +315,32 @@ def visualisation(scenario,scenario_name,type_emissions='D_cba',saveghg=False):
 ###########################
 # VISUALIZE
 ###########################
-def heat_S():
-	S = reference.ghg_emissions_desag.S.sum()
-	sec_reg = []
-	for reg in reg_list:
-		in_reg=[]
-		for sector in sectors_list:
-			in_reg.append(S[reg,sector])
-		sec_reg.append(in_reg)
-	print(np.shape(sec_reg))
-	df = pd.DataFrame(data=sec_reg,columns=sectors_list,index=reg_list).T
-	df_n = df.div(df.max(axis=1), axis=0)*100
-	sns.set_theme()
-	sns.heatmap(df_n,cmap='coolwarm', annot=df_n.round(1), linewidths=1, linecolor='black').set_title("Intensité d'émissions")
-	plt.savefig('figures/heatmap_intensite')
-	plt.show()
-heat_S()
+def heat_S(type):
+    S = reference.ghg_emissions_desag.S.sum()
+    M = reference.ghg_emissions_desag.M.sum()
+    sec_reg = []
+    for reg in reg_list:
+        in_reg=[]
+        for sector in sectors_list:
+            if type=='consomation':
+                in_reg.append(M[reg,sector])
+            if type=='production':
+                in_reg.append(S[reg,sector])
+        sec_reg.append(in_reg)
+    df = pd.DataFrame(data=sec_reg,columns=sectors_list,index=reg_list).T
+    df_n = df.div(df.max(axis=1), axis=0)*100
+    if type=='consomation':
+        title="Contenu carbone du bien importé"
+    if type=='production':
+        title="Intensité carbone de la production"
+    fig, ax = plt.subplots()
+    sns.heatmap(df_n,cmap='coolwarm', ax=ax,linewidths=1, linecolor='black').set_title(title)
+    fig.tight_layout()
+    plt.savefig('figures/heatmap_intensite_'+type)
+    plt.show()
+#heat_S('consomation')
+#heat_S('production')
+
 # reference analysis
 ## ToDo
 for type in ['D_cba', 'D_pba', 'D_imp', 'D_exp'] :
