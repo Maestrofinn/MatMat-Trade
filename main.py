@@ -275,23 +275,44 @@ def visualisation(scenario,scenario_name,type_emissions='D_cba',saveghg=False):
     dict_fig_name = {'D_cba' : '_empreinte_carbone_fr_importation','D_pba' : '_emissions_territoriales_fr','D_imp' : '_emissions_importees_fr','D_exp' : '_emissions_exportees_fr'}
     dict_plot_title = {'D_cba' : 'Empreinte carbone de la France', 'D_pba' : 'Emissions territoriales françaises','D_imp' : 'Emissions importées en France','D_exp' : 'Emissions exportées vers la France'}
     d_ = pd.DataFrame(getattr(scenario.ghg_emissions_desag,type_emissions))
-    emissions_df = d_['FR']
-    sumonsectors = emissions_df.sum(axis=1)
-    total_ges_by_origin = sumonsectors.sum(level=0)
-    liste_agg_ghg=[]
-    for ghg in ghg_list:
-        liste_agg_ghg.append(sumonsectors.iloc[sumonsectors.index.get_level_values(1)==ghg].sum(level=0))
-    xs = ['total']+ghg_list
-    dict_pour_plot = {'Total':total_ges_by_origin,'CO2':liste_agg_ghg[0],
-    'CH4':liste_agg_ghg[1],'N2O':liste_agg_ghg[2],'SF6':liste_agg_ghg[3],
-    'HFC':liste_agg_ghg[4],'PFC':liste_agg_ghg[5]}
+    if scenario_name =="Cont":
+        #pour contrefactuel on affiche la barre de la reference aussi
+        emissions_df = d_['FR']
+        em_df_ref = pd.DataFrame(getattr(reference.ghg_emissions_desag,type_emissions))['FR']
+        sumonsectors = emissions_df.sum(axis=1)
+        sumonsectors_ref = em_df_ref.sum(axis=1)
+        total_ges_by_origin = sumonsectors.sum(level=0)
+        total_ges_by_origin_ref = sumonsectors_ref.sum(level=0)
+        liste_agg_ghg=[]
+        liste_agg_ghg_ref=[]
+        for ghg in ghg_list:
+            liste_agg_ghg.append(sumonsectors.iloc[sumonsectors.index.get_level_values(1)==ghg].sum(level=0))
+            liste_agg_ghg_ref.append(sumonsectors_ref.iloc[sumonsectors_ref.index.get_level_values(1)==ghg].sum(level=0))
+        dict_pour_plot = {('Total','cont'):total_ges_by_origin,('Total','ref'):total_ges_by_origin_ref,
+        ('CO2','cont'):liste_agg_ghg[0],('CO2','ref'):liste_agg_ghg_ref[0],
+        ('CH4','cont'):liste_agg_ghg[1],('CH4','ref'):liste_agg_ghg_ref[1],
+        ('N2O','cont'):liste_agg_ghg[2],('N2O','ref'):liste_agg_ghg_ref[2],
+        ('SF6','cont'):liste_agg_ghg[3],('SF6','ref'):liste_agg_ghg_ref[3],
+        ('HFC','cont'):liste_agg_ghg[4],('HFC','ref'):liste_agg_ghg_ref[4],
+        ('PFC','cont'):liste_agg_ghg[5],('PFC','ref'):liste_agg_ghg_ref[5]}
+    else:
+        emissions_df = d_['FR']
+        sumonsectors = emissions_df.sum(axis=1)
+        total_ges_by_origin = sumonsectors.sum(level=0)
+        liste_agg_ghg=[]
+        for ghg in ghg_list:
+            liste_agg_ghg.append(sumonsectors.iloc[sumonsectors.index.get_level_values(1)==ghg].sum(level=0))
+        dict_pour_plot = {'Total':total_ges_by_origin,'CO2':liste_agg_ghg[0],
+        'CH4':liste_agg_ghg[1],'N2O':liste_agg_ghg[2],'SF6':liste_agg_ghg[3],
+        'HFC':liste_agg_ghg[4],'PFC':liste_agg_ghg[5]}
+
     pour_plot=pd.DataFrame(data=dict_pour_plot,index=scenario.get_regions())
-    pour_plot.transpose().plot.bar(stacked=True)
+    pour_plot.transpose().plot.bar(stacked=True,rot=45,figsize=(18,12))
     plt.title(dict_plot_title[type_emissions]+" (scenario "+scenario_name+")")
     plt.ylabel("MtCO2eq")
     plt.savefig("figures/"+scenario_name+dict_fig_name[type_emissions]+".png")
     plt.close()
-
+    print(emissions_df.sum(level=0)['Agriculture'])
     if saveghg :
         for ghg in ghg_list:
             df = pd.DataFrame(None, index = scenario.get_sectors(), columns = scenario.get_regions())
@@ -303,8 +324,13 @@ def visualisation(scenario,scenario_name,type_emissions='D_cba',saveghg=False):
             plt.title(dict_plot_title[type_emissions]+" de "+ghg+" par secteurs (scenario "+scenario_name+")")
             plt.savefig('figures/'+scenario_name+'_french_'+ghg+dict_fig_name[type_emissions]+'_provenance_sectors')
             plt.close()
-    
-    ax=emissions_df.sum(level=0).T.plot.barh(stacked=True, figsize=(18,12))
+    dict_sect_plot = {}
+    for i in range(len(list(scenario.get_sectors()))):
+        sector = list(scenario.get_sectors())[i]
+        dict_sect_plot[sector] = {'cont':emissions_df.sum(level=0)[sector],'ref':em_df_ref.sum(level=0)[sector]}
+    reform = {(outerKey, innerKey): values for outerKey, innerDict in dict_sect_plot.items() for innerKey, values in innerDict.items()}
+    df_plot = pd.DataFrame(data=reform)
+    ax=df_plot.T.plot.barh(stacked=True, figsize=(20,16))
     plt.grid()
     plt.xlabel("MtCO2eq")
     plt.title(dict_plot_title[type_emissions]+" de tous GES par secteurs (scenario "+scenario_name+")")
@@ -344,7 +370,7 @@ def heat_S(type):
 # reference analysis
 ## ToDo
 for type in ['D_cba', 'D_pba', 'D_imp', 'D_exp'] :
-    visualisation(reference,"Ref",type,saveghg=False)
+    #visualisation(reference,"Ref",type,saveghg=False)
     visualisation(counterfactual,"Cont",type,saveghg=False)
 # whole static comparative analysis
 ## ToDo
