@@ -51,7 +51,7 @@ concat_settings = str(base_year) + '_' + \
 	agg_name['region']
 
 # set if rebuilding calibration from exiobase
-calib = True
+calib = False
 
 
 ###########################
