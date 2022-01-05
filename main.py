@@ -144,17 +144,32 @@ counterfactual.remove_extension('ghg_emissions_desag')
 ## ToDo
 nbsect = len(list(reference.get_sectors()))
 
+
+   
+
 def get_least(sector,reloc):
 	#par défaut on ne se laisse pas la possibilité de relocaliser en FR
 	M = reference.ghg_emissions_desag.M.sum()
-	X = reference.x
+	X = reference.x #production par chaque pays dans chaque secteur
+	X_ext_FR = X.copy()
+	X_ext_FR = reference.Y['FR'].drop(['FR']).sum(axis=1)+reference.Z['FR'].drop(['FR']).sum(axis=1)
+	#print(X_ext_FR.index)
+	new_X_ext_FR = pd.DataFrame(np.zeros((17,1)),index=reference.get_sectors(),columns=['FR'])
+	#print(list(reference.get_regions()))
+	for sec in list(reference.get_sectors()) :
+		for reg in list(reference.get_regions()[1:]):
+			new_X_ext_FR.loc[sec] += X_ext_FR[reg,sec] #compute the part of the french economy that depends on broad activities, for each sector
+	#print(new_X_ext_FR)  
+	demand_sector = reference.Z['FR',sector].drop(['FR']).sum()
+
 	regs = list(reference.get_regions())[1:]
 	if reloc:
 		regs = list(reference.get_regions())
 	ind=0
 	for i in range(1,len(regs)):
-		if M[regs[i],sector] < M[regs[ind],sector] and X[regs[i],sector]>0:
+		if M[regs[i],sector] < M[regs[ind],sector] and reference.Z.loc[regs[i]].drop(columns=regs[i]).sum(axis=1).loc[sector] > new_X_ext_FR.loc[sector].values : # pour choisir une région comme région de report, elle doit au moins produire la partie importée de la demande française
 			ind=i
+	print(regs[ind],sector)
 	return regs[ind]
 
 def get_worst(sector,reloc):
@@ -231,7 +246,7 @@ def scenar_pref_europe():
 
 # build conterfactual(s) using param sets
 ## ToDo
-sectors,moves,quantities = scenar_best(reloc=True,deloc=True)
+sectors,moves,quantities = scenar_best(reloc=False,deloc=False)
 for i in range(len(quantities)):
 	counterfactual.Z,counterfactual.Y = Tools.shock(list(reference.get_sectors()),counterfactual.Z,counterfactual.Y,moves[i][0],
 	moves[i][1],sectors[i],quantities[i])
@@ -365,8 +380,8 @@ def heat_S(type):
 	fig.tight_layout()
 	plt.savefig('figures/heatmap_intensite_'+type)
 	plt.show()
-heat_S('consommation')
-heat_S('production')
+#heat_S('consommation')
+#heat_S('production')
 
 # reference analysis
 ## ToDo
@@ -390,6 +405,12 @@ print(res[0])
 print(res[1])
 print('Empreinte carbone référence :', res[2].sum(), 'MtCO2eq')
 print('Empreinte carbone contrefactuel :', res[3].sum(), 'MtCO2eq')
+ref_dcba = pd.DataFrame(reference.ghg_emissions_desag.D_cba)
+con_dcba = pd.DataFrame(counterfactual.ghg_emissions_desag.D_cba)
+print('Importations fossiles référence :', ref_dcba['FR','Crude oil'].sum(), 'MtCO2eq', ref_dcba['FR','Crude coal'].sum(),
+ 'MtCO2eq', ref_dcba['FR','Natural gas'].sum(), 'MtCO2eq' )
+print('Importations fossiles contrefactuel :', con_dcba['FR','Crude oil'].sum(), 'MtCO2eq', con_dcba['FR','Crude coal'].sum(), 
+'MtCO2eq', con_dcba['FR','Natural gas'].sum(), 'MtCO2eq')
 
 def compa_monetaire(ref,contr):
 	#unité = M€
