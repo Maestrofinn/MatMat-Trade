@@ -37,7 +37,7 @@ from local_paths import output_dir
 from utils import Tools
 
 
-#%% Initialise data
+#%% Calibration
 ###########################
 # SETTINGS
 ###########################
@@ -48,7 +48,7 @@ base_year = 2015
 # system type: pxp or ixi
 system = 'pxp'
 
-# agg name: to implement in agg_matrix.xlsx
+# agg name: to implement in agg_matrix2.xlsx
 agg_name = {
 	'sector': 'ref',
 	'region': 'ref'
@@ -60,7 +60,7 @@ concat_settings = str(base_year) + '_' + \
 	agg_name['region']
 
 # set if rebuilding calibration from exiobase
-calib = False
+calib = True
 
 
 ###########################
@@ -81,11 +81,54 @@ if not os.path.isfile(data_dir / file_name):
 	)
 
 
-reference = pymrio.parse_exiobase3(
-	data_dir / ('reference' + '_' + concat_settings)
-)
+# import or build calibration data
+if calib:
+	print("Début calib")
+	# import exiobase data
+	reference = pymrio.parse_exiobase3(
+		data_dir / file_name
+	)
+
+	# isolate ghg emissions
+	reference.ghg_emissions = Tools.extract_ghg_emissions(reference)
+
+	# del useless extensions
+	reference.remove_extension(['satellite', 'impacts'])
+
+	# import agregation matrices
+	agg_matrix = {
+		key: pd.read_excel(
+			data_dir / 'agg_matrix2.xlsx',
+			sheet_name = key + '_' + value
+		) for (key, value) in agg_name.items()
+	}
+	agg_matrix['sector'].set_index(['category', 'sub_category', 'sector'], inplace = True)
+	agg_matrix['region'].set_index(['Country name', 'Country code'], inplace = True)
+
+	# apply regional and sectorial agregations
+	reference.aggregate(
+		region_agg = agg_matrix['region'].T.values,
+		sector_agg = agg_matrix['sector'].T.values,
+		region_names = agg_matrix['region'].columns.tolist(),
+		sector_names = agg_matrix['sector'].columns.tolist()
+	)
+
+	# reset all to flows before saving
+	reference = reference.reset_to_flows()
+	reference.ghg_emissions.reset_to_flows()
+
+	# save calibration data
+	print("Fin calib")
+
+else:
+
+	# import calibration data built with calib = True
+	reference = pymrio.parse_exiobase3(
+		data_dir / ('reference' + '_' + concat_settings)
+	)
 
 
+#%%Initialize data
 ###########################
 # CALCULATIONS
 ###########################
@@ -102,6 +145,8 @@ reference.ghg_emissions_desag = Tools.recal_extensions_per_region(
 
 sectors_list=list(reference.get_sectors())
 reg_list = list(reference.get_regions())
+
+print(reg_list)
 
 Carbon_content = pd.DataFrame(reference.ghg_emissions_desag.M.sum()).sum(level=0)
 
@@ -122,8 +167,8 @@ x2 = np.array(data_cr[:,1]) #import share
 
 plt.plot()
 plt.grid()
-plt.xlim([-3, 3])
-plt.ylim([-3, 3])
+#plt.xlim([-3, 3])
+#plt.ylim([-3, 3])
 plt.title('Dataset')
 plt.xlabel('Carbon content')
 plt.ylabel('French import share')
@@ -217,3 +262,5 @@ for i,label in enumerate(data.index):
     print(i,label)
     plt.annotate(label,(data_cr[i,0],data_cr[i,1]))
 plt.show() 
+
+# %%
