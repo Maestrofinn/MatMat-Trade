@@ -195,8 +195,8 @@ plt.show()
 
 #%%Tracer le dendrogramme
 
-nb_clusters_opti = 4
-height_cut_opti = 1.5 #A mettre à jour
+nb_clusters_opti = 8
+height_cut_opti = 1.2 #A mettre à jour
 
 #générer la matrice des liens
 Z = linkage(data_cr,method='ward',metric='euclidean')
@@ -251,6 +251,7 @@ pd.crosstab(groupes_cah,kmeans.labels_)
 colors_list = list(colors.cnames)
 colors_list = colors_list[10:10+nb_clusters_opti]
 #avec un code couleur selon le groupe
+plt.figure(figsize=(18,12))
 for couleur,k in zip(colors_list,np.arange(nb_clusters_opti)):
     plt.scatter(data_cr[kmeans.labels_==k,0],data_cr[kmeans.labels_==k,1],c=couleur)
 
@@ -261,6 +262,5 @@ plt.ylabel('Normalized French Imports share')
 for i,label in enumerate(data.index):
     print(i,label)
     plt.annotate(label,(data_cr[i,0],data_cr[i,1]))
+plt.savefig('figures/optim_clustering.png')
 plt.show() 
-
-# %%
