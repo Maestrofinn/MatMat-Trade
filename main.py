@@ -89,7 +89,7 @@ if calib:
     # import agregation matrices
     agg_matrix = {
         key: pd.read_excel(
-            data_dir / 'agg_matrix.xlsx',
+            data_dir / 'agg_matrix2.xlsx',
             sheet_name = key + '_' + value
         ) for (key, value) in agg_name.items()
     }
@@ -135,6 +135,73 @@ reference.ghg_emissions_desag = Tools.recal_extensions_per_region(
     reference,
     'ghg_emissions'
 )
+
+# save reference data base
+reference.save_all(
+    output_dir / ('reference' + '_' + concat_settings)  
+)
+
+plot_scatter_desag_spatiale = False
+if plot_scatter_desag_spatiale:
+    imp_FR_tot = reference.Z['FR'].drop(labels='FR',axis=0,level=0).sum(axis=1).sum(level=0)
+    total_imp = imp_FR_tot.sum()
+    part_imp = imp_FR_tot/total_imp *100
+
+    list_eur = ['Austria','Belgium','Bulgaria','Cyprus','Czech Republic','Germany','Denmark','Estonia','Spain',
+    'Finland','Greece','Croatia','Hungary','Ireland','Italy','Lithuania','Luxembourg','Latvia','Malta','Netherlands',
+    'Poland','Romania','Sweden','Slovakia']
+    list_brics = ['Brazil','Russia','India','China','South Africa']
+    list_row = ['Taiwan','Indonesia','RoW Asia and Pacific','RoW America','RoW Europe',
+    'RoW Africa','RoW Middle East']
+    list_otheroecd = ['United Kingdom','United States','Japan','Canada',
+    'South Korea', 'Mexico', 'Australia','Switzerland','Turkey','Norway']
+
+
+    M=reference.ghg_emissions_desag.M.sum().drop(labels='FR',axis=0,level=0)
+    M_tot = M.sum(level=0)
+
+
+    color=[]
+    contenu=[]
+    part=[]
+    for reg in list_eur+list_brics+list_row+list_otheroecd:
+        contenu.append(M_tot[reg])
+        part.append(part_imp[reg])
+        if reg in list_eur:
+            color.append('blue')
+            continue
+        if reg in list_otheroecd:
+            color.append('red')
+            continue
+        if reg in list_brics:
+            color.append('green')
+            continue
+        if reg in list_row:
+            color.append('gray')
+    ['UE','Other_OECD','BRICS','RoW']
+    contenu.append(np.mean(contenu[:len(list_eur)-1]))
+    contenu.append(np.mean(contenu[len(list_eur):len(list_eur)+len(list_brics)-1]))
+    contenu.append(np.mean(contenu[len(list_eur)+len(list_brics):len(list_eur)+len(list_brics)+len(list_row)-1]))
+    contenu.append(np.mean(contenu[len(list_eur)+len(list_brics)+len(list_row):len(list_eur)+len(list_brics)+len(list_row)+len(list_otheroecd)-1]))
+    part.append(np.sum(part[:len(list_eur)-1]))
+    part.append(np.sum(part[len(list_eur):len(list_eur)+len(list_brics)-1]))
+    part.append(np.sum(part[len(list_eur)+len(list_brics):len(list_eur)+len(list_brics)+len(list_row)-1]))
+    part.append(np.sum(part[len(list_eur)+len(list_brics)+len(list_row):len(list_eur)+len(list_brics)+len(list_row)+len(list_otheroecd)-1]))
+    color.append('black')
+    color.append('black')
+    color.append('black')
+    color.append('black')
+    df_scatter = pd.DataFrame(data={'Contenu_CO2':contenu,'Part_Imp':part,'pays':list_eur+list_brics+list_row+list_otheroecd+['UE','Other_OECD','BRICS','RoW']})
+    print(df_scatter)
+
+    fig, ax = plt.subplots()
+    ax.scatter(x=df_scatter['Contenu_CO2'],y=df_scatter['Part_Imp'],color=color)
+    ax.set_xlabel("Contenu Carbone d'un bien importé")
+    ax.set_ylabel('Part dans les importations françaises')
+    for idx, row in df_scatter.iterrows():
+        ax.annotate(row['pays'], (row['Contenu_CO2'], row['Part_Imp']),fontsize=5 )
+    plt.savefig("figures/scatter_desag_spatiale.png")
+    plt.show()
 
 # init counterfactual(s)
 counterfactual = reference.copy()
@@ -248,23 +315,16 @@ counterfactual.ghg_emissions_desag = Tools.recal_extensions_per_region(
 
 #print(counterfactual.x)
 #print(reference.x)
-###########################
-# FORMAT RESULTS
-###########################
-
-# save reference data base
-reference.save_all(
-    output_dir / ('reference' + '_' + concat_settings)  
-)
+# ###########################
+# # FORMAT RESULTS
+# ###########################
 
 
-# save conterfactural(s)
+
+#save conterfactural(s)
 counterfactual.save_all(
-    output_dir / ('counterfactual' + '_' + concat_settings)  
+   output_dir / ('counterfactual' + '_' + concat_settings)  
 )
-
-
-
 # concat results for visualisation
 ## ToDo
 ghg_list = ['CO2', 'CH4', 'N2O', 'SF6', 'HFC', 'PFC']
@@ -348,14 +408,14 @@ def heat_S(type):
     for reg in reg_list:
         in_reg=[]
         for sector in sectors_list:
-            if type=='consomation':
+            if type=='consommation':
                 in_reg.append(M[reg,sector])
             if type=='production':
                 in_reg.append(S[reg,sector])
         sec_reg.append(in_reg)
     df = pd.DataFrame(data=sec_reg,columns=sectors_list,index=reg_list).T
     df_n = df.div(df.max(axis=1), axis=0)*100
-    if type=='consomation':
+    if type=='consommation':
         title="Contenu carbone du bien importé"
     if type=='production':
         title="Intensité carbone de la production"
@@ -364,8 +424,8 @@ def heat_S(type):
     fig.tight_layout()
     plt.savefig('figures/heatmap_intensite_'+type)
     plt.show()
-#heat_S('consomation')
-#heat_S('production')
+heat_S('consommation')
+heat_S('production')
 
 # reference analysis
 ## ToDo
