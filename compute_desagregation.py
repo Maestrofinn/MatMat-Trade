@@ -98,7 +98,7 @@ if calib:
 	# import agregation matrices
 	agg_matrix = {
 		key: pd.read_excel(
-			data_dir / 'agg_matrix2.xlsx',
+			data_dir / 'agg_matrix3.xlsx',
 			sheet_name = key + '_' + value
 		) for (key, value) in agg_name.items()
 	}
@@ -167,6 +167,7 @@ data_sec = Carbon_content_sec
 data.loc[:,'Carbon_content'] = Carbon_content.copy()
 data.loc[:,'Import_FR_share'] = imports.copy()/sum_imports
 #centrage réduction des données
+print(Carbon_content)
 data_cr = preprocessing.scale(data)
 data_sec_cr = preprocessing.scale(data_sec)
 
@@ -205,8 +206,8 @@ plt.show()
 
 #%%Tracer le dendrogramme
 
-nb_clusters_opti = 8
-height_cut_opti = 1.2 #A mettre à jour
+nb_clusters_opti = 10
+height_cut_opti = 0.45 #A mettre à jour
 
 #générer la matrice des liens
 Z = linkage(data_cr,method='ward',metric='euclidean')
