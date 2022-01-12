@@ -147,18 +147,28 @@ sectors_list=list(reference.get_sectors())
 reg_list = list(reference.get_regions())
 
 print(reg_list)
+print(sectors_list)
 
-Carbon_content = pd.DataFrame(reference.ghg_emissions_desag.M.sum()).sum(level=0)
+
+Carbon_content = pd.DataFrame(reference.ghg_emissions_desag.M.sum()).mean(level=0)
+#Carbon_content = pd.DataFrame(reference.ghg_emissions_desag.M.sum()).sum(level=0)
+
+A=pd.DataFrame(reference.ghg_emissions_desag.M.T).sum(axis=1)
+Carbon_content_sec = pd.DataFrame(np.zeros((len(sectors_list),len(reg_list))),index=sectors_list,columns=reg_list)
+for reg in reg_list:
+    Carbon_content_sec[reg] = A.loc[reg]
 
 imports = (reference.Z['FR'].drop(['FR']).sum(level=0)).sum(axis=1)
 sum_imports = imports.sum()
 
 data = pd.DataFrame(np.zeros((len(reg_list[1:]),2)),index = reg_list[1:],columns = ['Carbon_content','Import_FR_share'])
+data_sec = Carbon_content_sec
 
 data.loc[:,'Carbon_content'] = Carbon_content.copy()
 data.loc[:,'Import_FR_share'] = imports.copy()/sum_imports
 #centrage réduction des données
 data_cr = preprocessing.scale(data)
+data_sec_cr = preprocessing.scale(data_sec)
 
 #%% Trouver le nombre optimal de clusters
 
@@ -224,6 +234,41 @@ idg = np.argsort(groupes_cah)
 
 #affichage des observations et leurs groupes
 print(pd.DataFrame(data.index[idg],groupes_cah[idg]))
+
+
+nb_clusters_opti_sec = 7
+height_cut_opti_sec = 5.5 #A mettre à jour
+
+nb_clusters_opti_sec = 3
+height_cut_opti_sec = 17 #A mettre à jour
+
+#générer la matrice des liens
+Z_sec = linkage(data_sec_cr,method='ward',metric='euclidean')
+
+plt.figure(21)
+#affichage du dendrogramme
+plt.title("CAH")
+dendrogram(Z_sec,labels=data_sec.index,orientation='left',color_threshold=0)
+plt.show()
+
+
+#matérialisation des 4 classes (hauteur t = 7)
+plt.title('CAH avec matérialisation des '+str(nb_clusters_opti_sec)+' classes')
+
+dendrogram(Z_sec,labels=data_sec.index,orientation='left',color_threshold=height_cut_opti_sec)
+plt.show()
+
+#découpage à la hauteur t = 7 ==> 4 identifiants de groupes obtenus
+groupes_cah_sec = fcluster(Z_sec,t=height_cut_opti,criterion='distance')
+print(groupes_cah_sec)
+
+#index triés des groupes
+import numpy as np
+idg_sec = np.argsort(groupes_cah_sec)
+
+#affichage des observations et leurs groupes
+print(pd.DataFrame(data_sec.index[idg_sec],groupes_cah_sec[idg_sec]))
+
 
 #%% k-means sur les données centrées et réduites
 kmeans = cluster.KMeans(n_clusters=nb_clusters_opti)
