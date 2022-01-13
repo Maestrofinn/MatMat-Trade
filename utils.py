@@ -185,3 +185,43 @@ class Tools:
             for j in range(len(regs)):
                 Y_modif.loc[(regs[move['sort'][j]],sector),('FR',demcatlist[i])]=move['parts_dem'][move['sort'][j],i]
         return Z_modif, Y_modif
+    
+    def shockv3(sectors_list,reg_list,reloc,demcat_list,Z,Y,parts_sects,parts_dem,indsector):
+        Z_modif=Z.copy()
+        Y_modif = Y.copy()
+        if reloc:
+            regs = reg_list 
+        else:
+            regs = reg_list[1:]
+
+        for i in range(len(sectors_list)):
+            Z_modif.loc[('Europe',sectors_list[indsector]),('FR',sectors_list[i])] = parts_sects[indsector,i]
+
+            delta = parts_sects[indsector,i] - Z.loc[('Europe',sectors_list[indsector]),('FR',sectors_list[i])]
+            if delta<0.:
+                print(sectors_list[i])
+            list_origin = [Z.loc[(regs[j],sectors_list[indsector]),('FR',sectors_list[i])] for j in range(len(regs))]
+            indsort = np.argsort(list_origin)
+            for j in range(len(regs)):
+                if regs[indsort[j]]!='Europe':
+                    if delta>0 and list_origin[indsort[j]] > delta:
+                        Z_modif.loc[(regs[indsort[j]],sectors_list[indsector]),('FR',sectors_list[i])] = list_origin[indsort[j]] - delta
+                        delta=0
+                    else:
+                        Z_modif.loc[(regs[indsort[j]],sectors_list[indsector]),('FR',sectors_list[i])] = 0
+                        delta -= list_origin[indsort[j]]
+
+        for i in range(len(demcat_list)):
+            Y_modif.loc[('Europe',sectors_list[indsector]),('FR',demcat_list[i])] = parts_dem[indsector,i]
+            delta = parts_dem[indsector,i] - Y.loc[('Europe',sectors_list[indsector]),('FR',demcat_list[i])]
+            list_origin = [Y.loc[(regs[j],sectors_list[indsector]),('FR',demcat_list[i])] for j in range(len(regs))]
+            indsort = np.argsort(list_origin)
+            for j in range(len(regs)):
+                if regs[indsort[j]]!='Europe':
+                    if delta>0 and list_origin[indsort[j]] > delta:
+                        Y_modif.loc[(regs[indsort[j]],sectors_list[indsector]),('FR',demcat_list[i])] = list_origin[indsort[j]] - delta
+                        delta=0
+                    else:
+                        Y_modif.loc[(regs[indsort[j]],sectors_list[indsector]),('FR',demcat_list[i])] = 0
+                        delta -= list_origin[indsort[j]]
+        return Z_modif, Y_modif
