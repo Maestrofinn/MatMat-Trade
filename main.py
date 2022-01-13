@@ -407,10 +407,15 @@ def scenar_pref_europev3(reloc=False):
 	demcats = list(reference.get_Y_categories())
 	nbdemcats=len(demcats)
 	nbreg=len(regs)
-	
-	parts_sects = np.zeros((nbsect,nbsect))
-	parts_dem = np.zeros((nbsect,nbdemcats))
+	moves = {}
 	for i in range(nbsect):
+		#initialization of outputs
+		parts_sects = {}
+		parts_dem = {}
+		for r in regs:
+			parts_sects[r] = np.zeros(nbsect)
+			parts_dem[r] = np.zeros(nbdemcats)
+
 		#construction of french needs of imports
 		totalfromsector = np.zeros(nbsect)
 		totalfinalfromsector = np.zeros(nbdemcats)
@@ -420,31 +425,46 @@ def scenar_pref_europev3(reloc=False):
 		for j in range(nbdemcats):
 			totalfinalfromsector[j] = np.sum([reference.Y['FR'].drop('FR')[demcats[j]].loc[(regs[k],sectors_list[i])] for k in range(nbreg)])
 		
-		reg_export = reference.Z.drop(columns='Europe').sum(axis=1).loc[('Europe',sectors_list[i])] #exports from this reg/sec
-		remaining_reg_export = reg_export	
+		# exports capacity of all regions for sector i
+		reg_export = {}
+		for r in range(nbreg):
+			reg_export[regs[r]] = reference.Z.drop(columns=regs[r]).sum(axis=1).loc[(regs[r],sectors_list[i])] #exports from this reg/sec
+		
+		remaining_reg_export_UE = reg_export['Europe']
 		for j in range(nbsect):
-			if remaining_reg_export > 0:
-				#if europe can still export some sector[i]
-				if remaining_reg_export>totalfromsector[j]:
-					alloc=totalfromsector[j]
-				else:
-					alloc= reference.Z.loc[('Europe',sectors_list[i]),('FR',sectors_list[j])] #tout ou rien ici
-					# alloc=remaining_reg_export
-				parts_sects[i,j] = alloc
-				remaining_reg_export -= alloc
+			if totalfromsector[j] !=0:
+				if remaining_reg_export_UE > 0:
+					#if europe can still export some sector[i]
+					if remaining_reg_export_UE>totalfromsector[j]:
+						alloc=totalfromsector[j]
+					else:
+						alloc= reference.Z.loc[('Europe',sectors_list[i]),('FR',sectors_list[j])] #tout ou rien ici
+					parts_sects['Europe'][j] = alloc
+					remaining_reg_export_UE -= alloc
+					#remove from other regions a part of what has been assigned to the EU
+					# this part corresponds to the part of the country in original french imports for sector j 
+					for r in regs:
+						if r != 'Europe':
+							parts_sects[r][j] =  reference.Z.loc[(r,sectors_list[i]),('FR',sectors_list[j])]* (1- alloc /totalfromsector[j])
+
 		for j in range(nbdemcats):
-			if remaining_reg_export > 0:
-				#if europe can still export some sector[i]
-				if remaining_reg_export>totalfinalfromsector[j]:
-					alloc=totalfinalfromsector[j]
-				else:
-					alloc=reference.Y.loc[('Europe',sectors_list[i]),('FR',demcats[j])] #tout ou rien ici
-					# alloc=remaining_reg_export
-				parts_dem[i,j] = alloc
-				remaining_reg_export -= alloc
-	return parts_sects, parts_dem, reloc
+			if totalfinalfromsector[j] != 0:
+				if remaining_reg_export_UE > 0:
+					#if europe can still export some sector[i]
+					if remaining_reg_export_UE>totalfinalfromsector[j]:
+						alloc=totalfinalfromsector[j]
+					else:
+						alloc=reference.Y.loc[('Europe',sectors_list[i]),('FR',demcats[j])] #tout ou rien ici
+					parts_dem['Europe'][j] = alloc
+					remaining_reg_export_UE -= alloc
+					#remove from other regions a part of what has been assigned to the EU
+					# this part corresponds to the part of the country in original french imports for sector j 
+					for r in regs:
+						if r != 'Europe':
+							parts_sects[r][j] =  reference.Y.loc[(r,sectors_list[i]),('FR',demcats[j])]* (1- alloc /totalfinalfromsector[j])
 
-
+		moves[sectors_list[i]] = {'parts_sec' : parts_sects, 'parts_dem':parts_dem, 'sort':[i for i in range(len(regs))], 'reloc':reloc}
+	return sectors_list,moves
 
 
 # build conterfactual(s) using param sets
@@ -452,15 +472,11 @@ def scenar_pref_europev3(reloc=False):
 sectors_list=list(reference.get_sectors())
 reg_list=list(reference.get_regions())
 demcat_list = list(reference.get_Y_categories())
-v1=True
-if v1:
-	parts_sects, parts_dem,reloc = scenar_pref_europev3()
-	for i in range(len(sectors_list)):
-		counterfactual.Z,counterfactual.Y = Tools.shockv3(sectors_list,reg_list,reloc,demcat_list,counterfactual.Z,counterfactual.Y,parts_sects,parts_dem,i)
-else:
-	sectors,moves = scenar_bestv2()
-	for sector in sectors:
-		counterfactual.Z,counterfactual.Y = Tools.shockv2(sectors,demcat_list,reg_list,counterfactual.Z,counterfactual.Y,moves[sector],sector)
+
+sectors,moves = scenar_bestv2()
+#sectors,moves = scenar_pref_europev3()
+for sector in sectors:
+	counterfactual.Z,counterfactual.Y = Tools.shockv2(sectors,demcat_list,reg_list,counterfactual.Z,counterfactual.Y,moves[sector],sector)
 
 counterfactual.A = None
 counterfactual.x = None
