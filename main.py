@@ -507,7 +507,33 @@ counterfactual.save_all(
 ghg_list = ['CO2', 'CH4', 'N2O', 'SF6', 'HFC', 'PFC']
 sectors_list=list(reference.get_sectors())
 reg_list = list(reference.get_regions())
-def visualisation(scenario,scenario_name,type_emissions='D_cba',saveghg=False):
+
+def vision_commerce():
+	df_eco_ref = reference.Y['FR'].sum(axis=1)+reference.Z['FR'].sum(axis=1)
+	df_eco_cont = counterfactual.Y['FR'].sum(axis=1)+counterfactual.Z['FR'].sum(axis=1)
+
+	comm_cumul_non_fr = pd.DataFrame({'ref':[df_eco_ref.sum(level=0)[r] for r in reg_list[1:]],
+	'cont': [df_eco_cont.sum(level=0)[r] for r in reg_list[1:]]}, index =reg_list[1:])
+	comm_cumul_non_fr.T.plot.barh(stacked=True)
+	plt.title("Importations totales françaises")
+	plt.tight_layout()
+	plt.savefig('figures/commerce_imports_totales')
+	plt.show()
+
+	dict_sect_plot = {}
+	for sec in sectors_list:
+		dict_sect_plot[(sec,'ref')] = [df_eco_ref.loc[(r,sec)]/df_eco_ref.drop(['FR']).sum(level=1).loc[sec] for r in reg_list[1:]]
+		dict_sect_plot[(sec,'cont')] = [df_eco_cont.loc[(r,sec)]/df_eco_cont.drop(['FR']).sum(level=1).loc[sec] for r in reg_list[1:]]
+
+	df_plot = pd.DataFrame(data=dict_sect_plot,index=reg_list[1:])
+	print(df_plot)
+	ax=df_plot.T.plot.barh(stacked=True, figsize=(20,16))
+	plt.title("Part de chaque région dans les importations françaises")
+	plt.tight_layout()
+	plt.savefig('figures/commerce_parts_imports_secteur.png')
+	plt.show()
+
+def visualisation_carbone(scenario,scenario_name,type_emissions='D_cba',saveghg=False):
 	ghg_list = ['CO2', 'CH4', 'N2O', 'SF6', 'HFC', 'PFC']
 	dict_fig_name = {'D_cba' : '_empreinte_carbone_fr_importation','D_pba' : '_emissions_territoriales_fr','D_imp' : '_emissions_importees_fr','D_exp' : '_emissions_exportees_fr'}
 	dict_plot_title = {'D_cba' : 'Empreinte carbone de la France', 'D_pba' : 'Emissions territoriales françaises','D_imp' : 'Emissions importées en France','D_exp' : 'Emissions exportées vers la France'}
@@ -607,7 +633,8 @@ def heat_S(type):
 ## ToDo
 for type in ['D_cba', 'D_pba', 'D_imp', 'D_exp'] :
 	#visualisation(reference,"Ref",type,saveghg=False)
-	visualisation(counterfactual,"Cont",type,saveghg=False)
+	visualisation_carbone(counterfactual,"Cont",type,saveghg=False)
+	vision_commerce()
 # whole static comparative analysis
 ## ToDo
 
