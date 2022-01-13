@@ -169,3 +169,19 @@ class Tools:
             Y_modif.loc[(region1,sector),('FR',demcat)]=(1-quantity)*Y.loc[(region1,sector),('FR',demcat)]
             Y_modif.loc[(region2,sector),('FR',demcat)]+= quantity*Y.loc[(region1,sector),('FR',demcat)]
         return Z_modif,Y_modif
+
+    def shockv2(sector_list,demcatlist,reg_list,Z,Y,move,sector):
+        Z_modif=Z.copy()
+        Y_modif = Y.copy()
+        if move['reloc']:
+            regs = reg_list 
+        else:
+            regs = reg_list[1:]
+
+        for i in range(len(sector_list)):
+            for j in range(len(regs)):
+                Z_modif.loc[(regs[move['sort'][j]],sector),('FR',sector_list[i])] = move['parts_sec'][move['sort'][j],i]
+        for i in range(len(demcatlist)):
+            for j in range(len(regs)):
+                Y_modif.loc[(regs[move['sort'][j]],sector),('FR',demcatlist[i])]=move['parts_dem'][move['sort'][j],i]
+        return Z_modif, Y_modif
