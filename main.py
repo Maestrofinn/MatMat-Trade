@@ -466,7 +466,75 @@ def scenar_pref_europev3(reloc=False):
 		moves[sectors_list[i]] = {'parts_sec' : parts_sects, 'parts_dem':parts_dem, 'sort':[i for i in range(len(regs))], 'reloc':reloc}
 	return sectors_list,moves
 
+def scenar_guerre_chine(reloc=False):
+	if reloc:
+		regs = list(reference.get_regions())
+	else:
+		regs = list(reference.get_regions())[1:] #remove FR
+	sectors_list = list(reference.get_sectors())
+	demcats = list(reference.get_Y_categories())
+	nbdemcats=len(demcats)
+	nbreg=len(regs)
+	moves = {}
+	for i in range(nbsect):
+		#initialization of outputs
+		parts_sects = {}
+		parts_dem = {}
+		for r in regs:
+			parts_sects[r] = np.zeros(nbsect)
+			parts_dem[r] = np.zeros(nbdemcats)
 
+		#construction of french needs of imports
+		totalfromsector = np.zeros(nbsect)
+		fromchinasector = np.zeros(nbsect)
+		totalfinalfromsector = np.zeros(nbdemcats)
+		finalfromchinasector = np.zeros(nbdemcats)
+		for j in range(nbsect):
+			#sum on regions of imports of imports of sector for french sector j
+			totalfromsector[j] = np.sum([reference.Z['FR'].drop('FR')[sectors_list[j]].loc[(regs[k],sectors_list[i])] for k in range(nbreg)]) 
+			fromchinasector[j] = reference.Z['FR'].drop('FR')[sectors_list[j]].loc[('China',sectors_list[i])]
+		
+		for j in range(nbdemcats):
+			totalfinalfromsector[j] = np.sum([reference.Y['FR'].drop('FR')[demcats[j]].loc[(regs[k],sectors_list[i])] for k in range(nbreg)])
+			finalfromchinasector[j] = reference.Y['FR'].drop('FR')[demcats[j]].loc[('China',sectors_list[i])]
+		# exports capacity of all regions for sector i
+		reg_export = {}
+		for r in range(nbreg):
+			reg_export[regs[r]] = reference.Z.drop(columns=regs[r]).sum(axis=1).loc[(regs[r],sectors_list[i])] #exports from this reg/sec
+		
+		for j in range(nbsect):
+			if totalfromsector[j] !=0:
+				if fromchinasector[j] > 0:
+					for r in regs:
+						if r != 'China':
+							if fromchinasector[j] < reg_export[r]:
+								alloc = fromchinasector[j]
+								parts_sects[r][j] =  reference.Z.loc[(r,sectors_list[i]),('FR',sectors_list[j])] + alloc
+								fromchinasector[j]=0
+								break
+							else:
+								alloc = reg_export[r]
+								fromchinasector[j] -= alloc
+					parts_sects['China'][j] = fromchinasector[j]
+
+		for j in range(nbdemcats):
+			if totalfinalfromsector[j] != 0:
+				if finalfromchinasector[j] > 0:
+					for r in regs:
+						if r != 'China':
+							if finalfromchinasector[j] < reg_export[r]:
+								alloc = finalfromchinasector[j]
+								parts_sects[r][j] =  reference.Z.loc[(r,sectors_list[i]),('FR',sectors_list[j])] + alloc
+								fromchinasector[j]=0
+								break
+							else:
+								alloc = reg_export[r]
+								finalfromchinasector[j] -= alloc
+					parts_sects['China'][j] = finalfromchinasector[j]
+
+		moves[sectors_list[i]] = {'parts_sec' : parts_sects, 'parts_dem':parts_dem, 'sort':[i for i in range(len(regs))], 'reloc':reloc}
+	return sectors_list,moves
+	
 # build conterfactual(s) using param sets
 ## ToDo
 sectors_list=list(reference.get_sectors())
