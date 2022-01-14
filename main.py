@@ -87,14 +87,14 @@ if calib:
 	reference.remove_extension(['satellite', 'impacts'])
 
     # import agregation matrices
-    agg_matrix = {
+	agg_matrix = {
         key: pd.read_excel(
             data_dir / 'agg_matrix2.xlsx',
             sheet_name = key + '_' + value
         ) for (key, value) in agg_name.items()
     }
-    agg_matrix['sector'].set_index(['category', 'sub_category', 'sector'], inplace = True)
-    agg_matrix['region'].set_index(['Country name', 'Country code'], inplace = True)
+	agg_matrix['sector'].set_index(['category', 'sub_category', 'sector'], inplace = True)
+	agg_matrix['region'].set_index(['Country name', 'Country code'], inplace = True)
 
 	# apply regional and sectorial agregations
 	reference.aggregate(
@@ -117,7 +117,7 @@ if calib:
 else:
 
 	# import calibration data built with calib = True
-	reference = pymrio.parse_exiobase3(
+    reference = pymrio.parse_exiobase3(
 		data_dir / ('reference' + '_' + concat_settings)
 	)
 
@@ -141,68 +141,6 @@ reference.save_all(
     output_dir / ('reference' + '_' + concat_settings)  
 )
 
-plot_scatter_desag_spatiale = False
-if plot_scatter_desag_spatiale:
-    imp_FR_tot = reference.Z['FR'].drop(labels='FR',axis=0,level=0).sum(axis=1).sum(level=0)
-    total_imp = imp_FR_tot.sum()
-    part_imp = imp_FR_tot/total_imp *100
-
-    list_eur = ['Austria','Belgium','Bulgaria','Cyprus','Czech Republic','Germany','Denmark','Estonia','Spain',
-    'Finland','Greece','Croatia','Hungary','Ireland','Italy','Lithuania','Luxembourg','Latvia','Malta','Netherlands',
-    'Poland','Romania','Sweden','Slovakia']
-    list_brics = ['Brazil','Russia','India','China','South Africa']
-    list_row = ['Taiwan','Indonesia','RoW Asia and Pacific','RoW America','RoW Europe',
-    'RoW Africa','RoW Middle East']
-    list_otheroecd = ['United Kingdom','United States','Japan','Canada',
-    'South Korea', 'Mexico', 'Australia','Switzerland','Turkey','Norway']
-
-
-    M=reference.ghg_emissions_desag.M.sum().drop(labels='FR',axis=0,level=0)
-    M_tot = M.sum(level=0)
-
-
-    color=[]
-    contenu=[]
-    part=[]
-    for reg in list_eur+list_brics+list_row+list_otheroecd:
-        contenu.append(M_tot[reg])
-        part.append(part_imp[reg])
-        if reg in list_eur:
-            color.append('blue')
-            continue
-        if reg in list_otheroecd:
-            color.append('red')
-            continue
-        if reg in list_brics:
-            color.append('green')
-            continue
-        if reg in list_row:
-            color.append('gray')
-    ['UE','Other_OECD','BRICS','RoW']
-    contenu.append(np.mean(contenu[:len(list_eur)-1]))
-    contenu.append(np.mean(contenu[len(list_eur):len(list_eur)+len(list_brics)-1]))
-    contenu.append(np.mean(contenu[len(list_eur)+len(list_brics):len(list_eur)+len(list_brics)+len(list_row)-1]))
-    contenu.append(np.mean(contenu[len(list_eur)+len(list_brics)+len(list_row):len(list_eur)+len(list_brics)+len(list_row)+len(list_otheroecd)-1]))
-    part.append(np.sum(part[:len(list_eur)-1]))
-    part.append(np.sum(part[len(list_eur):len(list_eur)+len(list_brics)-1]))
-    part.append(np.sum(part[len(list_eur)+len(list_brics):len(list_eur)+len(list_brics)+len(list_row)-1]))
-    part.append(np.sum(part[len(list_eur)+len(list_brics)+len(list_row):len(list_eur)+len(list_brics)+len(list_row)+len(list_otheroecd)-1]))
-    color.append('black')
-    color.append('black')
-    color.append('black')
-    color.append('black')
-    df_scatter = pd.DataFrame(data={'Contenu_CO2':contenu,'Part_Imp':part,'pays':list_eur+list_brics+list_row+list_otheroecd+['UE','Other_OECD','BRICS','RoW']})
-    print(df_scatter)
-
-    fig, ax = plt.subplots()
-    ax.scatter(x=df_scatter['Contenu_CO2'],y=df_scatter['Part_Imp'],color=color)
-    ax.set_xlabel("Contenu Carbone d'un bien importé")
-    ax.set_ylabel('Part dans les importations françaises')
-    for idx, row in df_scatter.iterrows():
-        ax.annotate(row['pays'], (row['Contenu_CO2'], row['Part_Imp']),fontsize=5 )
-    plt.savefig("figures/scatter_desag_spatiale.png")
-    plt.show()
-
 # init counterfactual(s)
 counterfactual = reference.copy()
 counterfactual.remove_extension('ghg_emissions_desag')
@@ -211,14 +149,13 @@ counterfactual.remove_extension('ghg_emissions_desag')
 ## ToDo
 nbsect = len(list(reference.get_sectors()))
 
-
-   
-
 def get_least(sector,reloc):
 	#par défaut on ne se laisse pas la possibilité de relocaliser en FR
 	M = reference.ghg_emissions_desag.M.sum()
 	#compute the part of the french economy that depends on broad activities, for each sector :
-	import_demand_FR = (reference.Y['FR'].drop(['FR']).sum(axis=1)+reference.Z['FR'].drop(['FR']).sum(axis=1)).sum(level=1)
+	final_demfr= reference.Y['FR'].drop(['FR']).sum(axis=1)
+	interdemfr=reference.Z['FR'].drop(['FR']).sum(axis=1)
+	import_demand_FR = (final_demfr+interdemfr).sum(level=1)
 
 	regs = list(reference.get_regions())[1:]
 
@@ -228,8 +165,166 @@ def get_least(sector,reloc):
 	for i in range(1,len(regs)):
 		if M[regs[i],sector] < M[regs[ind],sector] and reference.Z.loc[regs[i]].drop(columns=regs[i]).sum(axis=1).loc[sector] > import_demand_FR.loc[sector] : # pour choisir une région comme région de report, elle doit au moins déjà exporter l'équivalent de la partie importée de la demande française
 			ind=i
-	print(regs[ind],sector)
 	return regs[ind]
+
+def sort_by_content(sector,regs):
+	#sort all regions by carbon content of a sector
+	#carbon contents
+	M = reference.ghg_emissions_desag.M.sum()
+	carbon_content_sector = [M[regs[i],sector] for i in range(len(regs))]
+	index_sorted = np.argsort(carbon_content_sector)
+	return index_sorted
+
+def worst_moves(sector,reloc):
+	if reloc:
+		regs = list(reference.get_regions())
+	else:
+		regs = list(reference.get_regions())[1:] #remove FR
+	index_sorted = list(reversed(sort_by_content(sector,regs)))
+	sectors_list = list(reference.get_sectors())
+	demcats = list(reference.get_Y_categories())
+
+	#compute the part of the french economy that depends on broad activities, for this sector :
+	final_demfr= reference.Y['FR'].drop(['FR']).sum(axis=1).sum(level=1).loc[sector]
+	interdemfr=reference.Z['FR'].drop(['FR']).sum(axis=1).sum(level=1).loc[sector]
+	import_demand_FR = final_demfr+interdemfr
+	#part de chaque secteur français dans les importations intermédiaires françaises depuis un secteur étranger
+	part_prod_secteurs =[] 
+	part_dem_secteurs = []
+	for sec in sectors_list:
+		part_prod_secteurs.append(reference.Z[('FR',sec)].drop(['FR']).sum(level=1).loc[sector]/import_demand_FR)
+	for dem in demcats:
+		part_dem_secteurs.append(reference.Y[('FR',dem)].drop(['FR']).sum(level=1).loc[sector]/import_demand_FR)
+	
+	#parts des importations françaises *totales pour un secteur* à importer depuis le 1er best, 2nd best...
+	nbreg=len(regs)
+	nbsect=len(sectors_list)
+	nbdemcats = len(demcats)
+	parts_sects = np.zeros((nbreg,nbsect))
+	parts_demcats = np.zeros((nbreg,nbdemcats))
+	#construction of french needs of imports
+	totalfromsector = np.zeros(nbsect)
+	totalfinalfromsector = np.zeros(nbdemcats)
+	for j in range(nbsect):
+		#sum on regions of imports of imports of sector for french sector j
+		totalfromsector[j] = np.sum([reference.Z['FR'].drop('FR')[sectors_list[j]].loc[(regs[k],sector)] for k in range(nbreg)]) 
+	for j in range(nbdemcats):
+		totalfinalfromsector[j] = np.sum([reference.Y['FR'].drop('FR')[demcats[j]].loc[(regs[k],sector)] for k in range(nbreg)])
+
+	remaining_reg_export = np.zeros(nbreg)
+	for i in range(nbreg):
+		my_best = regs[index_sorted[i]] #region with ith lowest carbon content for this sector
+		reg_export = reference.Z.drop(columns=my_best).sum(axis=1).loc[(my_best,sector)] #exports from this reg/sec
+		remaining_reg_export[index_sorted[i]] = reg_export
+		for j in range(nbsect):
+			if np.sum(parts_sects[:,j]) < totalfromsector[j] and remaining_reg_export[index_sorted[i]] >0:
+				#if imp demand from sector j is not satisfied and if my_best can still export some sector
+				alloc=0
+				if remaining_reg_export[index_sorted[i]]>totalfromsector[j]:
+					alloc=totalfromsector[j]
+				else:
+					alloc=remaining_reg_export[index_sorted[i]]
+				parts_sects[index_sorted[i],j] = alloc
+				remaining_reg_export[index_sorted[i]] -= alloc
+				
+		for j in range(nbdemcats):
+			#idem for final demand categories
+			if remaining_reg_export[index_sorted[i]] >0 and np.sum(parts_demcats[:,j]) < totalfinalfromsector[j]:
+				alloc=0
+				if remaining_reg_export[index_sorted[i]] > totalfinalfromsector[j]:
+					alloc = totalfinalfromsector[j]
+				else:
+					alloc = remaining_reg_export[index_sorted[i]]
+				parts_demcats[index_sorted[i],j] = alloc
+				remaining_reg_export[index_sorted[i]] -= alloc
+	return parts_sects,parts_demcats,index_sorted
+
+def best_moves(sector,reloc):
+	if reloc:
+		regs = list(reference.get_regions())
+	else:
+		regs = list(reference.get_regions())[1:] #remove FR
+	index_sorted = sort_by_content(sector,regs)
+	sectors_list = list(reference.get_sectors())
+	demcats = list(reference.get_Y_categories())
+
+	#compute the part of the french economy that depends on broad activities, for this sector :
+	final_demfr= reference.Y['FR'].drop(['FR']).sum(axis=1).sum(level=1).loc[sector]
+	interdemfr=reference.Z['FR'].drop(['FR']).sum(axis=1).sum(level=1).loc[sector]
+	import_demand_FR = final_demfr+interdemfr
+	#part de chaque secteur français dans les importations intermédiaires françaises depuis un secteur étranger
+	part_prod_secteurs =[] 
+	part_dem_secteurs = []
+	for sec in sectors_list:
+		part_prod_secteurs.append(reference.Z[('FR',sec)].drop(['FR']).sum(level=1).loc[sector]/import_demand_FR)
+	for dem in demcats:
+		part_dem_secteurs.append(reference.Y[('FR',dem)].drop(['FR']).sum(level=1).loc[sector]/import_demand_FR)
+	
+	#parts des importations françaises *totales pour un secteur* à importer depuis le 1er best, 2nd best...
+	nbreg=len(regs)
+	nbsect=len(sectors_list)
+	nbdemcats = len(demcats)
+	parts_sects = np.zeros((nbreg,nbsect))
+	parts_demcats = np.zeros((nbreg,nbdemcats))
+	#construction of french needs of imports
+	totalfromsector = np.zeros(nbsect)
+	totalfinalfromsector = np.zeros(nbdemcats)
+	for j in range(nbsect):
+		#sum on regions of imports of imports of sector for french sector j
+		totalfromsector[j] = np.sum([reference.Z['FR'].drop('FR')[sectors_list[j]].loc[(regs[k],sector)] for k in range(nbreg)]) 
+	for j in range(nbdemcats):
+		totalfinalfromsector[j] = np.sum([reference.Y['FR'].drop('FR')[demcats[j]].loc[(regs[k],sector)] for k in range(nbreg)])
+
+	#export capacities of each regions
+	remaining_reg_export = np.zeros(nbreg)
+	for i in range(nbreg):
+		my_best = regs[index_sorted[i]] #region with ith lowest carbon content for this sector
+		reg_export = reference.Z.drop(columns=my_best).sum(axis=1).loc[(my_best,sector)] #exports from this reg/sec
+		remaining_reg_export[index_sorted[i]] = reg_export
+
+	for j in range(nbsect):
+		covered = 0
+		for i in range(nbreg):
+			if covered < totalfromsector[j] and remaining_reg_export[index_sorted[i]] >0:
+				#if imp demand from sector j is not satisfied and if my_best can still export some sector
+				if remaining_reg_export[index_sorted[i]]>totalfromsector[j]-covered:
+					alloc=totalfromsector[j]-covered
+				else:
+					alloc=remaining_reg_export[index_sorted[i]]
+				parts_sects[index_sorted[i],j] = alloc
+				remaining_reg_export[index_sorted[i]] -= alloc
+				covered+=alloc
+				
+	for j in range(nbdemcats):
+		#idem for final demand categories
+		covered = 0
+		for i in range(nbreg):
+			if  covered < totalfinalfromsector[j] and remaining_reg_export[index_sorted[i]] >0 :
+				if remaining_reg_export[index_sorted[i]] > totalfinalfromsector[j]-covered:
+					alloc = totalfinalfromsector[j]-covered
+				else:
+					alloc = remaining_reg_export[index_sorted[i]]
+				parts_demcats[index_sorted[i],j] = alloc
+				remaining_reg_export[index_sorted[i]] -= alloc
+				covered+=alloc
+	return parts_sects,parts_demcats,index_sorted
+
+def scenar_bestv2(reloc=False):
+	sectors_list = list(reference.get_sectors())
+	moves = {}
+	for sector in sectors_list:
+		part_sec, part_dem,index_sorted = best_moves(sector,reloc)
+		moves[sector] = {'parts_sec' : part_sec, 'parts_dem':part_dem, 'sort':index_sorted, 'reloc':reloc}
+	return sectors_list, moves
+
+def scenar_worstv2(reloc=False):
+	sectors_list = list(reference.get_sectors())
+	moves = {}
+	for sector in sectors_list:
+		part_sec, part_dem,index_sorted = worst_moves(sector,reloc)
+		moves[sector] = {'parts_sec' : part_sec, 'parts_dem':part_dem, 'sort':index_sorted, 'reloc':reloc}
+	return sectors_list, moves
+
 
 def get_worst(sector,reloc):
 	#par défaut on ne se laisse pas la possibilité de relocaliser en FR
@@ -293,22 +388,96 @@ def scenar_worst(reloc=False,deloc=False):
 
 def scenar_pref_europe():
 	nbreg = len(list(reference.get_regions()))
-	sectors = (nbreg-1)*list(reference.get_sectors())
+	sectors = (nbreg-2)*list(reference.get_sectors())
 	quantities = [1 for i in range(len(sectors)) ]
 	moves =[]
 	for i in range(nbreg):
 		reg = reference.get_regions()[i]
-		if reg != 'Europe':
+		if reg != 'Europe' and reg != 'FR':
 			for j in range(len(list(reference.get_sectors()))):
 				moves.append([reg,'Europe'])
 	return sectors,moves,quantities
 
+def scenar_pref_europev3(reloc=False):
+	if reloc:
+		regs = list(reference.get_regions())
+	else:
+		regs = list(reference.get_regions())[1:] #remove FR
+	sectors_list = list(reference.get_sectors())
+	demcats = list(reference.get_Y_categories())
+	nbdemcats=len(demcats)
+	nbreg=len(regs)
+	moves = {}
+	for i in range(nbsect):
+		#initialization of outputs
+		parts_sects = {}
+		parts_dem = {}
+		for r in regs:
+			parts_sects[r] = np.zeros(nbsect)
+			parts_dem[r] = np.zeros(nbdemcats)
+
+		#construction of french needs of imports
+		totalfromsector = np.zeros(nbsect)
+		totalfinalfromsector = np.zeros(nbdemcats)
+		for j in range(nbsect):
+			#sum on regions of imports of imports of sector for french sector j
+			totalfromsector[j] = np.sum([reference.Z['FR'].drop('FR')[sectors_list[j]].loc[(regs[k],sectors_list[i])] for k in range(nbreg)]) 
+		for j in range(nbdemcats):
+			totalfinalfromsector[j] = np.sum([reference.Y['FR'].drop('FR')[demcats[j]].loc[(regs[k],sectors_list[i])] for k in range(nbreg)])
+		
+		# exports capacity of all regions for sector i
+		reg_export = {}
+		for r in range(nbreg):
+			reg_export[regs[r]] = reference.Z.drop(columns=regs[r]).sum(axis=1).loc[(regs[r],sectors_list[i])] #exports from this reg/sec
+		
+		remaining_reg_export_UE = reg_export['Europe']
+		for j in range(nbsect):
+			if totalfromsector[j] !=0:
+				if remaining_reg_export_UE > 0:
+					#if europe can still export some sector[i]
+					if remaining_reg_export_UE>totalfromsector[j]:
+						alloc=totalfromsector[j]
+					else:
+						alloc= reference.Z.loc[('Europe',sectors_list[i]),('FR',sectors_list[j])] #tout ou rien ici
+					parts_sects['Europe'][j] = alloc
+					remaining_reg_export_UE -= alloc
+					#remove from other regions a part of what has been assigned to the EU
+					# this part corresponds to the part of the country in original french imports for sector j 
+					for r in regs:
+						if r != 'Europe':
+							parts_sects[r][j] =  reference.Z.loc[(r,sectors_list[i]),('FR',sectors_list[j])]* (1- alloc /totalfromsector[j])
+
+		for j in range(nbdemcats):
+			if totalfinalfromsector[j] != 0:
+				if remaining_reg_export_UE > 0:
+					#if europe can still export some sector[i]
+					if remaining_reg_export_UE>totalfinalfromsector[j]:
+						alloc=totalfinalfromsector[j]
+					else:
+						alloc=reference.Y.loc[('Europe',sectors_list[i]),('FR',demcats[j])] #tout ou rien ici
+					parts_dem['Europe'][j] = alloc
+					remaining_reg_export_UE -= alloc
+					#remove from other regions a part of what has been assigned to the EU
+					# this part corresponds to the part of the country in original french imports for sector j 
+					for r in regs:
+						if r != 'Europe':
+							parts_sects[r][j] =  reference.Y.loc[(r,sectors_list[i]),('FR',demcats[j])]* (1- alloc /totalfinalfromsector[j])
+
+		moves[sectors_list[i]] = {'parts_sec' : parts_sects, 'parts_dem':parts_dem, 'sort':[i for i in range(len(regs))], 'reloc':reloc}
+	return sectors_list,moves
+
+
 # build conterfactual(s) using param sets
 ## ToDo
-sectors,moves,quantities = scenar_best(reloc=True,deloc=False)
-for i in range(len(quantities)):
-	counterfactual.Z,counterfactual.Y = Tools.shock(list(reference.get_sectors()),counterfactual.Z,counterfactual.Y,moves[i][0],
-	moves[i][1],sectors[i],quantities[i])
+sectors_list=list(reference.get_sectors())
+reg_list=list(reference.get_regions())
+demcat_list = list(reference.get_Y_categories())
+
+sectors,moves = scenar_bestv2()
+#sectors,moves = scenar_pref_europev3()
+for sector in sectors:
+	counterfactual.Z,counterfactual.Y = Tools.shockv2(sectors,demcat_list,reg_list,counterfactual.Z,counterfactual.Y,moves[sector],sector)
+
 counterfactual.A = None
 counterfactual.x = None
 counterfactual.L = None
@@ -338,7 +507,33 @@ counterfactual.save_all(
 ghg_list = ['CO2', 'CH4', 'N2O', 'SF6', 'HFC', 'PFC']
 sectors_list=list(reference.get_sectors())
 reg_list = list(reference.get_regions())
-def visualisation(scenario,scenario_name,type_emissions='D_cba',saveghg=False):
+
+def vision_commerce():
+	df_eco_ref = reference.Y['FR'].sum(axis=1)+reference.Z['FR'].sum(axis=1)
+	df_eco_cont = counterfactual.Y['FR'].sum(axis=1)+counterfactual.Z['FR'].sum(axis=1)
+
+	comm_cumul_non_fr = pd.DataFrame({'ref':[df_eco_ref.sum(level=0)[r] for r in reg_list[1:]],
+	'cont': [df_eco_cont.sum(level=0)[r] for r in reg_list[1:]]}, index =reg_list[1:])
+	comm_cumul_non_fr.T.plot.barh(stacked=True)
+	plt.title("Importations totales françaises")
+	plt.tight_layout()
+	plt.savefig('figures/commerce_imports_totales')
+	plt.show()
+
+	dict_sect_plot = {}
+	for sec in sectors_list:
+		dict_sect_plot[(sec,'ref')] = [df_eco_ref.loc[(r,sec)]/df_eco_ref.drop(['FR']).sum(level=1).loc[sec] for r in reg_list[1:]]
+		dict_sect_plot[(sec,'cont')] = [df_eco_cont.loc[(r,sec)]/df_eco_cont.drop(['FR']).sum(level=1).loc[sec] for r in reg_list[1:]]
+
+	df_plot = pd.DataFrame(data=dict_sect_plot,index=reg_list[1:])
+	print(df_plot)
+	ax=df_plot.T.plot.barh(stacked=True, figsize=(20,16))
+	plt.title("Part de chaque région dans les importations françaises")
+	plt.tight_layout()
+	plt.savefig('figures/commerce_parts_imports_secteur.png')
+	plt.show()
+
+def visualisation_carbone(scenario,scenario_name,type_emissions='D_cba',saveghg=False):
 	ghg_list = ['CO2', 'CH4', 'N2O', 'SF6', 'HFC', 'PFC']
 	dict_fig_name = {'D_cba' : '_empreinte_carbone_fr_importation','D_pba' : '_emissions_territoriales_fr','D_imp' : '_emissions_importees_fr','D_exp' : '_emissions_exportees_fr'}
 	dict_plot_title = {'D_cba' : 'Empreinte carbone de la France', 'D_pba' : 'Emissions territoriales françaises','D_imp' : 'Emissions importées en France','D_exp' : 'Emissions exportées vers la France'}
@@ -380,7 +575,6 @@ def visualisation(scenario,scenario_name,type_emissions='D_cba',saveghg=False):
 	plt.ylabel("MtCO2eq")
 	plt.savefig("figures/"+scenario_name+dict_fig_name[type_emissions]+".png")
 	plt.close()
-	print(emissions_df.sum(level=0)['Agriculture'])
 	if saveghg :
 		for ghg in ghg_list:
 			df = pd.DataFrame(None, index = scenario.get_sectors(), columns = scenario.get_regions())
@@ -432,14 +626,15 @@ def heat_S(type):
     fig.tight_layout()
     plt.savefig('figures/heatmap_intensite_'+type)
     plt.show()
-heat_S('consommation')
-heat_S('production')
+#heat_S('consommation')
+#heat_S('production')
 
 # reference analysis
 ## ToDo
 for type in ['D_cba', 'D_pba', 'D_imp', 'D_exp'] :
 	#visualisation(reference,"Ref",type,saveghg=False)
-	visualisation(counterfactual,"Cont",type,saveghg=False)
+	visualisation_carbone(counterfactual,"Cont",type,saveghg=False)
+	vision_commerce()
 # whole static comparative analysis
 ## ToDo
 
