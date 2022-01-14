@@ -51,7 +51,7 @@ concat_settings = str(base_year) + '_' + \
 	agg_name['region']
 
 # set if rebuilding calibration from exiobase
-calib = False
+calib = True
 
 
 ###########################
@@ -89,7 +89,7 @@ if calib:
     # import agregation matrices
 	agg_matrix = {
         key: pd.read_excel(
-            data_dir / 'agg_matrix2.xlsx',
+            data_dir / 'agg_matrix_maxi.xlsx',
             sheet_name = key + '_' + value
         ) for (key, value) in agg_name.items()
     }
