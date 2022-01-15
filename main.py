@@ -129,23 +129,20 @@ else:
 # CALCULATIONS
 ###########################
 
+
+
+
+reference.calc_all()
+reference.ghg_emissions_desag = Tools.recal_extensions_per_region(
+	reference,
+	'ghg_emissions'
+)
+
 replace_reagg = True
 
 if replace_reagg :
-	reference.calc_all()
-	print(reference.x.sum())
 	Tools.replace_reagg_scenar_attributes(reference,reaggregation_matrix = pd.read_excel(data_dir / 'agg_matrix_opti.xlsx', sheet_name = 'region_ref'))
-	print(reference.x.sum())
-else :
-	# calculate reference system
-	reference.calc_all()
-
-
-	# update extension calculations
-	reference.ghg_emissions_desag = Tools.recal_extensions_per_region(
-		reference,
-		'ghg_emissions'
-	)
+	
 
 
 

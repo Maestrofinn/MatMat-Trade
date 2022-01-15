@@ -302,9 +302,9 @@ class Tools:
 
         to_replace_list = ['A','L','x','Y','Z','ghg_emissions.D_cba','ghg_emissions.D_pba','ghg_emissions.D_exp',
                         'ghg_emissions.D_imp','ghg_emissions.F','ghg_emissions.F_Y','ghg_emissions.M','ghg_emissions.S',
-                        'ghg_emissions.S_Y']#,'ghg_emissions_desag.D_cba','ghg_emissions_desag.D_pba','ghg_emissions_desag.D_exp',
-                        #'ghg_emissions_desag.D_imp','ghg_emissions_desag.F','ghg_emissions_desag.F_Y','ghg_emissions_desag.M',
-                        #'ghg_emissions_desag.S','ghg_emissions_desag.S_Y']
+                        'ghg_emissions.S_Y','ghg_emissions_desag.D_cba','ghg_emissions_desag.D_pba','ghg_emissions_desag.D_exp',
+                        'ghg_emissions_desag.D_imp','ghg_emissions_desag.F','ghg_emissions_desag.F_Y','ghg_emissions_desag.M',
+                        'ghg_emissions_desag.S','ghg_emissions_desag.S_Y']
 
         dict_index_reag = {'A':[('region','sector'),('region','sector')],
                     'L':[('region','sector'),('region','sector')],
@@ -330,13 +330,13 @@ class Tools:
                     'ghg_emissions_desag.S':[('stressor',),('region','sector')],
                     'ghg_emissions_desag.S_Y':[('stressor',),('region','conso')]}
 
-        dict_func_reag = {'A':'sum','L':'sum',#to be checked
+        dict_func_reag = {'A':'sum','L':'sum',
                     'x':'sum','Y':'sum','Z':'sum',
                     'ghg_emissions.D_cba':'sum',
                     'ghg_emissions.D_pba':'sum',
                     'ghg_emissions.D_exp':'sum',
                     'ghg_emissions.D_imp':'sum',
-                    'ghg_emissions.F':'sum', #to be checked
+                    'ghg_emissions.F':'sum',
                     'ghg_emissions.F_Y':'sum',
                     'ghg_emissions.M':'mean',
                     'ghg_emissions.S':'mean',
@@ -345,7 +345,7 @@ class Tools:
                     'ghg_emissions_desag.D_pba':'sum',
                     'ghg_emissions_desag.D_exp':'sum',
                     'ghg_emissions_desag.D_imp':'sum',
-                    'ghg_emissions_desag.F':'sum', #to be checked
+                    'ghg_emissions_desag.F':'sum',
                     'ghg_emissions_desag.F_Y':'sum',
                     'ghg_emissions_desag.M':'mean',
                     'ghg_emissions_desag.S':'mean',
@@ -353,7 +353,7 @@ class Tools:
 
         for attr in to_replace_list:
             #print(attr)
-            if attr in ['Z','Y','x','ghg_emissions.F'] :
+            if True :
                 mat = Tools.get_attribute(scenario,attr)
                 
                 new_ind = Tools.compute_new_multi_index(dict_index_reag[attr][0],list(scenario.get_sectors()),ghg_list,conso_sect_list,list_reg_reag_new)
@@ -459,10 +459,10 @@ class Tools:
             else :
                 Tools.set_attribute(scenario,attr,None)
             print(attr)#,np.shape(new_mat))
-        scenario.remove_extension('ghg_emissions_desag')
-        scenario.calc_all()
-        scenario.ghg_emissions_desag = Tools.recal_extensions_per_region(
-            scenario,
-            'ghg_emissions'
-        )
+        #scenario.remove_extension('ghg_emissions_desag')
+        #scenario.calc_all()
+        #scenario.ghg_emissions_desag = Tools.recal_extensions_per_region(
+        #    scenario,
+        #    'ghg_emissions'
+        #)
         return
