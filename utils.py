@@ -302,9 +302,9 @@ class Tools:
 
         to_replace_list = ['A','L','x','Y','Z','ghg_emissions.D_cba','ghg_emissions.D_pba','ghg_emissions.D_exp',
                         'ghg_emissions.D_imp','ghg_emissions.F','ghg_emissions.F_Y','ghg_emissions.M','ghg_emissions.S',
-                        'ghg_emissions.S_Y','ghg_emissions_desag.D_cba','ghg_emissions_desag.D_pba','ghg_emissions_desag.D_exp',
-                        'ghg_emissions_desag.D_imp','ghg_emissions_desag.F','ghg_emissions_desag.F_Y','ghg_emissions_desag.M',
-                        'ghg_emissions_desag.S','ghg_emissions_desag.S_Y']
+                        'ghg_emissions.S_Y']#,'ghg_emissions_desag.D_cba','ghg_emissions_desag.D_pba','ghg_emissions_desag.D_exp',
+                        #'ghg_emissions_desag.D_imp','ghg_emissions_desag.F','ghg_emissions_desag.F_Y','ghg_emissions_desag.M',
+                        #'ghg_emissions_desag.S','ghg_emissions_desag.S_Y']
 
         dict_index_reag = {'A':[('region','sector'),('region','sector')],
                     'L':[('region','sector'),('region','sector')],
@@ -353,45 +353,89 @@ class Tools:
 
         for attr in to_replace_list:
             #print(attr)
-            mat = Tools.get_attribute(scenario,attr)
-            
-            new_ind = Tools.compute_new_multi_index(dict_index_reag[attr][0],list(scenario.get_sectors()),ghg_list,conso_sect_list,list_reg_reag_new)
-            new_col = Tools.compute_new_multi_index(dict_index_reag[attr][1],list(scenario.get_sectors()),ghg_list,conso_sect_list,list_reg_reag_new)
+            if attr in ['Z','Y','x','ghg_emissions.F'] :
+                mat = Tools.get_attribute(scenario,attr)
+                
+                new_ind = Tools.compute_new_multi_index(dict_index_reag[attr][0],list(scenario.get_sectors()),ghg_list,conso_sect_list,list_reg_reag_new)
+                new_col = Tools.compute_new_multi_index(dict_index_reag[attr][1],list(scenario.get_sectors()),ghg_list,conso_sect_list,list_reg_reag_new)
 
-            new_mat = pd.DataFrame(None,index = new_ind, columns = new_col)
-            new_mat.fillna(value=0.,inplace=True)
-            
-            dict_reshape={('region','sector'):(11,17),
-                ('indout',):(1,),
-                ('region','conso'):(11,7),
-                ('region','stressor'):(11,6),
-                ('stressor',):(6,)}
+                new_mat = pd.DataFrame(None,index = new_ind, columns = new_col)
+                new_mat.fillna(value=0.,inplace=True)
+                
+                dict_reshape={('region','sector'):(11,17),
+                    ('indout',):(1,),
+                    ('region','conso'):(11,7),
+                    ('region','stressor'):(11,6),
+                    ('stressor',):(6,)}
 
-            for line in np.reshape(new_ind,dict_reshape[dict_index_reag[attr][0]]) :
-                if np.shape(line)==() or np.shape(line)==(1,) :
-                    elt_line = line
-                else :
-                    elt_line = line[0][0]
-                if 'region' in new_ind.names :
-                    list_reg_agg_1 = dict_reag[elt_line]
+                for line in np.reshape(new_ind,dict_reshape[dict_index_reag[attr][0]]) :
+                    if np.shape(line)==() or np.shape(line)==(1,) :
+                        elt_line = line
+                    else :
+                        elt_line = line[0][0]
+                    if 'region' in new_ind.names :
+                        list_reg_agg_1 = dict_reag[elt_line]
 
-                    for col in np.reshape(new_col,dict_reshape[dict_index_reag[attr][1]]) :
-                        if np.shape(col)==() or np.shape(col)==(1,) :
-                            elt_col = col
-                        else :
-                            elt_col = col[0][0]
+                        for col in np.reshape(new_col,dict_reshape[dict_index_reag[attr][1]]) :
+                            if np.shape(col)==() or np.shape(col)==(1,) :
+                                elt_col = col
+                            else :
+                                elt_col = col[0][0]
 
-                        if 'region' in new_col.names :
+                            if 'region' in new_col.names :
+                                list_reg_agg_2 = dict_reag[elt_col]
+                                s1=pd.DataFrame(np.zeros_like(new_mat.loc[elt_line,elt_col]),
+                                                index=new_mat.loc[elt_line,elt_col].index, 
+                                                columns = new_mat.loc[elt_line,elt_col].columns, 
+                                                dtype=np.float64)
+                                count=0
+                                for reg1 in list_reg_agg_1 :
+                                    for reg2 in list_reg_agg_2 :
+                                        s1 += mat.loc[reg1,reg2]
+                                        count+=1
+                                if dict_func_reag[attr] == 'mean':
+                                    s1 = s1/count
+
+                                for line_s1 in s1.index :
+                                    for col_s1 in s1.columns :
+                                        new_mat.at[(elt_line,line_s1),(elt_col,col_s1)]=s1.loc[line_s1,col_s1]
+
+                            else :
+                                s1=pd.DataFrame(np.zeros_like(new_mat.loc[elt_line]),
+                                                index=new_mat.loc[elt_line].index, 
+                                                columns = new_mat.loc[elt_line].columns,
+                                                dtype=np.float64)
+                                count=0
+                                for reg1 in list_reg_agg_1 :
+                                        s1 += mat.loc[reg1]
+                                        count+=1
+                                
+                                if dict_func_reag[attr] == 'mean':
+                                    s1 = s1/count
+
+                                for line_s1 in s1.index :
+                                    for col_s1 in s1.columns :
+                                        new_mat.at[(elt_line,line_s1),(elt_col,col_s1)]=s1.loc[line_s1,col_s1]
+                                
+                                
+
+                    elif 'region' in new_col.names:
+                        for col in np.reshape(new_col,dict_reshape[dict_index_reag[attr][1]]) :
+
+                            if np.shape(col)==() or np.shape(col)==(1,) :
+                                elt_col = col
+                            else :
+                                elt_col = col[0][0]
                             list_reg_agg_2 = dict_reag[elt_col]
-                            s1=pd.DataFrame(np.zeros_like(new_mat.loc[elt_line,elt_col]),
-                                            index=new_mat.loc[elt_line,elt_col].index, 
-                                            columns = new_mat.loc[elt_line,elt_col].columns, 
+                            s1=pd.DataFrame(np.zeros_like(new_mat.loc[:,elt_col]),
+                                            index=new_mat.loc[:,elt_col].index,
+                                            columns = new_mat.loc[:,elt_col].columns,
                                             dtype=np.float64)
                             count=0
-                            for reg1 in list_reg_agg_1 :
-                                for reg2 in list_reg_agg_2 :
-                                    s1 += mat.loc[reg1,reg2]
-                                    count+=1
+                            for reg2 in list_reg_agg_2 :
+                                s1 += mat.loc[:,reg2]
+                                count+=1
+
                             if dict_func_reag[attr] == 'mean':
                                 s1 = s1/count
 
@@ -399,61 +443,26 @@ class Tools:
                                 for col_s1 in s1.columns :
                                     new_mat.at[(elt_line,line_s1),(elt_col,col_s1)]=s1.loc[line_s1,col_s1]
 
-                        else :
-                            s1=pd.DataFrame(np.zeros_like(new_mat.loc[elt_line]),
-                                            index=new_mat.loc[elt_line].index, 
-                                            columns = new_mat.loc[elt_line].columns,
-                                            dtype=np.float64)
-                            count=0
-                            for reg1 in list_reg_agg_1 :
-                                    s1 += mat.loc[reg1]
-                                    count+=1
+                    else :
+                        for col in np.reshape(new_col,dict_reshape[dict_index_reag[attr][1]]) :
                             
-                            if dict_func_reag[attr] == 'mean':
-                                s1 = s1/count
-
-                            for line_s1 in s1.index :
-                                for col_s1 in s1.columns :
-                                    new_mat.at[(elt_line,line_s1),(elt_col,col_s1)]=s1.loc[line_s1,col_s1]
-                            
-                            
-
-                elif 'region' in new_col.names:
-                    for col in np.reshape(new_col,dict_reshape[dict_index_reag[attr][1]]) :
-
-                        if np.shape(col)==() or np.shape(col)==(1,) :
-                            elt_col = col
-                        else :
                             elt_col = col[0][0]
-                        list_reg_agg_2 = dict_reag[elt_col]
-                        s1=pd.DataFrame(np.zeros_like(new_mat.loc[:,elt_col]),
-                                        index=new_mat.loc[:,elt_col].index,
-                                        columns = new_mat.loc[:,elt_col].columns,
-                                        dtype=np.float64)
-                        count=0
-                        for reg2 in list_reg_agg_2 :
-                            s1 += mat.loc[:,reg2]
-                            count+=1
-
-                        if dict_func_reag[attr] == 'mean':
-                            s1 = s1/count
-
+                            s1=pd.DataFrame(mat.loc[elt_line,elt_col],index=new_mat.loc[elt_line,elt_col].index,
+                                            columns = new_mat.loc[elt_line,elt_col].columns, dtype=np.float64)
                         for line_s1 in s1.index :
                             for col_s1 in s1.columns :
                                 new_mat.at[(elt_line,line_s1),(elt_col,col_s1)]=s1.loc[line_s1,col_s1]
 
-                else :
-                    for col in np.reshape(new_col,dict_reshape[dict_index_reag[attr][1]]) :
-                        
-                        elt_col = col[0][0]
-                        s1=pd.DataFrame(mat.loc[elt_line,elt_col],index=new_mat.loc[elt_line,elt_col].index,
-                                        columns = new_mat.loc[elt_line,elt_col].columns, dtype=np.float64)
-                    for line_s1 in s1.index :
-                        for col_s1 in s1.columns :
-                            new_mat.at[(elt_line,line_s1),(elt_col,col_s1)]=s1.loc[line_s1,col_s1]
+                                    
 
-                                
-
-            Tools.set_attribute(scenario,attr,new_mat)
-            #print(np.shape(new_mat))
+                Tools.set_attribute(scenario,attr,new_mat)
+            else :
+                Tools.set_attribute(scenario,attr,None)
+            print(attr)#,np.shape(new_mat))
+        scenario.remove_extension('ghg_emissions_desag')
+        scenario.calc_all()
+        scenario.ghg_emissions_desag = Tools.recal_extensions_per_region(
+            scenario,
+            'ghg_emissions'
+        )
         return
