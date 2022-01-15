@@ -51,7 +51,7 @@ concat_settings = str(base_year) + '_' + \
 	agg_name['region']
 
 # set if rebuilding calibration from exiobase
-calib = True
+calib = False
 
 
 ###########################
@@ -89,7 +89,7 @@ if calib:
     # import agregation matrices
 	agg_matrix = {
         key: pd.read_excel(
-            data_dir / 'agg_matrix_maxi.xlsx',
+            data_dir / 'agg_matrix_opti.xlsx',
             sheet_name = key + '_' + value
         ) for (key, value) in agg_name.items()
     }
@@ -492,11 +492,11 @@ def scenar_guerre_chine(reloc=False):
 		for j in range(nbsect):
 			#sum on regions of imports of imports of sector for french sector j
 			totalfromsector[j] = np.sum([reference.Z['FR'].drop('FR')[sectors_list[j]].loc[(regs[k],sectors_list[i])] for k in range(nbreg)]) 
-			fromchinasector[j] = reference.Z['FR'].drop('FR')[sectors_list[j]].loc[('China',sectors_list[i])]
+			fromchinasector[j] = reference.Z['FR'].drop('FR')[sectors_list[j]].loc[('Chinafrica',sectors_list[i])]
 		
 		for j in range(nbdemcats):
 			totalfinalfromsector[j] = np.sum([reference.Y['FR'].drop('FR')[demcats[j]].loc[(regs[k],sectors_list[i])] for k in range(nbreg)])
-			finalfromchinasector[j] = reference.Y['FR'].drop('FR')[demcats[j]].loc[('China',sectors_list[i])]
+			finalfromchinasector[j] = reference.Y['FR'].drop('FR')[demcats[j]].loc[('Chinafrica',sectors_list[i])]
 		# exports capacity of all regions for sector i
 		reg_export = {}
 		for r in range(nbreg):
@@ -504,33 +504,45 @@ def scenar_guerre_chine(reloc=False):
 		
 		for j in range(nbsect):
 			if totalfromsector[j] !=0:
+				for r in regs:
+					if r != 'Chinafrica':
+						old = reference.Z.loc[(r,sectors_list[i]),('FR',sectors_list[j])]
+						parts_sects[r][j] = old
 				if fromchinasector[j] > 0:
 					for r in regs:
-						if r != 'China':
-							if fromchinasector[j] < reg_export[r]:
+						if r!='Chinafrica':
+							old = reference.Z.loc[(r,sectors_list[i]),('FR',sectors_list[j])]
+							if fromchinasector[j] +old < reg_export[r]:
 								alloc = fromchinasector[j]
-								parts_sects[r][j] =  reference.Z.loc[(r,sectors_list[i]),('FR',sectors_list[j])] + alloc
+								parts_sects[r][j] += alloc
 								fromchinasector[j]=0
+								reg_export[r]-=alloc
 								break
 							else:
 								alloc = reg_export[r]
+								reg_export[r]-=alloc
 								fromchinasector[j] -= alloc
-					parts_sects['China'][j] = fromchinasector[j]
+					parts_sects['Chinafrica'][j] = fromchinasector[j]
 
 		for j in range(nbdemcats):
 			if totalfinalfromsector[j] != 0:
+				for r in regs:
+					if r != 'Chinafrica':
+						old = reference.Y.loc[(r,sectors_list[i]),('FR',demcats[j])]
+						parts_dem[r][j] = old
 				if finalfromchinasector[j] > 0:
 					for r in regs:
-						if r != 'China':
-							if finalfromchinasector[j] < reg_export[r]:
+						if r != 'Chinafrica':
+							old= reference.Y.loc[(r,sectors_list[i]),('FR',demcats[j])]
+							if finalfromchinasector[j]+old < reg_export[r]:
 								alloc = finalfromchinasector[j]
-								parts_sects[r][j] =  reference.Z.loc[(r,sectors_list[i]),('FR',sectors_list[j])] + alloc
-								fromchinasector[j]=0
+								parts_dem[r][j] += alloc
+								finalfromchinasector[j]=0
 								break
 							else:
 								alloc = reg_export[r]
 								finalfromchinasector[j] -= alloc
-					parts_sects['China'][j] = finalfromchinasector[j]
+					parts_dem['Chinafrica'][j] = finalfromchinasector[j]
 
 		moves[sectors_list[i]] = {'parts_sec' : parts_sects, 'parts_dem':parts_dem, 'sort':[i for i in range(len(regs))], 'reloc':reloc}
 	return sectors_list,moves
@@ -541,10 +553,11 @@ sectors_list=list(reference.get_sectors())
 reg_list=list(reference.get_regions())
 demcat_list = list(reference.get_Y_categories())
 
-sectors,moves = scenar_bestv2()
+#sectors,moves = scenar_bestv2()
 #sectors,moves = scenar_pref_europev3()
+sectors,moves = scenar_guerre_chine()
 for sector in sectors:
-	counterfactual.Z,counterfactual.Y = Tools.shockv2(sectors,demcat_list,reg_list,counterfactual.Z,counterfactual.Y,moves[sector],sector)
+	counterfactual.Z,counterfactual.Y = Tools.shockv3(sectors,demcat_list,reg_list,counterfactual.Z,counterfactual.Y,moves[sector],sector)
 
 counterfactual.A = None
 counterfactual.x = None
@@ -591,10 +604,14 @@ def vision_commerce():
 	dict_sect_plot = {}
 	for sec in sectors_list:
 		dict_sect_plot[(sec,'ref')] = [df_eco_ref.loc[(r,sec)]/df_eco_ref.drop(['FR']).sum(level=1).loc[sec] for r in reg_list[1:]]
-		dict_sect_plot[(sec,'cont')] = [df_eco_cont.loc[(r,sec)]/df_eco_cont.drop(['FR']).sum(level=1).loc[sec] for r in reg_list[1:]]
+		dict_sect_plot[(sec,'cont')] = []
+		for r in reg_list[1:]:
+			if df_eco_cont.drop(['FR']).sum(level=1).loc[sec] !=0:
+				dict_sect_plot[(sec,'cont')].append(df_eco_cont.loc[(r,sec)]/df_eco_cont.drop(['FR']).sum(level=1).loc[sec])
+			else :
+				dict_sect_plot[(sec,'cont')].append(df_eco_cont.loc[(r,sec)])
 
 	df_plot = pd.DataFrame(data=dict_sect_plot,index=reg_list[1:])
-	print(df_plot)
 	ax=df_plot.T.plot.barh(stacked=True, figsize=(20,16))
 	plt.title("Part de chaque région dans les importations françaises")
 	plt.tight_layout()
@@ -699,10 +716,10 @@ def heat_S(type):
 
 # reference analysis
 ## ToDo
-for type in ['D_cba', 'D_pba', 'D_imp', 'D_exp'] :
+for type in ['D_cba', 'D_imp'] :
 	#visualisation(reference,"Ref",type,saveghg=False)
 	visualisation_carbone(counterfactual,"Cont",type,saveghg=False)
-	vision_commerce()
+vision_commerce()
 # whole static comparative analysis
 ## ToDo
 
