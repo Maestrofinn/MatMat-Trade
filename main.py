@@ -12,6 +12,7 @@ import os
 import copy
 
 import warnings
+from weakref import ref
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 # scientific
@@ -109,6 +110,7 @@ if calib:
 	reference.ghg_emissions.reset_to_flows()
 
 	# save calibration data
+
 	reference.save_all(
 		data_dir / ('reference' + '_' + concat_settings)
 	)
@@ -135,6 +137,9 @@ reference.ghg_emissions_desag = Tools.recal_extensions_per_region(
 	reference,
 	'ghg_emissions'
 )
+
+#Tools.replace_reagg_scenar_attributes(reference,reaggregation_matrix = pd.read_excel(data_dir / 'agg_matrix_opti.xlsx', sheet_name = 'region_ref'))
+
 
 # save reference data base
 reference.save_all(
@@ -612,6 +617,7 @@ def vision_commerce():
 				dict_sect_plot[(sec,'cont')].append(df_eco_cont.loc[(r,sec)])
 
 	df_plot = pd.DataFrame(data=dict_sect_plot,index=reg_list[1:])
+	#print(df_plot)
 	ax=df_plot.T.plot.barh(stacked=True, figsize=(20,16))
 	plt.title("Part de chaque région dans les importations françaises")
 	plt.tight_layout()
