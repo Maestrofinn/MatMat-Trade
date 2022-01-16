@@ -203,7 +203,7 @@ class Tools:
         return Z_modif, Y_modif
 
 
-    def get_attribute(obj, path_string):
+    def get_attribute(obj, path_string): #allows to get easily nested attributes
         parts = path_string.split('.')
         final_attribute_index = len(parts)-1
         current_attribute = obj
@@ -218,7 +218,7 @@ class Tools:
             current_attribute = new_attr
             i += 1
         
-    def set_attribute(obj, path_string, new_value):
+    def set_attribute(obj, path_string, new_value): #allows to set easily nested attributes
         parts = path_string.split('.')
         final_attribute_index = len(parts)-1
         current_attribute = obj
@@ -233,236 +233,109 @@ class Tools:
             current_attribute = new_attr
             i+=1
 
-    def compute_new_multi_index(ind_names,sectors_list,ghg_list,conso_sect_list,list_reg_reag_new):
+    def reag_dcba_sectors(scenario,inplace = False):
+        #create dict for sector reaggregation for visualisation:
+        dict_reag_sectors={'Agriculture':['Agriculture'],
+                        'Energy':['Crude coal','Crude oil','Natural gas','Fossil fuels','Electricity and heat'],
+                        'Industry':['Extractive industry','Biomass_industry','Clothing','Heavy_industry',
+                                    'Automobile','Oth transport equipment','Machinery','Electronics',
+                                    'Construction','Transport services'],
+                        'Composite':['Composite']}
+        ghg_list = ['CO2', 'CH4', 'N2O', 'SF6', 'HFC', 'PFC']
+        list_reg = scenario.get_regions()
 
-        if ind_names == ('region', 'conso') :
-            multi_reg = []
-            multi_sec = []
-            for reg in list_reg_reag_new :
-                for sec in conso_sect_list :
-                    multi_reg.append(reg)
-                    multi_sec.append(sec)
-            arrays = [multi_reg, multi_sec]
-            new_index = pd.MultiIndex.from_arrays(arrays, names=('region', 'sector'))
+        list_sec_new =[]
+        for sec in dict_reag_sectors:
+            list_sec_new.append(sec)
+        
+        dcba = scenario.ghg_emissions_desag.D_cba
 
-        elif ind_names == ('region', 'sector') :
-            multi_reg = []
-            multi_sec = []
-            for reg in list_reg_reag_new :
-                for sec in sectors_list :
-                    multi_reg.append(reg)
-                    multi_sec.append(sec)
-            arrays = [multi_reg, multi_sec]
-            new_index = pd.MultiIndex.from_arrays(arrays, names=('region', 'sector'))
+        #creating new_col and new_index for the new matrix :
+        multi_reg = []
+        multi_sec = []
+        for reg in list_reg :
+            for sec in list_sec_new :
+                multi_reg.append(reg)
+                multi_sec.append(sec)
+        arrays = [multi_reg, multi_sec]
+        new_col = pd.MultiIndex.from_arrays(arrays, names=('region', 'sector'))
 
-        elif ind_names == ('region', 'stressor') :
-            multi_reg = []
-            multi_ghg = []
-            for reg in list_reg_reag_new :
-                for ghg in ghg_list :
-                    multi_reg.append(reg)
-                    multi_ghg.append(ghg)
-            arrays2 = [multi_reg, multi_ghg]
-            new_index = pd.MultiIndex.from_arrays(arrays2, names=('region', 'stressor'))
-
-        elif ind_names == ('stressor',) :
-            new_index = pd.Index(ghg_list,name='stressor')
-
-        elif ind_names == ('indout',) :
-            new_index = pd.Index(['indout'],name='indout')
-
-        return new_index
+        multi_reg2 = []
+        multi_ghg = []
+        for reg in list_reg :
+            for ghg in ghg_list :
+                multi_reg2.append(reg)
+                multi_ghg.append(ghg)
+        arrays2 = [multi_reg2, multi_ghg]
+        new_index = pd.MultiIndex.from_arrays(arrays2, names=('region', 'stressor'))
 
 
-    def replace_reagg_scenar_attributes(scenario,reaggregation_matrix):
+        dcba_reag_sec = pd.DataFrame(None, index =new_index,columns = new_col)
+        dcba_reag_sec.fillna(value=0,inplace=True)
+
+        for reg_import in list_reg :
+            for sec_agg in dict_reag_sectors:
+                list_sec_agg_2 = dict_reag_sectors[sec_agg]
+                for sec2 in list_sec_agg_2 :
+                    dcba_reag_sec.loc[:,(reg_import,sec_agg)] += dcba.loc[:,(reg_import,sec2)]
+        if inplace :
+            Tools.set_attribute(scenario,'ghg_emissions_desag.D_cba',dcba_reag_sec)
+            return
+        else :
+            return dcba_reag_sec
+
+
+
+    def reag_dcba_regions(scenario,dict_reag_regions,inplace = False):
+        #create dict for sector reaggregation for visualisation:
 
         ghg_list = ['CO2', 'CH4', 'N2O', 'SF6', 'HFC', 'PFC']
+        list_sec = scenario.get_sectors()
 
-        conso_sect_list = ['Final consumption expenditure by households',
-                        'Final consumption expenditure by non-profit organisations serving households (NPISH)',
-                        'Final consumption expenditure by government',
-                        'Gross fixed capital formation',
-                        'Changes in inventories',
-                        'Changes in valuables',
-                        'Exports: Total (fob)']
+        list_reg_new =[]
+        for reg in dict_reag_regions:
+            list_reg_new.append(reg)
+        
+        dcba = scenario.ghg_emissions_desag.D_cba
 
-        list_reg_reag_new=list(reaggregation_matrix.columns[2:])
+        #creating new_col and new_index for the new matrix :
+        multi_reg = []
+        multi_sec = []
+        for reg in list_reg_new :
+            for sec in list_sec :
+                multi_reg.append(reg)
+                multi_sec.append(sec)
+        arrays = [multi_reg, multi_sec]
+        new_col = pd.MultiIndex.from_arrays(arrays, names=('region', 'sector'))
 
-        #create dic for region reaggregation :
-        dict_reag={}
-        dict_reag['FR']=['FR']
-        for reg_agg in list(reaggregation_matrix.columns[3:]):
-            list_reg_agg = []
-            for i in reaggregation_matrix.index:
-                reg = reaggregation_matrix.iloc[i].loc['Country name']
-                if reaggregation_matrix[reg_agg].iloc[i] == 1:
-                    list_reg_agg.append(reg)
-            dict_reag[reg_agg]=list_reg_agg
-        dict_reag
+        multi_reg2 = []
+        multi_ghg = []
+        for reg in list_reg_new :
+            for ghg in ghg_list :
+                multi_reg2.append(reg)
+                multi_ghg.append(ghg)
+        arrays2 = [multi_reg2, multi_ghg]
+        new_index = pd.MultiIndex.from_arrays(arrays2, names=('region', 'stressor'))
 
-        to_replace_list = ['A','L','x','Y','Z','ghg_emissions.D_cba','ghg_emissions.D_pba','ghg_emissions.D_exp',
-                        'ghg_emissions.D_imp','ghg_emissions.F','ghg_emissions.F_Y','ghg_emissions.M','ghg_emissions.S',
-                        'ghg_emissions.S_Y','ghg_emissions_desag.D_cba','ghg_emissions_desag.D_pba','ghg_emissions_desag.D_exp',
-                        'ghg_emissions_desag.D_imp','ghg_emissions_desag.F','ghg_emissions_desag.F_Y','ghg_emissions_desag.M',
-                        'ghg_emissions_desag.S','ghg_emissions_desag.S_Y']
 
-        dict_index_reag = {'A':[('region','sector'),('region','sector')],
-                    'L':[('region','sector'),('region','sector')],
-                    'x':[('region','sector'),('indout',)],
-                    'Y':[('region','sector'),('region','conso')],
-                    'Z':[('region','sector'),('region','sector')],
-                    'ghg_emissions.D_cba':[('stressor',),('region','sector')],
-                    'ghg_emissions.D_pba':[('stressor',),('region','sector')],
-                    'ghg_emissions.D_exp':[('stressor',),('region','sector')],
-                    'ghg_emissions.D_imp':[('stressor',),('region','sector')],
-                    'ghg_emissions.F':[('stressor',),('region','sector')],
-                    'ghg_emissions.F_Y':[('stressor',),('region','conso')],
-                    'ghg_emissions.M':[('stressor',),('region','sector')],
-                    'ghg_emissions.S':[('stressor',),('region','sector')],
-                    'ghg_emissions.S_Y':[('stressor',),('region','conso')],
-                    'ghg_emissions_desag.D_cba':[('region','stressor'),('region','sector')],
-                    'ghg_emissions_desag.D_pba':[('region','stressor'),('region','sector')],
-                    'ghg_emissions_desag.D_exp':[('region','stressor'),('region','sector')],
-                    'ghg_emissions_desag.D_imp':[('region','stressor'),('region','sector')],
-                    'ghg_emissions_desag.F':[('stressor',),('region','sector')],
-                    'ghg_emissions_desag.F_Y':[('stressor',),('region','conso')],
-                    'ghg_emissions_desag.M':[('stressor',),('region','sector')],
-                    'ghg_emissions_desag.S':[('stressor',),('region','sector')],
-                    'ghg_emissions_desag.S_Y':[('stressor',),('region','conso')]}
+        dcba_reag_reg = pd.DataFrame(None, index =new_index,columns = new_col)
+        dcba_reag_reg.fillna(value=0,inplace=True)
 
-        dict_func_reag = {'A':'sum','L':'sum',
-                    'x':'sum','Y':'sum','Z':'sum',
-                    'ghg_emissions.D_cba':'sum',
-                    'ghg_emissions.D_pba':'sum',
-                    'ghg_emissions.D_exp':'sum',
-                    'ghg_emissions.D_imp':'sum',
-                    'ghg_emissions.F':'sum',
-                    'ghg_emissions.F_Y':'sum',
-                    'ghg_emissions.M':'mean',
-                    'ghg_emissions.S':'mean',
-                    'ghg_emissions.S_Y':'mean',
-                    'ghg_emissions_desag.D_cba':'sum',
-                    'ghg_emissions_desag.D_pba':'sum',
-                    'ghg_emissions_desag.D_exp':'sum',
-                    'ghg_emissions_desag.D_imp':'sum',
-                    'ghg_emissions_desag.F':'sum',
-                    'ghg_emissions_desag.F_Y':'sum',
-                    'ghg_emissions_desag.M':'mean',
-                    'ghg_emissions_desag.S':'mean',
-                    'ghg_emissions_desag.S_Y':'mean'}
-
-        for attr in to_replace_list:
-            #print(attr)
-            if True :
-                mat = Tools.get_attribute(scenario,attr)
-                
-                new_ind = Tools.compute_new_multi_index(dict_index_reag[attr][0],list(scenario.get_sectors()),ghg_list,conso_sect_list,list_reg_reag_new)
-                new_col = Tools.compute_new_multi_index(dict_index_reag[attr][1],list(scenario.get_sectors()),ghg_list,conso_sect_list,list_reg_reag_new)
-
-                new_mat = pd.DataFrame(None,index = new_ind, columns = new_col)
-                new_mat.fillna(value=0.,inplace=True)
-                
-                dict_reshape={('region','sector'):(11,17),
-                    ('indout',):(1,),
-                    ('region','conso'):(11,7),
-                    ('region','stressor'):(11,6),
-                    ('stressor',):(6,)}
-
-                for line in np.reshape(new_ind,dict_reshape[dict_index_reag[attr][0]]) :
-                    if np.shape(line)==() or np.shape(line)==(1,) :
-                        elt_line = line
-                    else :
-                        elt_line = line[0][0]
-                    if 'region' in new_ind.names :
-                        list_reg_agg_1 = dict_reag[elt_line]
-
-                        for col in np.reshape(new_col,dict_reshape[dict_index_reag[attr][1]]) :
-                            if np.shape(col)==() or np.shape(col)==(1,) :
-                                elt_col = col
-                            else :
-                                elt_col = col[0][0]
-
-                            if 'region' in new_col.names :
-                                list_reg_agg_2 = dict_reag[elt_col]
-                                s1=pd.DataFrame(np.zeros_like(new_mat.loc[elt_line,elt_col]),
-                                                index=new_mat.loc[elt_line,elt_col].index, 
-                                                columns = new_mat.loc[elt_line,elt_col].columns, 
-                                                dtype=np.float64)
-                                count=0
-                                for reg1 in list_reg_agg_1 :
-                                    for reg2 in list_reg_agg_2 :
-                                        s1 += mat.loc[reg1,reg2]
-                                        count+=1
-                                if dict_func_reag[attr] == 'mean':
-                                    s1 = s1/count
-
-                                for line_s1 in s1.index :
-                                    for col_s1 in s1.columns :
-                                        new_mat.at[(elt_line,line_s1),(elt_col,col_s1)]=s1.loc[line_s1,col_s1]
-
-                            else :
-                                s1=pd.DataFrame(np.zeros_like(new_mat.loc[elt_line]),
-                                                index=new_mat.loc[elt_line].index, 
-                                                columns = new_mat.loc[elt_line].columns,
-                                                dtype=np.float64)
-                                count=0
-                                for reg1 in list_reg_agg_1 :
-                                        s1 += mat.loc[reg1]
-                                        count+=1
-                                
-                                if dict_func_reag[attr] == 'mean':
-                                    s1 = s1/count
-
-                                for line_s1 in s1.index :
-                                    for col_s1 in s1.columns :
-                                        new_mat.at[(elt_line,line_s1),(elt_col,col_s1)]=s1.loc[line_s1,col_s1]
-                                
-                                
-
-                    elif 'region' in new_col.names:
-                        for col in np.reshape(new_col,dict_reshape[dict_index_reag[attr][1]]) :
-
-                            if np.shape(col)==() or np.shape(col)==(1,) :
-                                elt_col = col
-                            else :
-                                elt_col = col[0][0]
-                            list_reg_agg_2 = dict_reag[elt_col]
-                            s1=pd.DataFrame(np.zeros_like(new_mat.loc[:,elt_col]),
-                                            index=new_mat.loc[:,elt_col].index,
-                                            columns = new_mat.loc[:,elt_col].columns,
-                                            dtype=np.float64)
-                            count=0
-                            for reg2 in list_reg_agg_2 :
-                                s1 += mat.loc[:,reg2]
-                                count+=1
-
-                            if dict_func_reag[attr] == 'mean':
-                                s1 = s1/count
-
-                            for line_s1 in s1.index :
-                                for col_s1 in s1.columns :
-                                    new_mat.at[(elt_line,line_s1),(elt_col,col_s1)]=s1.loc[line_s1,col_s1]
-
-                    else :
-                        for col in np.reshape(new_col,dict_reshape[dict_index_reag[attr][1]]) :
-                            
-                            elt_col = col[0][0]
-                            s1=pd.DataFrame(mat.loc[elt_line,elt_col],index=new_mat.loc[elt_line,elt_col].index,
-                                            columns = new_mat.loc[elt_line,elt_col].columns, dtype=np.float64)
-                        for line_s1 in s1.index :
-                            for col_s1 in s1.columns :
-                                new_mat.at[(elt_line,line_s1),(elt_col,col_s1)]=s1.loc[line_s1,col_s1]
-
-                                    
-
-                Tools.set_attribute(scenario,attr,new_mat)
-            else :
-                Tools.set_attribute(scenario,attr,None)
-            print(attr)#,np.shape(new_mat))
-        #scenario.remove_extension('ghg_emissions_desag')
-        #scenario.calc_all()
-        #scenario.ghg_emissions_desag = Tools.recal_extensions_per_region(
-        #    scenario,
-        #    'ghg_emissions'
-        #)
-        return
+        for reg_export in dict_reag_regions  :
+                list_reg_agg_1 = dict_reag_regions[reg_export]
+                for reg_import in dict_reag_regions :
+                    list_reg_agg_2 = dict_reag_regions[reg_import]
+                    s1=pd.DataFrame(np.zeros_like(dcba_reag_reg.loc[reg_export,reg_import]),
+                    index=dcba_reag_reg.loc[reg_export,reg_import].index, 
+                    columns = dcba_reag_reg.loc[reg_export,reg_import].columns)
+                    for reg1 in list_reg_agg_1 :
+                        for reg2 in list_reg_agg_2 :
+                            s1 += dcba.loc[reg1,reg2]
+                    for line in s1.index :
+                        for col in s1.columns :
+                            dcba_reag_reg.at[(reg_export,line),(reg_import,col)]=s1.loc[line,col]
+        if inplace :
+            Tools.set_attribute(scenario,'ghg_emissions_desag.D_cba',dcba_reag_reg)
+            return
+        else :
+            return dcba_reag_reg

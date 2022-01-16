@@ -129,21 +129,11 @@ else:
 # CALCULATIONS
 ###########################
 
-
-
-
 reference.calc_all()
 reference.ghg_emissions_desag = Tools.recal_extensions_per_region(
 	reference,
 	'ghg_emissions'
 )
-
-replace_reagg = True
-
-if replace_reagg :
-	Tools.replace_reagg_scenar_attributes(reference,reaggregation_matrix = pd.read_excel(data_dir / 'agg_matrix_opti.xlsx', sheet_name = 'region_ref'))
-	
-
 
 
 # save reference data base
@@ -563,15 +553,16 @@ sectors_list=list(reference.get_sectors())
 reg_list=list(reference.get_regions())
 demcat_list = list(reference.get_Y_categories())
 
-#sectors,moves = scenar_bestv2()
+sectors,moves = scenar_bestv2()
 #sectors,moves = scenar_pref_europev3()
-sectors,moves = scenar_guerre_chine()
+#sectors,moves = scenar_guerre_chine()
 for sector in sectors:
-	counterfactual.Z,counterfactual.Y = Tools.shockv3(sectors,demcat_list,reg_list,counterfactual.Z,counterfactual.Y,moves[sector],sector)
+	counterfactual.Z,counterfactual.Y = Tools.shockv2(sectors,demcat_list,reg_list,counterfactual.Z,counterfactual.Y,moves[sector],sector)
 
 counterfactual.A = None
 counterfactual.x = None
 counterfactual.L = None
+
 
 # calculate counterfactual(s) system
 counterfactual.calc_all()
@@ -724,6 +715,10 @@ def heat_S(type):
     plt.show()
 #heat_S('consommation')
 #heat_S('production')
+
+
+#Tools.reag_dcba_sectors(reference,inplace=True)
+#Tools.reag_dcba_sectors(counterfactual,inplace=True)
 
 # reference analysis
 ## ToDo
