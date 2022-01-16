@@ -561,7 +561,7 @@ demcat_list = list(reference.get_Y_categories())
 
 sectors,moves = scenar_bestv2()
 #sectors,moves = scenar_pref_europev3()
-sectors,moves = scenar_worstv2()
+#sectors,moves = scenar_worstv2()
 for sector in sectors:
 	counterfactual.Z,counterfactual.Y = Tools.shockv2(sectors,demcat_list,reg_list,counterfactual.Z,counterfactual.Y,moves[sector],sector)
 
@@ -578,8 +578,6 @@ counterfactual.ghg_emissions_desag = Tools.recal_extensions_per_region(
 	'ghg_emissions'
 )
 
-#print(counterfactual.x)
-#print(reference.x)
 # ###########################
 # # FORMAT RESULTS
 # ###########################
@@ -596,7 +594,9 @@ ghg_list = ['CO2', 'CH4', 'N2O', 'SF6', 'HFC', 'PFC']
 sectors_list=list(reference.get_sectors())
 reg_list = list(reference.get_regions())
 
-def vision_commerce():
+def vision_commerce(notallsectors=False):
+	if notallsectors:
+		sectors_list=['Agriculture','Energy','Industry','Composite']
 	df_eco_ref = reference.Y['FR'].sum(axis=1)+reference.Z['FR'].sum(axis=1)
 	df_eco_cont = counterfactual.Y['FR'].sum(axis=1)+counterfactual.Z['FR'].sum(axis=1)
 
@@ -619,14 +619,14 @@ def vision_commerce():
 				dict_sect_plot[(sec,'cont')].append(df_eco_cont.loc[(r,sec)])
 
 	df_plot = pd.DataFrame(data=dict_sect_plot,index=reg_list[1:])
-	#print(df_plot)
+
 	ax=df_plot.T.plot.barh(stacked=True, figsize=(20,16))
 	plt.title("Part de chaque région dans les importations françaises")
 	plt.tight_layout()
 	plt.savefig('figures/commerce_parts_imports_secteur.png')
 	plt.show()
 
-def visualisation_carbone(scenario,scenario_name,type_emissions='D_cba',saveghg=False):
+def visualisation_carbone(scenario,scenario_name,type_emissions='D_cba',saveghg=False,notallsectors=False):
 	ghg_list = ['CO2', 'CH4', 'N2O', 'SF6', 'HFC', 'PFC']
 	dict_fig_name = {'D_cba' : '_empreinte_carbone_fr_importation','D_pba' : '_emissions_territoriales_fr','D_imp' : '_emissions_importees_fr','D_exp' : '_emissions_exportees_fr'}
 	dict_plot_title = {'D_cba' : 'Empreinte carbone de la France', 'D_pba' : 'Emissions territoriales françaises','D_imp' : 'Emissions importées en France','D_exp' : 'Emissions exportées vers la France'}
@@ -662,6 +662,8 @@ def visualisation_carbone(scenario,scenario_name,type_emissions='D_cba',saveghg=
 		'CH4':liste_agg_ghg[1],'N2O':liste_agg_ghg[2],'SF6':liste_agg_ghg[3],
 		'HFC':liste_agg_ghg[4],'PFC':liste_agg_ghg[5]}
 
+	if notallsectors:
+		sectors_list=['Agriculture','Energy','Industry','Composite']
 	pour_plot=pd.DataFrame(data=dict_pour_plot,index=scenario.get_regions())
 	pour_plot.transpose().plot.bar(stacked=True,rot=45,figsize=(18,12))
 	plt.title(dict_plot_title[type_emissions]+" (scenario "+scenario_name+")")
@@ -670,7 +672,7 @@ def visualisation_carbone(scenario,scenario_name,type_emissions='D_cba',saveghg=
 	plt.close()
 	if saveghg :
 		for ghg in ghg_list:
-			df = pd.DataFrame(None, index = scenario.get_sectors(), columns = scenario.get_regions())
+			df = pd.DataFrame(None, index = sectors_list, columns = scenario.get_regions())
 			for reg in scenario.get_regions():
 				df.loc[:,reg]=emissions_df.loc[(reg,ghg)]
 			ax=df.plot.barh(stacked=True, figsize=(18,12))
@@ -680,8 +682,8 @@ def visualisation_carbone(scenario,scenario_name,type_emissions='D_cba',saveghg=
 			plt.savefig('figures/'+scenario_name+'_french_'+ghg+dict_fig_name[type_emissions]+'_provenance_sectors')
 			plt.close()
 	dict_sect_plot = {}
-	for i in range(len(list(scenario.get_sectors()))):
-		sector = list(scenario.get_sectors())[i]
+	for i in range(len(sectors_list)):
+		sector = sectors_list[i]
 		dict_sect_plot[sector] = {'cont':emissions_df.sum(level=0)[sector],'ref':em_df_ref.sum(level=0)[sector]}
 	reform = {(outerKey, innerKey): values for outerKey, innerDict in dict_sect_plot.items() for innerKey, values in innerDict.items()}
 	df_plot = pd.DataFrame(data=reform)
@@ -696,29 +698,31 @@ def visualisation_carbone(scenario,scenario_name,type_emissions='D_cba',saveghg=
 ###########################
 # VISUALIZE
 ###########################
-def heat_S(type):
-    S = reference.ghg_emissions_desag.S.sum()
-    M = reference.ghg_emissions_desag.M.sum()
-    sec_reg = []
-    for reg in reg_list:
-        in_reg=[]
-        for sector in sectors_list:
-            if type=='consommation':
-                in_reg.append(M[reg,sector])
-            if type=='production':
-                in_reg.append(S[reg,sector])
-        sec_reg.append(in_reg)
-    df = pd.DataFrame(data=sec_reg,columns=sectors_list,index=reg_list).T
-    df_n = df.div(df.max(axis=1), axis=0)*100
-    if type=='consommation':
-        title="Contenu carbone du bien importé"
-    if type=='production':
-        title="Intensité carbone de la production"
-    fig, ax = plt.subplots()
-    sns.heatmap(df_n,cmap='coolwarm', ax=ax,linewidths=1, linecolor='black').set_title(title)
-    fig.tight_layout()
-    plt.savefig('figures/heatmap_intensite_'+type)
-    plt.show()
+def heat_S(type,notallsectors=False):
+	if notallsectors:
+		sectors_list=['Agriculture','Energy','Industry','Composite']
+	S = reference.ghg_emissions_desag.S.sum()
+	M = reference.ghg_emissions_desag.M.sum()
+	sec_reg = []
+	for reg in reg_list:
+		in_reg=[]
+		for sector in sectors_list:
+			if type=='consommation':
+				in_reg.append(M[reg,sector])
+			if type=='production':
+				in_reg.append(S[reg,sector])
+		sec_reg.append(in_reg)
+	df = pd.DataFrame(data=sec_reg,columns=sectors_list,index=reg_list).T
+	df_n = df.div(df.max(axis=1), axis=0)*100
+	if type=='consommation':
+		title="Contenu carbone du bien importé"
+	if type=='production':
+		title="Intensité carbone de la production"
+	fig, ax = plt.subplots()
+	sns.heatmap(df_n,cmap='coolwarm', ax=ax,linewidths=1, linecolor='black').set_title(title)
+	fig.tight_layout()
+	plt.savefig('figures/heatmap_intensite_'+type)
+	plt.show()
 #heat_S('consommation')
 #heat_S('production')
 
