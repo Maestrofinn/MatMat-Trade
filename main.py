@@ -138,13 +138,13 @@ reference.ghg_emissions_desag = Tools.recal_extensions_per_region(
 	'ghg_emissions'
 )
 
-replace_reagg = True
+replace_reagg = False
 
 if replace_reagg :
 	Tools.replace_reagg_scenar_attributes(reference,reaggregation_matrix = pd.read_excel(data_dir / 'agg_matrix_opti.xlsx', sheet_name = 'region_ref'))
 	
 
-
+print(reference.Z)
 
 # save reference data base
 reference.save_all(
@@ -221,32 +221,38 @@ def worst_moves(sector,reloc):
 	for j in range(nbdemcats):
 		totalfinalfromsector[j] = np.sum([reference.Y['FR'].drop('FR')[demcats[j]].loc[(regs[k],sector)] for k in range(nbreg)])
 
+	#export capacities of each regions
 	remaining_reg_export = np.zeros(nbreg)
 	for i in range(nbreg):
 		my_best = regs[index_sorted[i]] #region with ith lowest carbon content for this sector
 		reg_export = reference.Z.drop(columns=my_best).sum(axis=1).loc[(my_best,sector)] #exports from this reg/sec
 		remaining_reg_export[index_sorted[i]] = reg_export
-		for j in range(nbsect):
-			if np.sum(parts_sects[:,j]) < totalfromsector[j] and remaining_reg_export[index_sorted[i]] >0:
+
+	for j in range(nbsect):
+		covered = 0
+		for i in range(nbreg):
+			if covered < totalfromsector[j] and remaining_reg_export[index_sorted[i]] >0:
 				#if imp demand from sector j is not satisfied and if my_best can still export some sector
-				alloc=0
-				if remaining_reg_export[index_sorted[i]]>totalfromsector[j]:
-					alloc=totalfromsector[j]
+				if remaining_reg_export[index_sorted[i]]>totalfromsector[j]-covered:
+					alloc=totalfromsector[j]-covered
 				else:
 					alloc=remaining_reg_export[index_sorted[i]]
 				parts_sects[index_sorted[i],j] = alloc
 				remaining_reg_export[index_sorted[i]] -= alloc
+				covered+=alloc
 				
-		for j in range(nbdemcats):
-			#idem for final demand categories
-			if remaining_reg_export[index_sorted[i]] >0 and np.sum(parts_demcats[:,j]) < totalfinalfromsector[j]:
-				alloc=0
-				if remaining_reg_export[index_sorted[i]] > totalfinalfromsector[j]:
-					alloc = totalfinalfromsector[j]
+	for j in range(nbdemcats):
+		#idem for final demand categories
+		covered = 0
+		for i in range(nbreg):
+			if  covered < totalfinalfromsector[j] and remaining_reg_export[index_sorted[i]] >0 :
+				if remaining_reg_export[index_sorted[i]] > totalfinalfromsector[j]-covered:
+					alloc = totalfinalfromsector[j]-covered
 				else:
 					alloc = remaining_reg_export[index_sorted[i]]
 				parts_demcats[index_sorted[i],j] = alloc
 				remaining_reg_export[index_sorted[i]] -= alloc
+				covered+=alloc
 	return parts_sects,parts_demcats,index_sorted
 
 def best_moves(sector,reloc):
@@ -565,9 +571,9 @@ demcat_list = list(reference.get_Y_categories())
 
 #sectors,moves = scenar_bestv2()
 #sectors,moves = scenar_pref_europev3()
-sectors,moves = scenar_guerre_chine()
+sectors,moves = scenar_worstv2()
 for sector in sectors:
-	counterfactual.Z,counterfactual.Y = Tools.shockv3(sectors,demcat_list,reg_list,counterfactual.Z,counterfactual.Y,moves[sector],sector)
+	counterfactual.Z,counterfactual.Y = Tools.shockv2(sectors,demcat_list,reg_list,counterfactual.Z,counterfactual.Y,moves[sector],sector)
 
 counterfactual.A = None
 counterfactual.x = None
@@ -575,7 +581,7 @@ counterfactual.L = None
 
 # calculate counterfactual(s) system
 counterfactual.calc_all()
-#print(counterfactual.Z)
+
 counterfactual.ghg_emissions_desag = Tools.recal_extensions_per_region(
 	counterfactual,
 	'ghg_emissions'
