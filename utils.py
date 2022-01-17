@@ -233,7 +233,7 @@ class Tools:
             current_attribute = new_attr
             i+=1
 
-    def reag_dcba_sectors(scenario,inplace = False):
+    def reag_dcba_sectors(scenario,inplace = False,dict_reag_sectors=None):
         #create dict for sector reaggregation for visualisation:
         dict_reag_sectors={'Agriculture':['Agriculture'],
                         'Energy':['Crude coal','Crude oil','Natural gas','Fossil fuels','Electricity and heat'],

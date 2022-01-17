@@ -597,6 +597,8 @@ reg_list = list(reference.get_regions())
 def vision_commerce(notallsectors=False):
 	if notallsectors:
 		sectors_list=['Agriculture','Energy','Industry','Composite']
+	else :
+		sectors_list=list(reference.get_sectors())
 	df_eco_ref = reference.Y['FR'].sum(axis=1)+reference.Z['FR'].sum(axis=1)
 	df_eco_cont = counterfactual.Y['FR'].sum(axis=1)+counterfactual.Z['FR'].sum(axis=1)
 
@@ -664,6 +666,8 @@ def visualisation_carbone(scenario,scenario_name,type_emissions='D_cba',saveghg=
 
 	if notallsectors:
 		sectors_list=['Agriculture','Energy','Industry','Composite']
+	else :
+		sectors_list=list(scenario.get_sectors())
 	pour_plot=pd.DataFrame(data=dict_pour_plot,index=scenario.get_regions())
 	pour_plot.transpose().plot.bar(stacked=True,rot=45,figsize=(18,12))
 	plt.title(dict_plot_title[type_emissions]+" (scenario "+scenario_name+")")
@@ -734,7 +738,7 @@ def heat_S(type,notallsectors=False):
 ## ToDo
 for type in ['D_cba', 'D_imp'] :
 	#visualisation(reference,"Ref",type,saveghg=False)
-	visualisation_carbone(counterfactual,"Cont",type,saveghg=False)
+	visualisation_carbone(counterfactual,"Cont",type,saveghg=False,notallsectors=True)
 vision_commerce()
 # whole static comparative analysis
 ## ToDo
@@ -753,6 +757,7 @@ print(res[0])
 print(res[1])
 print('Empreinte carbone référence :', res[2].sum(), 'MtCO2eq')
 print('Empreinte carbone contrefactuel :', res[3].sum(), 'MtCO2eq')
+print('Variation relative EC incomplète :',np.round(100*(res[3].sum()-res[2].sum())/res[2].sum(),2),'%')
 ref_dcba = pd.DataFrame(reference.ghg_emissions_desag.D_cba)
 con_dcba = pd.DataFrame(counterfactual.ghg_emissions_desag.D_cba)
 print('EC fossiles référence :', ref_dcba['FR','Crude oil'].sum(), 'MtCO2eq', ref_dcba['FR','Crude coal'].sum(),
@@ -765,3 +770,8 @@ def compa_monetaire(ref,contr):
 	return counterfactual.x - reference.x
 print("Variation de richesse de la transformation")
 print(compa_monetaire(reference,counterfactual).sum(level=0).sum())
+EC_ref = reference.ghg_emissions_desag.D_cba_reg.copy()
+EC_cont=pd.DataFrame(counterfactual.ghg_emissions_desag.D_cba.copy().sum(level='region',axis=1).sum(level='stressor')+counterfactual.ghg_emissions_desag.F_Y.groupby(axis=1,level='region',sort=False).sum())
+print('Véritable EC reference:',EC_ref['FR'].sum(),'MtCO2eq')
+print('Véritable EC contre-factuelle:',EC_cont['FR'].sum(),'MtCO2eq')
+print('Variation relative EC réelle :',np.round(100*(EC_cont['FR'].sum()-EC_ref['FR'].sum())/EC_ref['FR'].sum(),2),'%')
