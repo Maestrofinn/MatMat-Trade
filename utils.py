@@ -284,6 +284,56 @@ class Tools:
         else :
             return dcba_reag_sec
 
+    def reag_dimp_sectors(scenario,inplace = False):
+            #create dict for sector reaggregation for visualisation:
+            dict_reag_sectors={'Agriculture':['Agriculture'],
+                            'Energy':['Crude coal','Crude oil','Natural gas','Fossil fuels','Electricity and heat'],
+                            'Industry':['Extractive industry','Biomass_industry','Clothing','Heavy_industry',
+                                        'Automobile','Oth transport equipment','Machinery','Electronics',
+                                        'Construction','Transport services'],
+                            'Composite':['Composite']}
+            ghg_list = ['CO2', 'CH4', 'N2O', 'SF6', 'HFC', 'PFC']
+            list_reg = scenario.get_regions()
+
+            list_sec_new =[]
+            for sec in dict_reag_sectors:
+                list_sec_new.append(sec)
+            
+            dimp = scenario.ghg_emissions_desag.D_imp
+
+            #creating new_col and new_index for the new matrix :
+            multi_reg = []
+            multi_sec = []
+            for reg in list_reg :
+                for sec in list_sec_new :
+                    multi_reg.append(reg)
+                    multi_sec.append(sec)
+            arrays = [multi_reg, multi_sec]
+            new_col = pd.MultiIndex.from_arrays(arrays, names=('region', 'sector'))
+
+            multi_reg2 = []
+            multi_ghg = []
+            for reg in list_reg :
+                for ghg in ghg_list :
+                    multi_reg2.append(reg)
+                    multi_ghg.append(ghg)
+            arrays2 = [multi_reg2, multi_ghg]
+            new_index = pd.MultiIndex.from_arrays(arrays2, names=('region', 'stressor'))
+
+
+            dimp_reag_sec = pd.DataFrame(None, index =new_index,columns = new_col)
+            dimp_reag_sec.fillna(value=0,inplace=True)
+
+            for reg_import in list_reg :
+                for sec_agg in dict_reag_sectors:
+                    list_sec_agg_2 = dict_reag_sectors[sec_agg]
+                    for sec2 in list_sec_agg_2 :
+                        dimp_reag_sec.loc[:,(reg_import,sec_agg)] += dimp.loc[:,(reg_import,sec2)]
+            if inplace :
+                Tools.set_attribute(scenario,'ghg_emissions_desag.D_imp',dimp_reag_sec)
+                return
+            else :
+                return dimp_reag_sec
 
 
     def reag_dcba_regions(scenario,dict_reag_regions,inplace = False):

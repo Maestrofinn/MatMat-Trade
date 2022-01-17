@@ -8,6 +8,7 @@
 
 # general
 import re
+import select
 import sys
 import os
 import copy
@@ -436,7 +437,7 @@ def scenar_pref_europev3(reloc=False):
 		for r in range(nbreg):
 			reg_export[regs[r]] = reference.Z.drop(columns=regs[r]).sum(axis=1).loc[(regs[r],sectors_list[i])] #exports from this reg/sec
 		
-		remaining_reg_export_UE = reg_export['Europe']
+		remaining_reg_export_UE = reg_export['EU']
 		for j in range(nbsect):
 			if totalfromsector[j] !=0:
 				if remaining_reg_export_UE > 0:
@@ -444,13 +445,13 @@ def scenar_pref_europev3(reloc=False):
 					if remaining_reg_export_UE>totalfromsector[j]:
 						alloc=totalfromsector[j]
 					else:
-						alloc= reference.Z.loc[('Europe',sectors_list[i]),('FR',sectors_list[j])] #tout ou rien ici
-					parts_sects['Europe'][j] = alloc
+						alloc= reference.Z.loc[('EU',sectors_list[i]),('FR',sectors_list[j])] #tout ou rien ici
+					parts_sects['EU'][j] = alloc
 					remaining_reg_export_UE -= alloc
 					#remove from other regions a part of what has been assigned to the EU
 					# this part corresponds to the part of the country in original french imports for sector j 
 					for r in regs:
-						if r != 'Europe':
+						if r != 'EU':
 							parts_sects[r][j] =  reference.Z.loc[(r,sectors_list[i]),('FR',sectors_list[j])]* (1- alloc /totalfromsector[j])
 
 		for j in range(nbdemcats):
@@ -460,13 +461,13 @@ def scenar_pref_europev3(reloc=False):
 					if remaining_reg_export_UE>totalfinalfromsector[j]:
 						alloc=totalfinalfromsector[j]
 					else:
-						alloc=reference.Y.loc[('Europe',sectors_list[i]),('FR',demcats[j])] #tout ou rien ici
-					parts_dem['Europe'][j] = alloc
+						alloc=reference.Y.loc[('EU',sectors_list[i]),('FR',demcats[j])] #tout ou rien ici
+					parts_dem['EU'][j] = alloc
 					remaining_reg_export_UE -= alloc
 					#remove from other regions a part of what has been assigned to the EU
 					# this part corresponds to the part of the country in original french imports for sector j 
 					for r in regs:
-						if r != 'Europe':
+						if r != 'EU':
 							parts_sects[r][j] =  reference.Y.loc[(r,sectors_list[i]),('FR',demcats[j])]* (1- alloc /totalfinalfromsector[j])
 
 		moves[sectors_list[i]] = {'parts_sec' : parts_sects, 'parts_dem':parts_dem, 'sort':[i for i in range(len(regs))], 'reloc':reloc}
@@ -560,6 +561,7 @@ reg_list=list(reference.get_regions())
 demcat_list = list(reference.get_Y_categories())
 
 sectors,moves = scenar_bestv2()
+#sectors,moves = scenar_guerre_chine()
 #sectors,moves = scenar_pref_europev3()
 #sectors,moves = scenar_worstv2()
 for sector in sectors:
@@ -594,12 +596,23 @@ ghg_list = ['CO2', 'CH4', 'N2O', 'SF6', 'HFC', 'PFC']
 sectors_list=list(reference.get_sectors())
 reg_list = list(reference.get_regions())
 
+print("true EC")
+print(reference.ghg_emissions_desag.D_cba_reg.sum())
+print()
+
 def vision_commerce(notallsectors=False):
 	if notallsectors:
 		sectors_list=['Agriculture','Energy','Industry','Composite']
+	else:
+		sectors_list=list(reference.get_sectors())
 	df_eco_ref = reference.Y['FR'].sum(axis=1)+reference.Z['FR'].sum(axis=1)
 	df_eco_cont = counterfactual.Y['FR'].sum(axis=1)+counterfactual.Z['FR'].sum(axis=1)
 
+	comm_ref = pd.DataFrame([df_eco_ref.sum(level=0)[r] for r in reg_list[1:]], index =reg_list[1:])
+	comm_ref.T.plot.barh(stacked=True)
+	plt.title("Importations totales françaises")
+	plt.tight_layout()
+	plt.show()
 	comm_cumul_non_fr = pd.DataFrame({'ref':[df_eco_ref.sum(level=0)[r] for r in reg_list[1:]],
 	'cont': [df_eco_cont.sum(level=0)[r] for r in reg_list[1:]]}, index =reg_list[1:])
 	comm_cumul_non_fr.T.plot.barh(stacked=True)
@@ -628,8 +641,14 @@ def vision_commerce(notallsectors=False):
 
 def visualisation_carbone(scenario,scenario_name,type_emissions='D_cba',saveghg=False,notallsectors=False):
 	ghg_list = ['CO2', 'CH4', 'N2O', 'SF6', 'HFC', 'PFC']
-	dict_fig_name = {'D_cba' : '_empreinte_carbone_fr_importation','D_pba' : '_emissions_territoriales_fr','D_imp' : '_emissions_importees_fr','D_exp' : '_emissions_exportees_fr'}
-	dict_plot_title = {'D_cba' : 'Empreinte carbone de la France', 'D_pba' : 'Emissions territoriales françaises','D_imp' : 'Emissions importées en France','D_exp' : 'Emissions exportées vers la France'}
+	dict_fig_name = {'D_cba' : '_empreinte_carbone_fr_importation',
+						'D_pba' : '_emissions_territoriales_fr',
+						'D_imp' : '_emissions_importees_fr',
+						'D_exp' : '_emissions_exportees_fr'}
+	dict_plot_title = {'D_cba' : 'Empreinte carbone de la France', 
+						'D_pba' : 'Emissions territoriales françaises',
+						'D_imp' : 'Emissions importées en France',
+						'D_exp' : 'Emissions exportées vers la France'}
 	d_ = pd.DataFrame(getattr(scenario.ghg_emissions_desag,type_emissions))
 	if scenario_name =="Cont":
 		#pour contrefactuel on affiche la barre de la reference aussi
@@ -664,6 +683,9 @@ def visualisation_carbone(scenario,scenario_name,type_emissions='D_cba',saveghg=
 
 	if notallsectors:
 		sectors_list=['Agriculture','Energy','Industry','Composite']
+	else:
+		sectors_list=list(reference.get_sectors())
+
 	pour_plot=pd.DataFrame(data=dict_pour_plot,index=scenario.get_regions())
 	pour_plot.transpose().plot.bar(stacked=True,rot=45,figsize=(18,12))
 	plt.title(dict_plot_title[type_emissions]+" (scenario "+scenario_name+")")
@@ -692,15 +714,61 @@ def visualisation_carbone(scenario,scenario_name,type_emissions='D_cba',saveghg=
 	plt.xlabel("MtCO2eq")
 	plt.title(dict_plot_title[type_emissions]+" de tous GES par secteurs (scenario "+scenario_name+")")
 	plt.savefig('figures/'+scenario_name+dict_fig_name[type_emissions]+'_provenance_sectors')
-	#plt.show()
+	plt.show()
 	plt.close()
 
+def visualisation_carbone_ref(scenario,scenario_name,type_emissions='D_cba',saveghg=False,notallsectors=False):
+	ghg_list = ['CO2', 'CH4', 'N2O', 'SF6', 'HFC', 'PFC']
+	dict_fig_name = {'D_cba' : '_empreinte_carbone_fr_importation','D_pba' : '_emissions_territoriales_fr','D_imp' : '_emissions_importees_fr','D_exp' : '_emissions_exportees_fr'}
+	dict_plot_title = {'D_cba' : 'Empreinte carbone de la France', 'D_pba' : 'Emissions territoriales françaises','D_imp' : 'Emissions importées en France','D_exp' : 'Emissions exportées vers la France'}
+	d_ = pd.DataFrame(getattr(scenario.ghg_emissions_desag,type_emissions))
+	emissions_df = d_['FR']
+	if type_emissions=='D_cba':
+		reg_list = list(reference.get_regions())
+	if type_emissions=='D_imp':
+		reg_list=list(reference.get_regions())[1:]
+		emissions_df = emissions_df.dop(['FR'])
+	sumonsectors = emissions_df.sum(axis=1)
+	total_ges_by_origin = sumonsectors.sum(level=0)
+	liste_agg_ghg=[]
+	for ghg in ghg_list:
+		liste_agg_ghg.append(sumonsectors.iloc[sumonsectors.index.get_level_values(1)==ghg].sum(level=0))
+	dict_pour_plot = {'Total':total_ges_by_origin,'CO2':liste_agg_ghg[0],
+	'CH4':liste_agg_ghg[1],'N2O':liste_agg_ghg[2],'SF6':liste_agg_ghg[3],
+	'HFC':liste_agg_ghg[4],'PFC':liste_agg_ghg[5]}
+	if notallsectors:
+		sectors_list=['Agriculture','Energy','Industry','Composite']
+	else:
+		sectors_list=list(reference.get_sectors())
+	
+	pour_plot=pd.DataFrame(data=dict_pour_plot,index=reg_list)
+	pour_plot.transpose().plot.bar(stacked=True,rot=45,figsize=(18,12))
+	plt.title(dict_plot_title[type_emissions]+" (scenario "+scenario_name+")")
+	plt.ylabel("MtCO2eq")
+	plt.savefig("figures/"+scenario_name+dict_fig_name[type_emissions]+".png")
+	plt.close()
+	
+	dict_sect_plot = {}
+	for i in range(len(sectors_list)):
+		sector = sectors_list[i]
+		dict_sect_plot[sector] = [emissions_df.sum(level=0)[sector].loc[r] for r in reg_list]
+	
+	df_plot = pd.DataFrame(data=dict_sect_plot,index=reg_list)
+	ax=df_plot.T.plot.barh(stacked=True, figsize=(20,16))
+	plt.grid()
+	plt.xlabel("MtCO2eq")
+	plt.title(dict_plot_title[type_emissions]+" de tous GES par secteurs (scenario "+scenario_name+")")
+	plt.savefig('figures/'+scenario_name+dict_fig_name[type_emissions]+'_provenance_sectors')
+	plt.show()
+	plt.close()
 ###########################
 # VISUALIZE
 ###########################
 def heat_S(type,notallsectors=False):
 	if notallsectors:
 		sectors_list=['Agriculture','Energy','Industry','Composite']
+	else:
+		sectors_list=list(reference.get_sectors())
 	S = reference.ghg_emissions_desag.S.sum()
 	M = reference.ghg_emissions_desag.M.sum()
 	sec_reg = []
@@ -727,15 +795,18 @@ def heat_S(type,notallsectors=False):
 #heat_S('production')
 
 
-#Tools.reag_dcba_sectors(reference,inplace=True)
-#Tools.reag_dcba_sectors(counterfactual,inplace=True)
-
+# Tools.reag_dcba_sectors(reference,inplace=True)
+# Tools.reag_dcba_sectors(counterfactual,inplace=True)
+# Tools.reag_dimp_sectors(reference,inplace=True)
+# Tools.reag_dimp_sectors(counterfactual,inplace=True)
+# print(counterfactual.ghg_emissions_desag.D_imp)
 # reference analysis
 ## ToDo
-for type in ['D_cba', 'D_imp'] :
-	#visualisation(reference,"Ref",type,saveghg=False)
-	visualisation_carbone(counterfactual,"Cont",type,saveghg=False)
-vision_commerce()
+for type in ['D_cba','D_imp'] :
+	print(type)
+	#visualisation_carbone_ref(reference,"Ref",type,saveghg=False)
+	#visualisation_carbone(counterfactual,"Cont",type,saveghg=False,notallsectors=False)
+#vision_commerce()
 # whole static comparative analysis
 ## ToDo
 
@@ -755,13 +826,20 @@ print('Empreinte carbone référence :', res[2].sum(), 'MtCO2eq')
 print('Empreinte carbone contrefactuel :', res[3].sum(), 'MtCO2eq')
 ref_dcba = pd.DataFrame(reference.ghg_emissions_desag.D_cba)
 con_dcba = pd.DataFrame(counterfactual.ghg_emissions_desag.D_cba)
-print('EC fossiles référence :', ref_dcba['FR','Crude oil'].sum(), 'MtCO2eq', ref_dcba['FR','Crude coal'].sum(),
- 'MtCO2eq', ref_dcba['FR','Natural gas'].sum(), 'MtCO2eq' )
-print('EC fossiles contrefactuel :', con_dcba['FR','Crude oil'].sum(), 'MtCO2eq', con_dcba['FR','Crude coal'].sum(), 
-'MtCO2eq', con_dcba['FR','Natural gas'].sum(), 'MtCO2eq')
+#print('EC fossiles référence :', ref_dcba['FR','Crude oil'].sum(), 'MtCO2eq', ref_dcba['FR','Crude coal'].sum(),
+# 'MtCO2eq', ref_dcba['FR','Natural gas'].sum(), 'MtCO2eq' )
+#print('EC fossiles contrefactuel :', con_dcba['FR','Crude oil'].sum(), 'MtCO2eq', con_dcba['FR','Crude coal'].sum(), 
+#'MtCO2eq', con_dcba['FR','Natural gas'].sum(), 'MtCO2eq')
 
 def compa_monetaire(ref,contr):
 	#unité = M€
 	return counterfactual.x - reference.x
 print("Variation de richesse de la transformation")
 print(compa_monetaire(reference,counterfactual).sum(level=0).sum())
+
+EC_ref = reference.ghg_emissions_desag.D_cba_reg.copy()
+EC_cont=pd.DataFrame(counterfactual.ghg_emissions_desag.D_cba.copy().sum(level='region',axis=1).sum(level='stressor')+counterfactual.ghg_emissions_desag.F_Y.groupby(axis=1,level='region',sort=False).sum())
+print('Véritable EC reference:',EC_ref['FR'].sum(),'MtCO2eq')
+print('Véritable EC contre-factuelle:',EC_cont['FR'].sum(),'MtCO2eq')
+print('Variation relative EC réelle :',np.round(100*(EC_cont['FR'].sum()-EC_ref['FR'].sum())/EC_ref['FR'].sum(),2),'%')
+ 
