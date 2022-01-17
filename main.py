@@ -667,7 +667,7 @@ def visualisation_carbone(scenario,scenario_name,type_emissions='D_cba',saveghg=
 	if notallsectors:
 		sectors_list=['Agriculture','Energy','Industry','Composite']
 	else :
-		sectors_list=list(scenario.get_sectors())
+		sectors_list=list(reference.get_sectors())
 	pour_plot=pd.DataFrame(data=dict_pour_plot,index=scenario.get_regions())
 	pour_plot.transpose().plot.bar(stacked=True,rot=45,figsize=(18,12))
 	plt.title(dict_plot_title[type_emissions]+" (scenario "+scenario_name+")")
@@ -758,16 +758,10 @@ print(res[1])
 print('Empreinte carbone référence :', res[2].sum(), 'MtCO2eq')
 print('Empreinte carbone contrefactuel :', res[3].sum(), 'MtCO2eq')
 print('Variation relative EC incomplète :',np.round(100*(res[3].sum()-res[2].sum())/res[2].sum(),2),'%')
-ref_dcba = pd.DataFrame(reference.ghg_emissions_desag.D_cba)
-con_dcba = pd.DataFrame(counterfactual.ghg_emissions_desag.D_cba)
-print('EC fossiles référence :', ref_dcba['FR','Crude oil'].sum(), 'MtCO2eq', ref_dcba['FR','Crude coal'].sum(),
- 'MtCO2eq', ref_dcba['FR','Natural gas'].sum(), 'MtCO2eq' )
-print('EC fossiles contrefactuel :', con_dcba['FR','Crude oil'].sum(), 'MtCO2eq', con_dcba['FR','Crude coal'].sum(), 
-'MtCO2eq', con_dcba['FR','Natural gas'].sum(), 'MtCO2eq')
 
 def compa_monetaire(ref,contr):
 	#unité = M€
-	return counterfactual.x - reference.x
+	return contr.x - ref.x
 print("Variation de richesse de la transformation")
 print(compa_monetaire(reference,counterfactual).sum(level=0).sum())
 EC_ref = reference.ghg_emissions_desag.D_cba_reg.copy()
