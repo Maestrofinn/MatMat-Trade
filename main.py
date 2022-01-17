@@ -711,7 +711,7 @@ def visualisation_carbone(scenario,scenario_name,type_emissions='D_cba',saveghg=
 	dict_sect_plot = {}
 	for i in range(len(sectors_list)):
 		sector = sectors_list[i]
-		dict_sect_plot[sector] = {'cont':emissions_df.sum(level=0)[sector],'ref':em_df_ref.sum(level=0)[sector]}
+		dict_sect_plot[sector] = {'ref':em_df_ref.sum(level=0)[sector],'cont':emissions_df.sum(level=0)[sector]}
 	reform = {(outerKey, innerKey): values for outerKey, innerDict in dict_sect_plot.items() for innerKey, values in innerDict.items()}
 	df_plot = pd.DataFrame(data=reform)
 	ax=df_plot.drop('FR').T.plot.barh(stacked=True, figsize=(18,16),fontsize=17)
