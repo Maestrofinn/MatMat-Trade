@@ -12,6 +12,7 @@ from scipy.spatial.distance import cdist
 from sklearn import cluster
 import numpy as np
 import matplotlib.pyplot as plt
+from adjustText import adjust_text
 
 
 # general
@@ -295,18 +296,26 @@ pd.crosstab(groupes_cah,kmeans.labels_)
 #Illustrer les clusters dans l'espace centré réduit basé sur Carbon_content x Import_share
 
 colors_list = list(colors.cnames)
-colors_list = colors_list[10:10+nb_clusters_opti]
+colors_list = colors_list[27:27+nb_clusters_opti*3:3]
 #avec un code couleur selon le groupe
 plt.figure(figsize=(18,12))
+colors_dict_text={}
 for couleur,k in zip(colors_list,np.arange(nb_clusters_opti)):
-    plt.scatter(data_cr[kmeans.labels_==k,0],data_cr[kmeans.labels_==k,1],c=couleur)
-
+	plt.scatter(data_cr[kmeans.labels_==k,0],data_cr[kmeans.labels_==k,1],c=couleur)
+	colors_dict_text[k]=couleur
+	#print(couleur,k,data_cr[kmeans.labels_==k,0])
 plt.xlabel('Normalized carbon content')
 plt.ylabel('Normalized French Imports share')
 
+texts=[]
 #mettre les labels des points
 for i,label in enumerate(data.index):
     print(i,label)
-    plt.annotate(label,(data_cr[i,0],data_cr[i,1]))
+    texts.append(plt.annotate(label,(data_cr[i,0],data_cr[i,1]),size=15,color=colors_dict_text[kmeans.labels_[i]]))
+adjust_text(texts, only_move={'points':'y', 'texts':'y'}, arrowprops=dict(arrowstyle="->", color='r', lw=0.5))
 plt.savefig('figures/optim_clustering.png')
 plt.show() 
+
+
+
+# %%
