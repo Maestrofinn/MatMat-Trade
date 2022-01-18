@@ -213,7 +213,7 @@ height_cut_opti = 0.45 #A mettre à jour
 #générer la matrice des liens
 Z = linkage(data_cr,method='ward',metric='euclidean')
 
-plt.figure(2)
+plt.figure(2,figsize=(16,8))
 #affichage du dendrogramme
 plt.title("CAH")
 dendrogram(Z,labels=data.index,orientation='left',color_threshold=0)
@@ -221,9 +221,11 @@ plt.show()
 
 
 #matérialisation des 4 classes (hauteur t = 7)
-plt.title('CAH avec matérialisation des '+str(nb_clusters_opti)+' classes')
-
-dendrogram(Z,labels=data.index,orientation='left',color_threshold=height_cut_opti)
+plt.figure(3,figsize=(12,8))
+plt.title('CAH avec matérialisation des '+str(nb_clusters_opti)+' classes',size=20)
+dendrogram(Z,labels=data.index,orientation='left',color_threshold=height_cut_opti,leaf_font_size=15)
+plt.tight_layout()
+plt.savefig("figures/optim_clustering_dendrogram.png")
 plt.show()
 
 #découpage à la hauteur t = 7 ==> 4 identifiants de groupes obtenus
