@@ -92,7 +92,7 @@ if calib:
     # import agregation matrices
 	agg_matrix = {
         key: pd.read_excel(
-            data_dir / 'agg_matrix_opti.xlsx',
+            data_dir / 'agg_matrix_opti_S.xlsx',
             sheet_name = key + '_' + value
         ) for (key, value) in agg_name.items()
     }
@@ -474,6 +474,7 @@ def scenar_pref_europev3(reloc=False):
 	return sectors_list,moves
 
 def scenar_guerre_chine(reloc=False):
+	china_region = 'China, Middle East'
 	if reloc:
 		regs = list(reference.get_regions())
 	else:
@@ -499,11 +500,11 @@ def scenar_guerre_chine(reloc=False):
 		for j in range(nbsect):
 			#sum on regions of imports of imports of sector for french sector j
 			totalfromsector[j] = np.sum([reference.Z['FR'].drop('FR')[sectors_list[j]].loc[(regs[k],sectors_list[i])] for k in range(nbreg)]) 
-			fromchinasector[j] = reference.Z['FR'].drop('FR')[sectors_list[j]].loc[('Chinafrica',sectors_list[i])]
+			fromchinasector[j] = reference.Z['FR'].drop('FR')[sectors_list[j]].loc[(china_region,sectors_list[i])]
 		
 		for j in range(nbdemcats):
 			totalfinalfromsector[j] = np.sum([reference.Y['FR'].drop('FR')[demcats[j]].loc[(regs[k],sectors_list[i])] for k in range(nbreg)])
-			finalfromchinasector[j] = reference.Y['FR'].drop('FR')[demcats[j]].loc[('Chinafrica',sectors_list[i])]
+			finalfromchinasector[j] = reference.Y['FR'].drop('FR')[demcats[j]].loc[(china_region,sectors_list[i])]
 		# exports capacity of all regions for sector i
 		reg_export = {}
 		for r in range(nbreg):
@@ -512,12 +513,12 @@ def scenar_guerre_chine(reloc=False):
 		for j in range(nbsect):
 			if totalfromsector[j] !=0:
 				for r in regs:
-					if r != 'Chinafrica':
+					if r != china_region:
 						old = reference.Z.loc[(r,sectors_list[i]),('FR',sectors_list[j])]
 						parts_sects[r][j] = old
 				if fromchinasector[j] > 0:
 					for r in regs:
-						if r!='Chinafrica':
+						if r!=china_region:
 							old = reference.Z.loc[(r,sectors_list[i]),('FR',sectors_list[j])]
 							if fromchinasector[j] +old < reg_export[r]:
 								alloc = fromchinasector[j]
@@ -529,17 +530,17 @@ def scenar_guerre_chine(reloc=False):
 								alloc = reg_export[r]
 								reg_export[r]-=alloc
 								fromchinasector[j] -= alloc
-					parts_sects['Chinafrica'][j] = fromchinasector[j]
+					parts_sects[china_region][j] = fromchinasector[j]
 
 		for j in range(nbdemcats):
 			if totalfinalfromsector[j] != 0:
 				for r in regs:
-					if r != 'Chinafrica':
+					if r != china_region:
 						old = reference.Y.loc[(r,sectors_list[i]),('FR',demcats[j])]
 						parts_dem[r][j] = old
 				if finalfromchinasector[j] > 0:
 					for r in regs:
-						if r != 'Chinafrica':
+						if r != china_region:
 							old= reference.Y.loc[(r,sectors_list[i]),('FR',demcats[j])]
 							if finalfromchinasector[j]+old < reg_export[r]:
 								alloc = finalfromchinasector[j]
@@ -549,7 +550,7 @@ def scenar_guerre_chine(reloc=False):
 							else:
 								alloc = reg_export[r]
 								finalfromchinasector[j] -= alloc
-					parts_dem['Chinafrica'][j] = finalfromchinasector[j]
+					parts_dem[china_region][j] = finalfromchinasector[j]
 
 		moves[sectors_list[i]] = {'parts_sec' : parts_sects, 'parts_dem':parts_dem, 'sort':[i for i in range(len(regs))], 'reloc':reloc}
 	return sectors_list,moves
@@ -563,6 +564,7 @@ demcat_list = list(reference.get_Y_categories())
 sectors,moves = scenar_bestv2()
 #sectors,moves = scenar_pref_europev3()
 #sectors,moves = scenar_worstv2()
+#sectors,moves = scenar_guerre_chine()
 for sector in sectors:
 	counterfactual.Z,counterfactual.Y = Tools.shockv2(sectors,demcat_list,reg_list,counterfactual.Z,counterfactual.Y,moves[sector],sector)
 
@@ -796,13 +798,13 @@ def heat_S(type,notallsectors=False):
 	if type=='production':
 		title="Intensité carbone de la production"
 	fig, ax = plt.subplots()
-	sns.heatmap(df_n,cmap='coolwarm', ax=ax,linewidths=1, linecolor='black').set_title(title,size=15)
+	sns.heatmap(df_n,cmap='coolwarm', ax=ax,linewidths=1, linecolor='black').set_title(title,size=13)
 	fig.tight_layout()
 	plt.savefig('figures/heatmap_intensite_'+type)
 	#plt.show()
 	return
-#heat_S('consommation')
-#heat_S('production')
+heat_S('consommation')
+heat_S('production')
 
 Tools.reag_dcba_sectors(reference,inplace=True)
 Tools.reag_dcba_sectors(counterfactual,inplace=True)

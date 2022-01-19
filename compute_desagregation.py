@@ -151,8 +151,8 @@ print(reg_list)
 print(sectors_list)
 
 
-Carbon_content = pd.DataFrame(reference.ghg_emissions_desag.M.sum()).mean(level=0)
-#Carbon_content = pd.DataFrame(reference.ghg_emissions_desag.M.sum()).sum(level=0)
+Carbon_content = pd.DataFrame(reference.ghg_emissions_desag.S.sum()).mean(level=0)
+#Carbon_content = pd.DataFrame(reference.ghg_emissions_desag.M.sum()).mean(level=0)
 
 A=pd.DataFrame(reference.ghg_emissions_desag.M.T).sum(axis=1)
 Carbon_content_sec = pd.DataFrame(np.zeros((len(sectors_list),len(reg_list))),index=sectors_list,columns=reg_list)
@@ -208,7 +208,7 @@ plt.show()
 #%%Tracer le dendrogramme
 
 nb_clusters_opti = 10
-height_cut_opti = 0.45 #A mettre à jour
+height_cut_opti = 0.47 #A mettre à jour
 
 #générer la matrice des liens
 Z = linkage(data_cr,method='ward',metric='euclidean')
