@@ -35,7 +35,11 @@ from utils import Tools
 ###########################
 # SETTINGS
 ###########################
-
+#creating colormap for 11 regions and for 10 regions
+import matplotlib.colors as mpl_col
+colors = [plt.cm.tab10(i) for i in range(10)]+['#2fe220']
+my_cmap = mpl_col.LinearSegmentedColormap.from_list("mycmap", colors)
+my_cmap_noFR = mpl_col.LinearSegmentedColormap.from_list("mycmap", colors[1:])
 # year to study in [*range(1995, 2022 + 1)]
 base_year = 2015
 
@@ -561,12 +565,12 @@ sectors_list=list(reference.get_sectors())
 reg_list=list(reference.get_regions())
 demcat_list = list(reference.get_Y_categories())
 
-sectors,moves = scenar_bestv2()
-#sectors,moves = scenar_pref_europev3()
+#sectors,moves = scenar_bestv2()
+sectors,moves = scenar_pref_europev3()
 #sectors,moves = scenar_worstv2()
 #sectors,moves = scenar_guerre_chine()
 for sector in sectors:
-	counterfactual.Z,counterfactual.Y = Tools.shockv2(sectors,demcat_list,reg_list,counterfactual.Z,counterfactual.Y,moves[sector],sector)
+	counterfactual.Z,counterfactual.Y = Tools.shockv3(sectors,demcat_list,reg_list,counterfactual.Z,counterfactual.Y,moves[sector],sector)
 
 counterfactual.A = None
 counterfactual.x = None
@@ -606,7 +610,7 @@ def vision_commerce(notallsectors=False):
 	df_eco_cont = counterfactual.Y['FR'].sum(axis=1)+counterfactual.Z['FR'].sum(axis=1)
 
 	comm_ref = pd.DataFrame([df_eco_ref.sum(level=0)[r] for r in reg_list[1:]], index =reg_list[1:])
-	comm_ref.T.plot.barh(stacked=True,fontsize=17)
+	comm_ref.T.plot.barh(stacked=True,fontsize=17,colormap=my_cmap)
 	plt.title("Importations totales françaises",size=17)
 	plt.tight_layout()
 	plt.grid(visible=True)
@@ -614,7 +618,7 @@ def vision_commerce(notallsectors=False):
 	#plt.show()
 	comm_cumul_non_fr = pd.DataFrame({'ref':[df_eco_ref.sum(level=0)[r] for r in reg_list[1:]],
 	'cont': [df_eco_cont.sum(level=0)[r] for r in reg_list[1:]]}, index =reg_list[1:])
-	comm_cumul_non_fr.T.plot.barh(stacked=True,fontsize=17,figsize=(12,8))
+	comm_cumul_non_fr.T.plot.barh(stacked=True,fontsize=17,figsize=(12,8),colormap=my_cmap_noFR)
 	plt.title("Importations totales françaises",size=17)
 	plt.tight_layout()
 	plt.grid(visible=True)
@@ -634,7 +638,7 @@ def vision_commerce(notallsectors=False):
 
 	df_plot = pd.DataFrame(data=dict_sect_plot,index=reg_list[1:])
 
-	ax=df_plot.T.plot.barh(stacked=True, figsize=(18,12),fontsize=17)
+	ax=df_plot.T.plot.barh(stacked=True, figsize=(18,12),fontsize=17,colormap=my_cmap_noFR)
 	
 	plt.title("Part de chaque région dans les importations françaises",size=17)
 	plt.tight_layout()
@@ -691,7 +695,10 @@ def visualisation_carbone(scenario,scenario_name,type_emissions='D_cba',saveghg=
 		sectors_list=list(reference.get_sectors())
 
 	pour_plot=pd.DataFrame(data=dict_pour_plot,index=scenario.get_regions())
-	pour_plot.drop('FR').transpose().plot.bar(stacked=True,rot=45,figsize=(18,12),fontsize=17)
+	if type_emissions == 'D_cba' :
+		pour_plot.transpose().plot.bar(stacked=True,rot=45,figsize=(18,12),fontsize=17,colormap=my_cmap)
+	elif type_emissions == 'D_imp' :
+		pour_plot.drop('FR').transpose().plot.bar(stacked=True,rot=45,figsize=(18,12),fontsize=17,colormap=my_cmap_noFR)
 	plt.title(dict_plot_title[type_emissions]+" (scenario "+scenario_name+")",size=17)
 	plt.ylabel("MtCO2eq",size=17)
 	plt.grid(visible=True)
@@ -703,7 +710,10 @@ def visualisation_carbone(scenario,scenario_name,type_emissions='D_cba',saveghg=
 			df = pd.DataFrame(None, index = sectors_list, columns = scenario.get_regions())
 			for reg in scenario.get_regions():
 				df.loc[:,reg]=emissions_df.loc[(reg,ghg)]
-			ax=df.drop('FR').plot.barh(stacked=True, figsize=(18,12),fontsize=17)
+			if type_emissions == 'D_cba' :
+				ax=df.plot.barh(stacked=True, figsize=(18,12),fontsize=17,colormap=my_cmap)
+			elif type_emissions == 'D_imp' :
+				ax=df.drop('FR').plot.barh(stacked=True, figsize=(18,12),fontsize=17,colormap=my_cmap_noFR)
 			plt.grid(visible=True)
 			plt.xlabel("MtCO2eq",size=17)
 			plt.legend(prop={'size': 25})
@@ -716,7 +726,10 @@ def visualisation_carbone(scenario,scenario_name,type_emissions='D_cba',saveghg=
 		dict_sect_plot[sector] = {'ref':em_df_ref.sum(level=0)[sector],'cont':emissions_df.sum(level=0)[sector]}
 	reform = {(outerKey, innerKey): values for outerKey, innerDict in dict_sect_plot.items() for innerKey, values in innerDict.items()}
 	df_plot = pd.DataFrame(data=reform)
-	ax=df_plot.drop('FR').T.plot.barh(stacked=True, figsize=(18,16),fontsize=17)
+	if type_emissions == 'D_cba' :
+		ax=df_plot.T.plot.barh(stacked=True, figsize=(18,16),fontsize=17,colormap=my_cmap)
+	elif type_emissions == 'D_imp' :
+		ax=df_plot.drop('FR').T.plot.barh(stacked=True, figsize=(18,16),fontsize=17,colormap=my_cmap_noFR)
 	plt.grid(visible=True)
 	plt.xlabel("MtCO2eq",size=17)
 	plt.legend(prop={'size': 25})
@@ -750,7 +763,7 @@ def visualisation_carbone_ref(scenario,scenario_name,type_emissions='D_cba',save
 		sectors_list=list(reference.get_sectors())
 	
 	pour_plot=pd.DataFrame(data=dict_pour_plot,index=reg_list)
-	pour_plot.transpose().plot.bar(stacked=True,rot=45,figsize=(18,12),fontsize=17)
+	pour_plot.transpose().plot.bar(stacked=True,rot=45,figsize=(18,12),fontsize=17,colormap=my_cmap)
 	plt.title(dict_plot_title[type_emissions]+" (scenario "+scenario_name+")",size=17)
 	plt.ylabel("MtCO2eq",size=17)
 	plt.legend(prop={'size': 25})
@@ -764,7 +777,7 @@ def visualisation_carbone_ref(scenario,scenario_name,type_emissions='D_cba',save
 		dict_sect_plot[sector] = [emissions_df.sum(level=0)[sector].loc[r] for r in reg_list]
 	
 	df_plot = pd.DataFrame(data=dict_sect_plot,index=reg_list)
-	ax=df_plot.T.plot.barh(stacked=True, figsize=(17,16),fontsize=17,rot=45)
+	ax=df_plot.T.plot.barh(stacked=True, figsize=(17,16),fontsize=17,rot=45,colormap=my_cmap)
 	plt.grid(visible=True)
 	plt.xlabel("MtCO2eq",size=17)
 	plt.legend(prop={'size': 25})
@@ -803,23 +816,25 @@ def heat_S(type,notallsectors=False):
 	plt.savefig('figures/heatmap_intensite_'+type)
 	#plt.show()
 	return
-heat_S('consommation')
-heat_S('production')
+#heat_S('consommation')
+#heat_S('production')
+
+# print(counterfactual.ghg_emissions_desag.D_imp)
+# reference analysis
+for type in ['D_cba','D_imp'] :
+	print(type)
+	visualisation_carbone_ref(reference,"Ref",type,saveghg=False)
 
 Tools.reag_dcba_sectors(reference,inplace=True)
 Tools.reag_dcba_sectors(counterfactual,inplace=True)
 Tools.reag_dimp_sectors(reference,inplace=True)
 Tools.reag_dimp_sectors(counterfactual,inplace=True)
-# print(counterfactual.ghg_emissions_desag.D_imp)
-# reference analysis
-## ToDo
+
 for type in ['D_cba','D_imp'] :
 	print(type)
-	#visualisation_carbone_ref(reference,"Ref",type,saveghg=False)
 	visualisation_carbone(counterfactual,"Cont",type,saveghg=False,notallsectors=True)
 vision_commerce()
 # whole static comparative analysis
-## ToDo
 
 def delta_CF(ref,contr):
 	""" Compare les EC des deux scenarios, éventuellement par secteur
