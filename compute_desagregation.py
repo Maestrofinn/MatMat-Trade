@@ -159,7 +159,7 @@ Carbon_content_sec = pd.DataFrame(np.zeros((len(sectors_list),len(reg_list))),in
 for reg in reg_list:
     Carbon_content_sec[reg] = A.loc[reg]
 
-imports = (reference.Z['FR'].drop(['FR']).sum(level=0)).sum(axis=1)
+imports = (reference.Z['FR'].drop(['FR']).sum(level=0)).sum(axis=1) + (reference.Y['FR'].drop(['FR']).sum(level=0)).sum(axis=1)
 sum_imports = imports.sum()
 
 data = pd.DataFrame(np.zeros((len(reg_list[1:]),2)),index = reg_list[1:],columns = ['Carbon_content','Import_FR_share'])
@@ -306,14 +306,14 @@ for couleur,k in zip(colors_list,np.arange(nb_clusters_opti)):
 	plt.scatter(data_cr[kmeans.labels_==k,0],data_cr[kmeans.labels_==k,1],c=couleur)
 	colors_dict_text[k]=couleur
 	#print(couleur,k,data_cr[kmeans.labels_==k,0])
-plt.xlabel('Normalized carbon content')
-plt.ylabel('Normalized French Imports share')
+plt.xlabel('Normalized carbon content',size=17)
+plt.ylabel('Normalized French Imports share',size=17)
 
 texts=[]
 #mettre les labels des points
 for i,label in enumerate(data.index):
     print(i,label)
-    texts.append(plt.annotate(label,(data_cr[i,0],data_cr[i,1]),size=15,color=colors_dict_text[kmeans.labels_[i]]))
+    texts.append(plt.annotate(label,(data_cr[i,0],data_cr[i,1]),size=17,color=colors_dict_text[kmeans.labels_[i]]))
 adjust_text(texts, only_move={'points':'y', 'texts':'y'}, arrowprops=dict(arrowstyle="->", color='r', lw=0.5))
 plt.savefig('figures/optim_clustering.png')
 plt.show() 
