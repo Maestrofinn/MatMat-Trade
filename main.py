@@ -478,7 +478,7 @@ def scenar_pref_europev3(reloc=False):
 	return sectors_list,moves
 
 def scenar_guerre_chine(reloc=False):
-	china_region = 'China, Middle East'
+	china_region = 'China, RoW Asia and Pacific'
 	if reloc:
 		regs = list(reference.get_regions())
 	else:
@@ -565,12 +565,107 @@ sectors_list=list(reference.get_sectors())
 reg_list=list(reference.get_regions())
 demcat_list = list(reference.get_Y_categories())
 
-#sectors,moves = scenar_bestv2()
-sectors,moves = scenar_pref_europev3()
+plot_EC_France = False
+
+if plot_EC_France :
+	reference.ghg_emissions_desag.D_imp.sum(level=0)['FR'].sum(axis=1).sum()#['EU']
+	new_df = pd.DataFrame(None,columns=['Exportees','Production','Importees','Conso finale'],index=[''])
+	new_df.fillna(value=0.,inplace=True)
+	new_df['Exportees'] = - reference.ghg_emissions_desag.D_exp['FR'].sum().sum()
+	new_df['Production'] = reference.ghg_emissions_desag.D_pba['FR'].sum().sum()
+	new_df['Importees'] = reference.ghg_emissions_desag.D_imp['FR'].sum().sum()
+	new_df['Conso finale'] = reference.ghg_emissions_desag.F_Y['FR'].sum().sum()
+	new_df.plot.barh(stacked=True,fontsize=17,figsize=(10,5),rot=0)
+	plt.title("Empreinte carbone de la France",size=17)
+	plt.xlabel("MtCO2eq",size=15)
+	plt.tight_layout()
+	plt.grid(visible=True)
+	plt.legend(prop={'size': 17})
+	plt.savefig('figures/EC_France.png')
+	#plt.show()
+
+
+compare_scenarios = True
+
+if compare_scenarios :
+	print('compare_scenarios')
+	dict_regions = {'FR':['FR'],'UK, Norway, Switzerland':['UK, Norway, Switzerland'],
+	'China+':['China, RoW Asia and Pacific'],'EU':['EU'],
+	'RoW':['United States','Asia, Row Europe','RoW America,Turkey, Taïwan',
+	'RoW Middle East, Australia','Brazil, Mexico','South Africa','Japan, Indonesia, RoW Africa']}
+	D_cba_all_scen = pd.DataFrame(None,index=['FR','UK, Norway, Switzerland','China+','EU','RoW'],columns=['Best','Pref_EU','War_China','Reference','Worst'])
+	D_cba_all_scen.fillna(value=0.,inplace=True)
+	D_cba_all_scen['Reference']=Tools.reag_dcba_regions(reference,dict_reag_regions=dict_regions)['FR'].sum(level=0).sum(axis=1)
+
+	Commerce_all_scen = pd.DataFrame(None,index=['FR','UK, Norway, Switzerland','China+','EU','RoW'],columns=['Best','Pref_EU','War_China','Reference','Worst'])
+	Commerce_all_scen.fillna(value=0.,inplace=True)
+	for reg in dict_regions:
+		for reg_2 in dict_regions[reg]:
+			Commerce_all_scen.loc[reg,'Reference']+=(reference.Y['FR'].sum(axis=1)+reference.Z['FR'].sum(axis=1)).sum(level=0)[reg_2]
+	fun_dict = {'Best':scenar_bestv2(),'Pref_EU':scenar_pref_europev3(),
+	'Worst':scenar_worstv2(),'War_China':scenar_guerre_chine()}
+	for scenar in ['Best','Pref_EU','Worst','War_China'] :
+		print(scenar)
+		sectors,moves = fun_dict[scenar]
+		if scenar == 'Pref_EU' or scenar == 'War_China' :
+			for sector in sectors:
+				counterfactual.Z,counterfactual.Y  = Tools.shockv3(sectors,demcat_list,reg_list,counterfactual.Z,counterfactual.Y,moves[sector],sector)
+		else :
+			for sector in sectors:
+				counterfactual.Z,counterfactual.Y  = Tools.shockv2(sectors,demcat_list,reg_list,counterfactual.Z,counterfactual.Y,moves[sector],sector)
+		counterfactual.A = None
+		counterfactual.x = None
+		counterfactual.L = None
+		# calculate counterfactual(s) system
+		counterfactual.calc_all()
+		counterfactual.ghg_emissions_desag = Tools.recal_extensions_per_region(
+			counterfactual,
+			'ghg_emissions'
+		)
+		D_cba_all_scen[scenar]=Tools.reag_dcba_regions(counterfactual,dict_reag_regions=dict_regions)['FR'].sum(level=0).sum(axis=1)
+		for reg in dict_regions:
+			for reg_2 in dict_regions[reg]:
+				Commerce_all_scen.loc[reg,scenar]+=(counterfactual.Y['FR'].sum(axis=1)+counterfactual.Z['FR'].sum(axis=1)).sum(level=0)[reg_2]
+	
+	#print(D_cba_all_scen)
+	#print(Commerce_all_scen)
+
+	D_cba_all_scen.drop('FR').T.plot.bar(stacked=True,fontsize=17,figsize=(12,8),rot=45)
+	
+
+	plt.title("Emissions de GES importées par la France",size=17)
+	plt.ylabel("MtCO2eq",size=15)
+	plt.tight_layout()
+	plt.grid(visible=True)
+	plt.legend(prop={'size': 15})
+	plt.savefig('figures/comparaison_5_scenarios.png')
+	#plt.show()
+
+	fig, axes = plt.subplots(nrows=1, ncols=2)
+	D_cba_all_scen.drop('FR').T.drop(['War_China','Pref_EU']).plot.bar(ax=axes[0],stacked=True,fontsize=17,figsize=(12,8),rot=0)
+	axes[0].set_title("Emissions de GES importées par la France",size=17)
+	axes[0].legend(prop={'size': 15})
+	axes[0].set_ylabel("MtCO2eq",size=15)
+
+
+	Commerce_all_scen.drop('FR').T.drop(['War_China','Pref_EU']).plot.bar(ax=axes[1],stacked=True,fontsize=17,figsize=(12,8),rot=0)
+	axes[1].set_title("Importations françaises",size=17)
+	axes[1].set_ylabel("€",size=15)
+	axes[1].legend(prop={'size': 15})
+
+	plt.tight_layout()
+	plt.savefig('figures/comparaison_3_scenarios_bornes.png')
+	plt.show()
+
+	exit()
+
+
+sectors,moves = scenar_bestv2()
+#sectors,moves = scenar_pref_europev3()
 #sectors,moves = scenar_worstv2()
 #sectors,moves = scenar_guerre_chine()
 for sector in sectors:
-	counterfactual.Z,counterfactual.Y = Tools.shockv3(sectors,demcat_list,reg_list,counterfactual.Z,counterfactual.Y,moves[sector],sector)
+	counterfactual.Z,counterfactual.Y = Tools.shockv2(sectors,demcat_list,reg_list,counterfactual.Z,counterfactual.Y,moves[sector],sector)
 
 counterfactual.A = None
 counterfactual.x = None

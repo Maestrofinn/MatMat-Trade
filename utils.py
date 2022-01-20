@@ -345,7 +345,7 @@ class Tools:
         list_reg_new =[]
         for reg in dict_reag_regions:
             list_reg_new.append(reg)
-        
+            
         dcba = scenario.ghg_emissions_desag.D_cba
 
         #creating new_col and new_index for the new matrix :
@@ -369,7 +369,7 @@ class Tools:
 
 
         dcba_reag_reg = pd.DataFrame(None, index =new_index,columns = new_col)
-        dcba_reag_reg.fillna(value=0,inplace=True)
+        dcba_reag_reg.fillna(value=0.,inplace=True)
 
         for reg_export in dict_reag_regions  :
                 list_reg_agg_1 = dict_reag_regions[reg_export]
