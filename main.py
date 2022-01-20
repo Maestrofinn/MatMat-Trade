@@ -585,17 +585,19 @@ if plot_EC_France :
 	#plt.show()
 
 
-compare_scenarios = True
+compare_scenarios = False
 
-if compare_scenarios :
-	print('compare_scenarios')
-	dict_regions = {'FR':['FR'],'UK, Norway, Switzerland':['UK, Norway, Switzerland'],
+dict_regions = {'FR':['FR'],'UK, Norway, Switzerland':['UK, Norway, Switzerland'],
 	'China+':['China, RoW Asia and Pacific'],'EU':['EU'],
 	'RoW':['United States','Asia, Row Europe','RoW America,Turkey, Taïwan',
 	'RoW Middle East, Australia','Brazil, Mexico','South Africa','Japan, Indonesia, RoW Africa']}
+
+if compare_scenarios :
+	print('compare_scenarios')
+	
 	D_cba_all_scen = pd.DataFrame(None,index=['FR','UK, Norway, Switzerland','China+','EU','RoW'],columns=['Best','Pref_EU','War_China','Reference','Worst'])
 	D_cba_all_scen.fillna(value=0.,inplace=True)
-	D_cba_all_scen['Reference']=Tools.reag_dcba_regions(reference,dict_reag_regions=dict_regions)['FR'].sum(level=0).sum(axis=1)
+	D_cba_all_scen['Reference']=Tools.reag_D_regions(reference,dict_reag_regions=dict_regions)['FR'].sum(level=0).sum(axis=1)
 
 	Commerce_all_scen = pd.DataFrame(None,index=['FR','UK, Norway, Switzerland','China+','EU','RoW'],columns=['Best','Pref_EU','War_China','Reference','Worst'])
 	Commerce_all_scen.fillna(value=0.,inplace=True)
@@ -622,7 +624,7 @@ if compare_scenarios :
 			counterfactual,
 			'ghg_emissions'
 		)
-		D_cba_all_scen[scenar]=Tools.reag_dcba_regions(counterfactual,dict_reag_regions=dict_regions)['FR'].sum(level=0).sum(axis=1)
+		D_cba_all_scen[scenar]=Tools.reag_D_regions(counterfactual,dict_reag_regions=dict_regions)['FR'].sum(level=0).sum(axis=1)
 		for reg in dict_regions:
 			for reg_2 in dict_regions[reg]:
 				Commerce_all_scen.loc[reg,scenar]+=(counterfactual.Y['FR'].sum(axis=1)+counterfactual.Z['FR'].sum(axis=1)).sum(level=0)[reg_2]
@@ -657,12 +659,12 @@ if compare_scenarios :
 	exit()
 
 
-sectors,moves = scenar_bestv2()
-#sectors,moves = scenar_pref_europev3()
+#sectors,moves = scenar_bestv2()
+sectors,moves = scenar_pref_europev3()
 #sectors,moves = scenar_worstv2()
 #sectors,moves = scenar_guerre_chine()
 for sector in sectors:
-	counterfactual.Z,counterfactual.Y = Tools.shockv2(sectors,demcat_list,reg_list,counterfactual.Z,counterfactual.Y,moves[sector],sector)
+	counterfactual.Z,counterfactual.Y = Tools.shockv3(sectors,demcat_list,reg_list,counterfactual.Z,counterfactual.Y,moves[sector],sector)
 
 counterfactual.A = None
 counterfactual.x = None
@@ -788,9 +790,9 @@ def visualisation_carbone(scenario,scenario_name,type_emissions='D_cba',saveghg=
 
 	pour_plot=pd.DataFrame(data=dict_pour_plot,index=scenario.get_regions())
 	if type_emissions == 'D_cba' :
-		pour_plot.transpose().plot.bar(stacked=True,rot=45,figsize=(18,12),fontsize=17,colormap=my_cmap)
+		pour_plot.transpose().plot.bar(stacked=True,rot=45,figsize=(18,12),fontsize=17)#,colormap=my_cmap)
 	elif type_emissions == 'D_imp' :
-		pour_plot.drop('FR').transpose().plot.bar(stacked=True,rot=45,figsize=(18,12),fontsize=17,colormap=my_cmap_noFR)
+		pour_plot.drop('FR').transpose().plot.bar(stacked=True,rot=45,figsize=(18,12),fontsize=17)#,colormap=my_cmap_noFR)
 	plt.title(dict_plot_title[type_emissions]+" (scenario "+scenario_name+")",size=17)
 	plt.ylabel("MtCO2eq",size=17)
 	plt.grid(visible=True)
@@ -819,9 +821,9 @@ def visualisation_carbone(scenario,scenario_name,type_emissions='D_cba',saveghg=
 	reform = {(outerKey, innerKey): values for outerKey, innerDict in dict_sect_plot.items() for innerKey, values in innerDict.items()}
 	df_plot = pd.DataFrame(data=reform)
 	if type_emissions == 'D_cba' :
-		ax=df_plot.T.plot.barh(stacked=True, figsize=(18,16),fontsize=17,colormap=my_cmap)
+		ax=df_plot.T.plot.barh(stacked=True, figsize=(18,16),fontsize=17)#,colormap=my_cmap)
 	elif type_emissions == 'D_imp' :
-		ax=df_plot.drop('FR').T.plot.barh(stacked=True, figsize=(18,16),fontsize=17,colormap=my_cmap_noFR)
+		ax=df_plot.drop('FR').T.plot.barh(stacked=True, figsize=(18,16),fontsize=17)#,colormap=my_cmap_noFR)
 	plt.grid(visible=True)
 	plt.xlabel("MtCO2eq",size=17)
 	plt.legend(prop={'size': 25})
@@ -917,10 +919,14 @@ for type in ['D_cba','D_imp'] :
 	print(type)
 	visualisation_carbone_ref(reference,"Ref",type,saveghg=False)
 
-Tools.reag_dcba_sectors(reference,inplace=True)
-Tools.reag_dcba_sectors(counterfactual,inplace=True)
-Tools.reag_dimp_sectors(reference,inplace=True)
-Tools.reag_dimp_sectors(counterfactual,inplace=True)
+Tools.reag_D_sectors(reference,inplace=True,type='D_cba')
+Tools.reag_D_sectors(counterfactual,inplace=True,type='D_cba')
+Tools.reag_D_sectors(reference,inplace=True,type='D_imp')
+Tools.reag_D_sectors(counterfactual,inplace=True,type='D_imp')
+
+Tools.reag_D_regions(reference,inplace=True,type='D_imp',dict_reag_regions=dict_regions,list_sec=['Agriculture','Energy','Industry','Composite'])
+Tools.reag_D_regions(counterfactual,inplace=True,type='D_imp',dict_reag_regions=dict_regions,list_sec=['Agriculture','Energy','Industry','Composite'])
+
 
 for type in ['D_cba','D_imp'] :
 	print(type)

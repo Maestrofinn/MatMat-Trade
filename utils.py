@@ -233,7 +233,7 @@ class Tools:
             current_attribute = new_attr
             i+=1
 
-    def reag_dcba_sectors(scenario,inplace = False,dict_reag_sectors=None):
+    def reag_D_sectors(scenario,inplace = False,dict_reag_sectors=None,type='D_cba',list_reg=None):
         #create dict for sector reaggregation for visualisation:
         dict_reag_sectors={'Agriculture':['Agriculture'],
                         'Energy':['Crude coal','Crude oil','Natural gas','Fossil fuels','Electricity and heat'],
@@ -242,13 +242,15 @@ class Tools:
                                     'Construction','Transport services'],
                         'Composite':['Composite']}
         ghg_list = ['CO2', 'CH4', 'N2O', 'SF6', 'HFC', 'PFC']
-        list_reg = scenario.get_regions()
+        if list_reg is None :
+            list_reg = scenario.get_regions()
 
         list_sec_new =[]
         for sec in dict_reag_sectors:
             list_sec_new.append(sec)
         
-        dcba = scenario.ghg_emissions_desag.D_cba
+
+        D_mat = getattr(scenario.ghg_emissions_desag,type)
 
         #creating new_col and new_index for the new matrix :
         multi_reg = []
@@ -270,84 +272,34 @@ class Tools:
         new_index = pd.MultiIndex.from_arrays(arrays2, names=('region', 'stressor'))
 
 
-        dcba_reag_sec = pd.DataFrame(None, index =new_index,columns = new_col)
-        dcba_reag_sec.fillna(value=0,inplace=True)
+        D_reag_sec = pd.DataFrame(None, index =new_index,columns = new_col)
+        D_reag_sec.fillna(value=0,inplace=True)
 
         for reg_import in list_reg :
             for sec_agg in dict_reag_sectors:
                 list_sec_agg_2 = dict_reag_sectors[sec_agg]
                 for sec2 in list_sec_agg_2 :
-                    dcba_reag_sec.loc[:,(reg_import,sec_agg)] += dcba.loc[:,(reg_import,sec2)]
+                    D_reag_sec.loc[:,(reg_import,sec_agg)] += D_mat.loc[:,(reg_import,sec2)]
         if inplace :
-            Tools.set_attribute(scenario,'ghg_emissions_desag.D_cba',dcba_reag_sec)
+            Tools.set_attribute(scenario,'ghg_emissions_desag.'+type,D_reag_sec)
             return
         else :
-            return dcba_reag_sec
-
-    def reag_dimp_sectors(scenario,inplace = False):
-            #create dict for sector reaggregation for visualisation:
-            dict_reag_sectors={'Agriculture':['Agriculture'],
-                            'Energy':['Crude coal','Crude oil','Natural gas','Fossil fuels','Electricity and heat'],
-                            'Industry':['Extractive industry','Biomass_industry','Clothing','Heavy_industry',
-                                        'Automobile','Oth transport equipment','Machinery','Electronics',
-                                        'Construction','Transport services'],
-                            'Composite':['Composite']}
-            ghg_list = ['CO2', 'CH4', 'N2O', 'SF6', 'HFC', 'PFC']
-            list_reg = scenario.get_regions()
-
-            list_sec_new =[]
-            for sec in dict_reag_sectors:
-                list_sec_new.append(sec)
-            
-            dimp = scenario.ghg_emissions_desag.D_imp
-
-            #creating new_col and new_index for the new matrix :
-            multi_reg = []
-            multi_sec = []
-            for reg in list_reg :
-                for sec in list_sec_new :
-                    multi_reg.append(reg)
-                    multi_sec.append(sec)
-            arrays = [multi_reg, multi_sec]
-            new_col = pd.MultiIndex.from_arrays(arrays, names=('region', 'sector'))
-
-            multi_reg2 = []
-            multi_ghg = []
-            for reg in list_reg :
-                for ghg in ghg_list :
-                    multi_reg2.append(reg)
-                    multi_ghg.append(ghg)
-            arrays2 = [multi_reg2, multi_ghg]
-            new_index = pd.MultiIndex.from_arrays(arrays2, names=('region', 'stressor'))
+            return D_reag_sec
 
 
-            dimp_reag_sec = pd.DataFrame(None, index =new_index,columns = new_col)
-            dimp_reag_sec.fillna(value=0,inplace=True)
 
-            for reg_import in list_reg :
-                for sec_agg in dict_reag_sectors:
-                    list_sec_agg_2 = dict_reag_sectors[sec_agg]
-                    for sec2 in list_sec_agg_2 :
-                        dimp_reag_sec.loc[:,(reg_import,sec_agg)] += dimp.loc[:,(reg_import,sec2)]
-            if inplace :
-                Tools.set_attribute(scenario,'ghg_emissions_desag.D_imp',dimp_reag_sec)
-                return
-            else :
-                return dimp_reag_sec
-
-
-    def reag_dcba_regions(scenario,dict_reag_regions,inplace = False):
+    def reag_D_regions(scenario,dict_reag_regions,inplace = False,type='D_cba',list_sec=None):
         #create dict for sector reaggregation for visualisation:
 
         ghg_list = ['CO2', 'CH4', 'N2O', 'SF6', 'HFC', 'PFC']
-        list_sec = scenario.get_sectors()
+        if list_sec is None :
+            list_sec = scenario.get_sectors()
 
         list_reg_new =[]
         for reg in dict_reag_regions:
             list_reg_new.append(reg)
-            
-        dcba = scenario.ghg_emissions_desag.D_cba
 
+        D_mat = getattr(scenario.ghg_emissions_desag,type)
         #creating new_col and new_index for the new matrix :
         multi_reg = []
         multi_sec = []
@@ -368,24 +320,24 @@ class Tools:
         new_index = pd.MultiIndex.from_arrays(arrays2, names=('region', 'stressor'))
 
 
-        dcba_reag_reg = pd.DataFrame(None, index =new_index,columns = new_col)
-        dcba_reag_reg.fillna(value=0.,inplace=True)
+        D_reag_reg = pd.DataFrame(None, index =new_index,columns = new_col)
+        D_reag_reg.fillna(value=0.,inplace=True)
 
         for reg_export in dict_reag_regions  :
                 list_reg_agg_1 = dict_reag_regions[reg_export]
                 for reg_import in dict_reag_regions :
                     list_reg_agg_2 = dict_reag_regions[reg_import]
-                    s1=pd.DataFrame(np.zeros_like(dcba_reag_reg.loc[reg_export,reg_import]),
-                    index=dcba_reag_reg.loc[reg_export,reg_import].index, 
-                    columns = dcba_reag_reg.loc[reg_export,reg_import].columns)
+                    s1=pd.DataFrame(np.zeros_like(D_reag_reg.loc[reg_export,reg_import]),
+                    index=D_reag_reg.loc[reg_export,reg_import].index, 
+                    columns = D_reag_reg.loc[reg_export,reg_import].columns)
                     for reg1 in list_reg_agg_1 :
                         for reg2 in list_reg_agg_2 :
-                            s1 += dcba.loc[reg1,reg2]
+                            s1 += D_mat.loc[reg1,reg2]
                     for line in s1.index :
                         for col in s1.columns :
-                            dcba_reag_reg.at[(reg_export,line),(reg_import,col)]=s1.loc[line,col]
+                            D_reag_reg.at[(reg_export,line),(reg_import,col)]=s1.loc[line,col]
         if inplace :
-            Tools.set_attribute(scenario,'ghg_emissions_desag.D_cba',dcba_reag_reg)
+            Tools.set_attribute(scenario,'ghg_emissions_desag.'+type,D_reag_reg)
             return
         else :
-            return dcba_reag_reg
+            return D_reag_reg
