@@ -658,13 +658,24 @@ if compare_scenarios :
 
 	exit()
 
-
-#sectors,moves = scenar_bestv2()
-sectors,moves = scenar_pref_europev3()
-#sectors,moves = scenar_worstv2()
-#sectors,moves = scenar_guerre_chine()
-for sector in sectors:
-	counterfactual.Z,counterfactual.Y = Tools.shockv3(sectors,demcat_list,reg_list,counterfactual.Z,counterfactual.Y,moves[sector],sector)
+scenarios = ['best','worst','pref_eu','war_china']
+chosen_scenario=scenarios[4]
+if chosen_scenario == 'best' :
+	sectors,moves = scenar_bestv2()
+	for sector in sectors:
+		counterfactual.Z,counterfactual.Y = Tools.shockv2(sectors,demcat_list,reg_list,counterfactual.Z,counterfactual.Y,moves[sector],sector)
+elif chosen_scenario == 'worst' :
+	sectors,moves = scenar_worstv2()
+	for sector in sectors:
+		counterfactual.Z,counterfactual.Y = Tools.shockv2(sectors,demcat_list,reg_list,counterfactual.Z,counterfactual.Y,moves[sector],sector)
+elif chosen_scenario == 'pref_eu' :
+	sectors,moves = scenar_pref_europev3()
+	for sector in sectors:
+		counterfactual.Z,counterfactual.Y = Tools.shockv3(sectors,demcat_list,reg_list,counterfactual.Z,counterfactual.Y,moves[sector],sector)
+elif chosen_scenario == 'war_china' :
+	sectors,moves = scenar_guerre_chine()
+	for sector in sectors:
+		counterfactual.Z,counterfactual.Y = Tools.shockv3(sectors,demcat_list,reg_list,counterfactual.Z,counterfactual.Y,moves[sector],sector)
 
 counterfactual.A = None
 counterfactual.x = None
@@ -712,7 +723,7 @@ def vision_commerce(notallsectors=False):
 	#plt.show()
 	comm_cumul_non_fr = pd.DataFrame({'ref':[df_eco_ref.sum(level=0)[r] for r in reg_list[1:]],
 	'cont': [df_eco_cont.sum(level=0)[r] for r in reg_list[1:]]}, index =reg_list[1:])
-	comm_cumul_non_fr.T.plot.barh(stacked=True,fontsize=17,figsize=(12,8),colormap=my_cmap_noFR)
+	comm_cumul_non_fr.T.plot.barh(stacked=True,fontsize=17,figsize=(12,8))#,colormap=my_cmap_noFR)
 	plt.title("Importations totales françaises",size=17)
 	plt.tight_layout()
 	plt.grid(visible=True)
@@ -732,7 +743,7 @@ def vision_commerce(notallsectors=False):
 
 	df_plot = pd.DataFrame(data=dict_sect_plot,index=reg_list[1:])
 
-	ax=df_plot.T.plot.barh(stacked=True, figsize=(18,12),fontsize=17,colormap=my_cmap_noFR)
+	ax=df_plot.T.plot.barh(stacked=True, figsize=(18,12),fontsize=17)#,colormap=my_cmap_noFR)
 	
 	plt.title("Part de chaque région dans les importations françaises",size=17)
 	plt.tight_layout()
@@ -906,12 +917,15 @@ def heat_S(type,notallsectors=False):
 		title="Intensité carbone de la production"
 	fig, ax = plt.subplots()
 	sns.heatmap(df_n,cmap='coolwarm', ax=ax,linewidths=1, linecolor='black').set_title(title,size=13)
+	plt.yticks(size=11)
+	plt.xticks(size=11)
 	fig.tight_layout()
 	plt.savefig('figures/heatmap_intensite_'+type)
 	#plt.show()
 	return
 #heat_S('consommation')
 #heat_S('production')
+
 
 # print(counterfactual.ghg_emissions_desag.D_imp)
 # reference analysis
@@ -924,8 +938,8 @@ Tools.reag_D_sectors(counterfactual,inplace=True,type='D_cba')
 Tools.reag_D_sectors(reference,inplace=True,type='D_imp')
 Tools.reag_D_sectors(counterfactual,inplace=True,type='D_imp')
 
-Tools.reag_D_regions(reference,inplace=True,type='D_imp',dict_reag_regions=dict_regions,list_sec=['Agriculture','Energy','Industry','Composite'])
-Tools.reag_D_regions(counterfactual,inplace=True,type='D_imp',dict_reag_regions=dict_regions,list_sec=['Agriculture','Energy','Industry','Composite'])
+#Tools.reag_D_regions(reference,inplace=True,type='D_imp',dict_reag_regions=dict_regions,list_sec=['Agriculture','Energy','Industry','Composite'])
+#Tools.reag_D_regions(counterfactual,inplace=True,type='D_imp',dict_reag_regions=dict_regions,list_sec=['Agriculture','Energy','Industry','Composite'])
 
 
 for type in ['D_cba','D_imp'] :
