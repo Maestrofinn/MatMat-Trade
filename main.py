@@ -646,13 +646,10 @@ if compare_scenarios :
 	axes[0].set_title("Emissions de GES importées par la France",size=17)
 	axes[0].legend(prop={'size': 15})
 	axes[0].set_ylabel("MtCO2eq",size=15)
-
-
-	Commerce_all_scen.drop('FR').T.drop(['War_China','Pref_EU']).plot.bar(ax=axes[1],stacked=True,fontsize=17,figsize=(12,8),rot=0)
+	Commerce_all_scen.drop('FR').T.drop(['War_China','Pref_EU']).plot.bar(ax=axes[1],stacked=True,fontsize=17,figsize=(12,8),rot=0,legend=False)
 	axes[1].set_title("Importations françaises",size=17)
-	axes[1].set_ylabel("€",size=15)
-	axes[1].legend(prop={'size': 15})
-
+	axes[1].set_ylabel("M€",size=15)
+	#axes[1].legend(prop={'size': 15})
 	plt.tight_layout()
 	plt.savefig('figures/comparaison_3_scenarios_bornes.png')
 	plt.show()
