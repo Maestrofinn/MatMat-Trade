@@ -6,12 +6,11 @@
 
 	"""
 
+###########################
+#%% IMPORT MODULES
+###########################
 # general
-import re
-import select
-import sys
 import os
-import copy
 
 import warnings
 from weakref import ref
@@ -33,9 +32,9 @@ from local_paths import output_dir
 from utils import Tools
 
 ###########################
-# SETTINGS
+#%% SETTINGS
 ###########################
-#creating colormap for 11 regions and for 10 regions
+#creating colormap for 11 regions and for 10 regions for plotting
 import matplotlib.colors as mpl_col
 colors = [plt.cm.tab10(i) for i in range(10)]+['#2fe220']
 my_cmap = mpl_col.LinearSegmentedColormap.from_list("mycmap", colors)
@@ -62,7 +61,7 @@ calib = False
 
 
 ###########################
-# READ/ORGANIZE/CLEAN DATA
+#%% READ/ORGANIZE/CLEAN DATA
 ###########################
 
 # define file name
@@ -131,9 +130,9 @@ else:
 
 
 ###########################
-# CALCULATIONS
+#%%CALCULATIONS
 ###########################
-
+#Calculate reference system
 reference.calc_all()
 reference.ghg_emissions_desag = Tools.recal_extensions_per_region(
 	reference,
@@ -150,11 +149,14 @@ reference.save_all(
 counterfactual = reference.copy()
 counterfactual.remove_extension('ghg_emissions_desag')
 
-# read param sets to shock reference system
-## ToDo
-nbsect = len(list(reference.get_sectors()))
+nbsect = len(list(reference.get_sectors())) #number of economic sectors
 
-def get_least(sector,reloc):
+###########################
+#%% DEFINE FUNCTIONS FOR SCENARIOS
+###########################
+
+def get_least(sector,reloc) :
+	"""Find the best region for a given sector, i.e. the least carbon-intense region associated with this sector"""
 	#par défaut on ne se laisse pas la possibilité de relocaliser en FR
 	M = reference.ghg_emissions_desag.M.sum()
 	#compute the part of the french economy that depends on broad activities, for each sector :
@@ -172,15 +174,16 @@ def get_least(sector,reloc):
 			ind=i
 	return regs[ind]
 
-def sort_by_content(sector,regs):
-	#sort all regions by carbon content of a sector
+def sort_by_content(sector,regs) :
+	"""sort all regions by carbon content of a sector"""
 	#carbon contents
 	M = reference.ghg_emissions_desag.M.sum()
 	carbon_content_sector = [M[regs[i],sector] for i in range(len(regs))]
 	index_sorted = np.argsort(carbon_content_sector)
 	return index_sorted
 
-def worst_moves(sector,reloc):
+def worst_moves(sector,reloc) :
+	"""Find the worst imports reallocation for a sector, allowing reallocating on several regions. Regions are sorted by carbon intensity"""
 	if reloc:
 		regs = list(reference.get_regions())
 	else:
@@ -250,7 +253,8 @@ def worst_moves(sector,reloc):
 				covered+=alloc
 	return parts_sects,parts_demcats,index_sorted
 
-def best_moves(sector,reloc):
+def best_moves(sector,reloc) :
+	"""Find the best imports reallocation for a sector, allowing reallocating on several regions. Regions are sorted by carbon intensity"""
 	if reloc:
 		regs = list(reference.get_regions())
 	else:
@@ -320,7 +324,8 @@ def best_moves(sector,reloc):
 				covered+=alloc
 	return parts_sects,parts_demcats,index_sorted
 
-def scenar_bestv2(reloc=False):
+def scenar_bestv2(reloc=False) :
+	"""Implement a scenario illustrating the best possible trade policy"""
 	sectors_list = list(reference.get_sectors())
 	moves = {}
 	for sector in sectors_list:
@@ -328,7 +333,8 @@ def scenar_bestv2(reloc=False):
 		moves[sector] = {'parts_sec' : part_sec, 'parts_dem':part_dem, 'sort':index_sorted, 'reloc':reloc}
 	return sectors_list, moves
 
-def scenar_worstv2(reloc=False):
+def scenar_worstv2(reloc=False) :
+	"""Implement a scenario illustrating the worst possible trade policy"""
 	sectors_list = list(reference.get_sectors())
 	moves = {}
 	for sector in sectors_list:
@@ -337,7 +343,8 @@ def scenar_worstv2(reloc=False):
 	return sectors_list, moves
 
 
-def get_worst(sector,reloc):
+def get_worst(sector,reloc) :
+	"""Find the worst region for a given sector, i.e. the most carbon-intense region associated with this sector"""
 	#par défaut on ne se laisse pas la possibilité de relocaliser en FR
 	M = reference.ghg_emissions_desag.M.sum()
 	regs = list(reference.get_regions())[1:]
@@ -349,8 +356,9 @@ def get_worst(sector,reloc):
 			ind=i
 	return regs[ind]
 
-#construction du scénario least intense
-def scenar_best(reloc=False,deloc=False):
+
+def scenar_best(reloc=False,deloc=False) :
+	"""Implement a scenario illustrating the best possible trade policy"""
 	sectors_list = list(reference.get_sectors())
 	sectors_gl = []
 	moves_gl = []
@@ -373,7 +381,8 @@ def scenar_best(reloc=False,deloc=False):
 	quantities = [1 for i in range(len(sectors_gl))]
 	return sectors_gl, moves_gl, quantities
 
-def scenar_worst(reloc=False,deloc=False):
+def scenar_worst(reloc=False,deloc=False) :
+	"""Implement a scenario illustrating the worst possible trade policy"""
 	sectors_list = list(reference.get_sectors())
 	sectors_gl = []
 	moves_gl = []
@@ -397,7 +406,8 @@ def scenar_worst(reloc=False,deloc=False):
 	return sectors_gl, moves_gl, quantities
 
 
-def scenar_pref_europe():
+def scenar_pref_europe() :
+	"""Implement a scenario illustrating the preference for trade with European Union"""
 	nbreg = len(list(reference.get_regions()))
 	sectors = (nbreg-2)*list(reference.get_sectors())
 	quantities = [1 for i in range(len(sectors)) ]
@@ -409,7 +419,8 @@ def scenar_pref_europe():
 				moves.append([reg,'Europe'])
 	return sectors,moves,quantities
 
-def scenar_pref_europev3(reloc=False):
+def scenar_pref_europev3(reloc=False) :
+	"""Implement a scenario illustrating the preference for trade with European Union"""
 	if reloc:
 		regs = list(reference.get_regions())
 	else:
@@ -478,6 +489,7 @@ def scenar_pref_europev3(reloc=False):
 	return sectors_list,moves
 
 def scenar_guerre_chine(reloc=False):
+	"""Implement a scenario illustrating an economic war with the region containing China"""
 	china_region = 'China, RoW Asia and Pacific'
 	if reloc:
 		regs = list(reference.get_regions())
@@ -559,15 +571,19 @@ def scenar_guerre_chine(reloc=False):
 		moves[sectors_list[i]] = {'parts_sec' : parts_sects, 'parts_dem':parts_dem, 'sort':[i for i in range(len(regs))], 'reloc':reloc}
 	return sectors_list,moves
 	
-# build conterfactual(s) using param sets
-## ToDo
-sectors_list=list(reference.get_sectors())
-reg_list=list(reference.get_regions())
-demcat_list = list(reference.get_Y_categories())
 
-plot_EC_France = False
 
-if plot_EC_France :
+###########################
+#%% PLOT FIGURES
+###########################
+
+sectors_list=list(reference.get_sectors()) #List of economic sectors
+reg_list=list(reference.get_regions()) #List of regions
+demcat_list = list(reference.get_Y_categories()) #List of final demand categories
+
+plot_EC_France = False #True for plotting French carbon footprint
+
+if plot_EC_France : #Plots the french carbon footprint (D_pba-D_exp+D_imp+F_Y)
 	reference.ghg_emissions_desag.D_imp.sum(level=0)['FR'].sum(axis=1).sum()#['EU']
 	new_df = pd.DataFrame(None,columns=['Exportees','Production','Importees','Conso finale'],index=[''])
 	new_df.fillna(value=0.,inplace=True)
@@ -585,14 +601,16 @@ if plot_EC_France :
 	#plt.show()
 
 
-compare_scenarios = False
+plot_compare_scenarios = False #True for plotting scenarios comparison
 
+#Dictionary to reaggreagate account matrices with less regions for the sake of better visibility
 dict_regions = {'FR':['FR'],'UK, Norway, Switzerland':['UK, Norway, Switzerland'],
 	'China+':['China, RoW Asia and Pacific'],'EU':['EU'],
 	'RoW':['United States','Asia, Row Europe','RoW America,Turkey, Taïwan',
 	'RoW Middle East, Australia','Brazil, Mexico','South Africa','Japan, Indonesia, RoW Africa']}
 
-if compare_scenarios :
+def compare_scenarios() :
+	"""Draw figures to compare the carbont footprints associated with the different scenarios"""
 	print('compare_scenarios')
 	
 	D_cba_all_scen = pd.DataFrame(None,index=['FR','UK, Norway, Switzerland','China+','EU','RoW'],columns=['Best','Pref_EU','War_China','Reference','Worst'])
@@ -656,10 +674,24 @@ if compare_scenarios :
 	plt.savefig('figures/comparaison_3_scenarios_bornes.png')
 	plt.show()
 
-	exit()
+	return
+
+if plot_compare_scenarios :
+	compare_scenarios()
+
+
+###########################
+#%% CHOICE OF THE SCENARIO
+###########################
 
 scenarios = ['best','worst','pref_eu','war_china']
-chosen_scenario=scenarios[4]
+chosen_scenario = scenarios[3]
+
+
+###########################
+#%% COMPUTE COUNTERFACTUAL SYSTEM
+###########################
+
 if chosen_scenario == 'best' :
 	sectors,moves = scenar_bestv2()
 	for sector in sectors:
@@ -690,23 +722,23 @@ counterfactual.ghg_emissions_desag = Tools.recal_extensions_per_region(
 	'ghg_emissions'
 )
 
-# ###########################
-# # FORMAT RESULTS
-# ###########################
-
-
-
 #save conterfactural(s)
 counterfactual.save_all(
    output_dir / ('counterfactual' + '_' + concat_settings)  
 )
-# concat results for visualisation
-## ToDo
+
+
+# ###########################
+#%% DEFINE FUNCTIONS FOR VISUALISATION
+# ###########################
+
+
 ghg_list = ['CO2', 'CH4', 'N2O', 'SF6', 'HFC', 'PFC']
-sectors_list=list(reference.get_sectors())
-reg_list = list(reference.get_regions())
+sectors_list=list(reference.get_sectors()) #List of economic sectors
+reg_list = list(reference.get_regions()) #List of regions
 
 def vision_commerce(notallsectors=False):
+	"""Plot the importations variations for every sector"""
 	if notallsectors:
 		sectors_list=['Agriculture','Energy','Industry','Composite']
 	else :
@@ -752,7 +784,9 @@ def vision_commerce(notallsectors=False):
 	plt.savefig('figures/commerce_parts_imports_secteur.png')
 	#plt.show()
 
-def visualisation_carbone(scenario,scenario_name,type_emissions='D_cba',saveghg=False,notallsectors=False):
+def visualisation_carbone(scenario,scenario_name,type_emissions='D_cba',saveghg=False,notallsectors=False): 
+	"""Plot the emissions associated with each sector for all ghg, and associated with the different ghg, 
+	for the chosen scenario. Can be used with every type of emissions account"""
 	ghg_list = ['CO2', 'CH4', 'N2O', 'SF6', 'HFC', 'PFC']
 	dict_fig_name = {'D_cba' : '_empreinte_carbone_fr_importation',
 						'D_pba' : '_emissions_territoriales_fr',
@@ -890,9 +924,8 @@ def visualisation_carbone_ref(scenario,scenario_name,type_emissions='D_cba',save
 	plt.savefig('figures/'+scenario_name+dict_fig_name[type_emissions]+'_provenance_sectors')
 	#plt.show()
 	plt.close()
-###########################
-# VISUALIZE
-###########################
+
+
 def heat_S(type,notallsectors=False):
 	if notallsectors:
 		sectors_list=['Agriculture','Energy','Industry','Composite']
@@ -923,33 +956,37 @@ def heat_S(type,notallsectors=False):
 	plt.savefig('figures/heatmap_intensite_'+type)
 	#plt.show()
 	return
-#heat_S('consommation')
-#heat_S('production')
 
+###########################
+#%% VISUALISE
+###########################
 
-# print(counterfactual.ghg_emissions_desag.D_imp)
 # reference analysis
 for type in ['D_cba','D_imp'] :
 	print(type)
 	visualisation_carbone_ref(reference,"Ref",type,saveghg=False)
 
+
+##reagreate from 17 to 4 sectors :
 Tools.reag_D_sectors(reference,inplace=True,type='D_cba')
 Tools.reag_D_sectors(counterfactual,inplace=True,type='D_cba')
 Tools.reag_D_sectors(reference,inplace=True,type='D_imp')
 Tools.reag_D_sectors(counterfactual,inplace=True,type='D_imp')
 
+##reagreate from 11 to 5 regions :
 #Tools.reag_D_regions(reference,inplace=True,type='D_imp',dict_reag_regions=dict_regions,list_sec=['Agriculture','Energy','Industry','Composite'])
 #Tools.reag_D_regions(counterfactual,inplace=True,type='D_imp',dict_reag_regions=dict_regions,list_sec=['Agriculture','Energy','Industry','Composite'])
 
+# whole static comparative analysis
 
+#compare reference and counterfactual
 for type in ['D_cba','D_imp'] :
 	print(type)
 	visualisation_carbone(counterfactual,"Cont",type,saveghg=False,notallsectors=True)
 vision_commerce()
-# whole static comparative analysis
 
 def delta_CF(ref,contr):
-	""" Compare les EC des deux scenarios, éventuellement par secteur
+	""" Compare the carbon footprints of the two scenarios, without the F_Y component.
 	"""
 	ref_dcba = pd.DataFrame(ref.ghg_emissions_desag.D_cba)
 	con_dcba = pd.DataFrame(contr.ghg_emissions_desag.D_cba)
@@ -970,6 +1007,7 @@ def compa_monetaire(ref,contr):
 print("Variation de richesse de la transformation")
 print(compa_monetaire(reference,counterfactual).sum(level=0).sum())
 
+#Compare the global carbon footprints of the two scenarios, including the F_Y component
 EC_ref = reference.ghg_emissions_desag.D_cba_reg.copy()
 EC_cont=pd.DataFrame(counterfactual.ghg_emissions_desag.D_cba.copy().sum(level='region',axis=1).sum(level='stressor')+counterfactual.ghg_emissions_desag.F_Y.groupby(axis=1,level='region',sort=False).sum())
 print('Véritable EC reference:',EC_ref['FR'].sum(),'MtCO2eq')

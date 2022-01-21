@@ -203,7 +203,8 @@ class Tools:
         return Z_modif, Y_modif
 
 
-    def get_attribute(obj, path_string): #allows to get easily nested attributes
+    def get_attribute(obj, path_string):
+        """allows to easily get nested attributes"""
         parts = path_string.split('.')
         final_attribute_index = len(parts)-1
         current_attribute = obj
@@ -218,7 +219,8 @@ class Tools:
             current_attribute = new_attr
             i += 1
         
-    def set_attribute(obj, path_string, new_value): #allows to set easily nested attributes
+    def set_attribute(obj, path_string, new_value):
+        """allows to easily set nested attributes"""
         parts = path_string.split('.')
         final_attribute_index = len(parts)-1
         current_attribute = obj
@@ -233,9 +235,11 @@ class Tools:
             current_attribute = new_attr
             i+=1
 
-    def reag_D_sectors(scenario,inplace = False,dict_reag_sectors=None,type='D_cba',list_reg=None):
+    def reag_D_sectors(scenario,inplace = False,dict_reag_sectors=None,type='D_cba',list_reg=None):#can easily be extended to Z or Y
+        """Reaggregate any account matrix with a new set of sectors"""
         #create dict for sector reaggregation for visualisation:
-        dict_reag_sectors={'Agriculture':['Agriculture'],
+        if dict_reag_sectors is None :
+            dict_reag_sectors={'Agriculture':['Agriculture'],
                         'Energy':['Crude coal','Crude oil','Natural gas','Fossil fuels','Electricity and heat'],
                         'Industry':['Extractive industry','Biomass_industry','Clothing','Heavy_industry',
                                     'Automobile','Oth transport equipment','Machinery','Electronics',
@@ -288,8 +292,8 @@ class Tools:
 
 
 
-    def reag_D_regions(scenario,dict_reag_regions,inplace = False,type='D_cba',list_sec=None):
-        #create dict for sector reaggregation for visualisation:
+    def reag_D_regions(scenario,dict_reag_regions,inplace = False,type='D_cba',list_sec=None): #can easily be extended to Z or Y
+        """Reaggregate any account matrix with a new set of region"""
 
         ghg_list = ['CO2', 'CH4', 'N2O', 'SF6', 'HFC', 'PFC']
         if list_sec is None :

@@ -61,7 +61,7 @@ concat_settings = str(base_year) + '_' + \
 	agg_name['region']
 
 # set if rebuilding calibration from exiobase
-calib = True
+calib = True #Obligé.e.s de refaire le calib à chaque fois pour ne pas écraser les données utilisées par le main.
 
 
 ###########################
@@ -262,7 +262,7 @@ plt.title('CAH avec matérialisation des '+str(nb_clusters_opti_sec)+' classes')
 dendrogram(Z_sec,labels=data_sec.index,orientation='left',color_threshold=height_cut_opti_sec)
 plt.show()
 
-#découpage à la hauteur t = 7 ==> 4 identifiants de groupes obtenus
+#découpage à la hauteur t = height_cut_opti ==> nb_clusters identifiants de groupes obtenus
 groupes_cah_sec = fcluster(Z_sec,t=height_cut_opti,criterion='distance')
 print(groupes_cah_sec)
 
