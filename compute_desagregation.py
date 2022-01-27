@@ -313,7 +313,7 @@ texts=[]
 #mettre les labels des points
 for i,label in enumerate(data.index):
     print(i,label)
-    texts.append(plt.annotate(label,(data_cr[i,0],data_cr[i,1]),size=17,color=colors_dict_text[kmeans.labels_[i]]))
+    texts.append(plt.annotate(label,(data_cr[i,0],data_cr[i,1]),size=20,color=colors_dict_text[kmeans.labels_[i]]))
 adjust_text(texts, only_move={'points':'y', 'texts':'y'}, arrowprops=dict(arrowstyle="->", color='r', lw=0.5))
 plt.savefig('figures/optim_clustering.png')
 plt.show() 
