@@ -38,7 +38,8 @@ from utils import Tools
 import matplotlib.colors as mpl_col
 colors = [plt.cm.tab10(i) for i in range(10)]+['#2fe220']
 my_cmap = mpl_col.LinearSegmentedColormap.from_list("mycmap", colors)
-my_cmap_noFR = mpl_col.LinearSegmentedColormap.from_list("mycmap", colors[1:])
+my_cmap_noFR = mpl_col.LinearSegmentedColormap.from_list("my_cmap_noFR", colors[1:])
+
 # year to study in [*range(1995, 2022 + 1)]
 base_year = 2015
 
@@ -616,7 +617,7 @@ def compare_scenarios() :
 	D_cba_all_scen = pd.DataFrame(None,index=['FR','UK, Norway, Switzerland','China+','EU','RoW'],columns=['Best','Pref_EU','War_China','Reference','Worst'])
 	D_cba_all_scen.fillna(value=0.,inplace=True)
 	D_cba_all_scen['Reference']=Tools.reag_D_regions(reference,dict_reag_regions=dict_regions)['FR'].sum(level=0).sum(axis=1)
-
+	D_cba_all_scen.loc['FR','Reference'] += reference.ghg_emissions_desag.F_Y['FR'].sum().sum()
 	Commerce_all_scen = pd.DataFrame(None,index=['FR','UK, Norway, Switzerland','China+','EU','RoW'],columns=['Best','Pref_EU','War_China','Reference','Worst'])
 	Commerce_all_scen.fillna(value=0.,inplace=True)
 	for reg in dict_regions:
@@ -646,14 +647,14 @@ def compare_scenarios() :
 		for reg in dict_regions:
 			for reg_2 in dict_regions[reg]:
 				Commerce_all_scen.loc[reg,scenar]+=(counterfactual.Y['FR'].sum(axis=1)+counterfactual.Z['FR'].sum(axis=1)).sum(level=0)[reg_2]
-	
+		D_cba_all_scen.loc['FR',scenar] += counterfactual.ghg_emissions_desag.F_Y['FR'].sum().sum()
 	#print(D_cba_all_scen)
 	#print(Commerce_all_scen)
-
-	D_cba_all_scen.drop('FR').T.plot.bar(stacked=True,fontsize=17,figsize=(12,8),rot=45)
+	
+	D_cba_all_scen.T.plot.bar(stacked=True,fontsize=17,figsize=(12,8),rot=0,color=['blue','green','orange','red','gray'])
 	
 
-	plt.title("Emissions de GES importées par la France",size=17)
+	plt.title("Empreinte carbone de la France",size=17)
 	plt.ylabel("MtCO2eq",size=15)
 	plt.tight_layout()
 	plt.grid(visible=True)
@@ -662,11 +663,11 @@ def compare_scenarios() :
 	#plt.show()
 
 	fig, axes = plt.subplots(nrows=1, ncols=2)
-	D_cba_all_scen.drop('FR').T.drop(['War_China','Pref_EU']).plot.bar(ax=axes[0],stacked=True,fontsize=17,figsize=(12,8),rot=0)
+	D_cba_all_scen.drop('FR').T.drop(['War_China','Pref_EU']).plot.bar(ax=axes[0],stacked=True,fontsize=17,figsize=(12,8),rot=0,color=['green','orange','red','gray'])
 	axes[0].set_title("Emissions de GES importées par la France",size=17)
 	axes[0].legend(prop={'size': 15})
 	axes[0].set_ylabel("MtCO2eq",size=15)
-	Commerce_all_scen.drop('FR').T.drop(['War_China','Pref_EU']).plot.bar(ax=axes[1],stacked=True,fontsize=17,figsize=(12,8),rot=0,legend=False)
+	Commerce_all_scen.drop('FR').T.drop(['War_China','Pref_EU']).plot.bar(ax=axes[1],stacked=True,fontsize=17,figsize=(12,8),rot=0,legend=False,color=['green','orange','red','gray'])
 	axes[1].set_title("Importations françaises",size=17)
 	axes[1].set_ylabel("M€",size=15)
 	#axes[1].legend(prop={'size': 15})
@@ -678,14 +679,14 @@ def compare_scenarios() :
 
 if plot_compare_scenarios :
 	compare_scenarios()
-
+	exit()
 
 ###########################
 #%% CHOICE OF THE SCENARIO
 ###########################
 
 scenarios = ['best','worst','pref_eu','war_china']
-chosen_scenario = scenarios[3]
+chosen_scenario = scenarios[2]
 
 
 ###########################
@@ -837,11 +838,12 @@ def visualisation_carbone(scenario,scenario_name,type_emissions='D_cba',saveghg=
 	if type_emissions == 'D_cba' :
 		pour_plot.transpose().plot.bar(stacked=True,rot=45,figsize=(18,12),fontsize=17)#,colormap=my_cmap)
 	elif type_emissions == 'D_imp' :
-		pour_plot.drop('FR').transpose().plot.bar(stacked=True,rot=45,figsize=(18,12),fontsize=17)#,colormap=my_cmap_noFR)
+		pour_plot.drop('FR').transpose().plot.bar(stacked=True,rot=45,figsize=(18,12),fontsize=17,color=['green','orange','red','gray'])#,colormap=my_cmap_noFR)
 	plt.title(dict_plot_title[type_emissions]+" (scenario "+scenario_name+")",size=17)
 	plt.ylabel("MtCO2eq",size=17)
 	plt.grid(visible=True)
 	plt.legend(prop={'size': 25})
+	plt.tight_layout()
 	plt.savefig("figures/"+scenario_name+dict_fig_name[type_emissions]+".png")
 	plt.close()
 	if saveghg :
@@ -868,10 +870,11 @@ def visualisation_carbone(scenario,scenario_name,type_emissions='D_cba',saveghg=
 	if type_emissions == 'D_cba' :
 		ax=df_plot.T.plot.barh(stacked=True, figsize=(18,16),fontsize=17)#,colormap=my_cmap)
 	elif type_emissions == 'D_imp' :
-		ax=df_plot.drop('FR').T.plot.barh(stacked=True, figsize=(18,16),fontsize=17)#,colormap=my_cmap_noFR)
+		ax=df_plot.drop('FR').T.plot.barh(stacked=True, figsize=(18,16),fontsize=17,color=['green','orange','red','gray'])#,colormap=my_cmap_noFR)
 	plt.grid(visible=True)
-	plt.xlabel("MtCO2eq",size=17)
+	plt.xlabel("MtCO2eq",size=20)
 	plt.legend(prop={'size': 25})
+	#plt.tight_layout()
 	plt.title(dict_plot_title[type_emissions]+" de tous GES par secteurs (scenario "+scenario_name+")",size=17)
 	plt.savefig('figures/'+scenario_name+dict_fig_name[type_emissions]+'_provenance_sectors')
 	#plt.show()
@@ -974,8 +977,8 @@ Tools.reag_D_sectors(reference,inplace=True,type='D_imp')
 Tools.reag_D_sectors(counterfactual,inplace=True,type='D_imp')
 
 ##reagreate from 11 to 5 regions :
-#Tools.reag_D_regions(reference,inplace=True,type='D_imp',dict_reag_regions=dict_regions,list_sec=['Agriculture','Energy','Industry','Composite'])
-#Tools.reag_D_regions(counterfactual,inplace=True,type='D_imp',dict_reag_regions=dict_regions,list_sec=['Agriculture','Energy','Industry','Composite'])
+Tools.reag_D_regions(reference,inplace=True,type='D_imp',dict_reag_regions=dict_regions,list_sec=['Agriculture','Energy','Industry','Composite'])
+Tools.reag_D_regions(counterfactual,inplace=True,type='D_imp',dict_reag_regions=dict_regions,list_sec=['Agriculture','Energy','Industry','Composite'])
 
 # whole static comparative analysis
 
