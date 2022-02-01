@@ -36,8 +36,11 @@ from utils import Tools
 ###########################
 #creating colormap for 11 regions and for 10 regions for plotting
 import matplotlib.colors as mpl_col
-colors = [plt.cm.tab10(i) for i in range(10)]+['#2fe220']
-my_cmap = mpl_col.LinearSegmentedColormap.from_list("mycmap", colors)
+colors = [plt.cm.tab10(i) for i in range(10)]
+colors.append(mpl_col.to_rgba('gold',alpha=1.0))
+colors_no_FR = colors[1:]
+
+my_cmap = mpl_col.LinearSegmentedColormap.from_list("my_cmap", colors)
 my_cmap_noFR = mpl_col.LinearSegmentedColormap.from_list("my_cmap_noFR", colors[1:])
 
 # year to study in [*range(1995, 2022 + 1)]
@@ -602,8 +605,6 @@ if plot_EC_France : #Plots the french carbon footprint (D_pba-D_exp+D_imp+F_Y)
 	#plt.show()
 
 
-plot_compare_scenarios = False #True for plotting scenarios comparison
-
 #Dictionary to reaggreagate account matrices with less regions for the sake of better visibility
 dict_regions = {'FR':['FR'],'UK, Norway, Switzerland':['UK, Norway, Switzerland'],
 	'China+':['China, RoW Asia and Pacific'],'EU':['EU'],
@@ -651,7 +652,7 @@ def compare_scenarios() :
 	#print(D_cba_all_scen)
 	#print(Commerce_all_scen)
 	
-	D_cba_all_scen.T.plot.bar(stacked=True,fontsize=17,figsize=(12,8),rot=0,color=['blue','green','orange','red','gray'])
+	D_cba_all_scen.T.plot.bar(stacked=True,fontsize=17,figsize=(12,8),rot=0,color=colors[:5])
 	
 
 	plt.title("Empreinte carbone de la France",size=17)
@@ -663,11 +664,11 @@ def compare_scenarios() :
 	#plt.show()
 
 	fig, axes = plt.subplots(nrows=1, ncols=2)
-	D_cba_all_scen.drop('FR').T.drop(['War_China','Pref_EU']).plot.bar(ax=axes[0],stacked=True,fontsize=17,figsize=(12,8),rot=0,color=['green','orange','red','gray'])
+	D_cba_all_scen.drop('FR').T.drop(['War_China','Pref_EU']).plot.bar(ax=axes[0],stacked=True,fontsize=17,figsize=(12,8),rot=0,color=colors_no_FR[:4])
 	axes[0].set_title("Emissions de GES importées par la France",size=17)
 	axes[0].legend(prop={'size': 15})
 	axes[0].set_ylabel("MtCO2eq",size=15)
-	Commerce_all_scen.drop('FR').T.drop(['War_China','Pref_EU']).plot.bar(ax=axes[1],stacked=True,fontsize=17,figsize=(12,8),rot=0,legend=False,color=['green','orange','red','gray'])
+	Commerce_all_scen.drop('FR').T.drop(['War_China','Pref_EU']).plot.bar(ax=axes[1],stacked=True,fontsize=17,figsize=(12,8),rot=0,legend=False,color=colors_no_FR[:4])
 	axes[1].set_title("Importations françaises",size=17)
 	axes[1].set_ylabel("M€",size=15)
 	#axes[1].legend(prop={'size': 15})
@@ -676,6 +677,8 @@ def compare_scenarios() :
 	plt.show()
 
 	return
+
+plot_compare_scenarios = False #True for plotting scenarios comparison
 
 if plot_compare_scenarios :
 	compare_scenarios()
@@ -748,7 +751,16 @@ def vision_commerce(notallsectors=False):
 	df_eco_cont = counterfactual.Y['FR'].sum(axis=1)+counterfactual.Z['FR'].sum(axis=1)
 
 	comm_ref = pd.DataFrame([df_eco_ref.sum(level=0)[r] for r in reg_list[1:]], index =reg_list[1:])
-	comm_ref.T.plot.barh(stacked=True,fontsize=17,colormap=my_cmap)
+
+	comm_ref.T.plot.barh(stacked=True,fontsize=17,color=colors_no_FR,figsize=(12,5))
+	plt.title("Importations totales françaises, scenario Ref",size=17)
+	plt.tight_layout()
+	plt.grid(visible=True)
+	plt.legend(prop={'size': 12})
+	plt.savefig('figures/commerce_ref.png')
+	plt.close()
+
+	comm_ref.T.plot.barh(stacked=True,fontsize=17,color=colors)
 	plt.title("Importations totales françaises",size=17)
 	plt.tight_layout()
 	plt.grid(visible=True)
@@ -756,7 +768,7 @@ def vision_commerce(notallsectors=False):
 	#plt.show()
 	comm_cumul_non_fr = pd.DataFrame({'ref':[df_eco_ref.sum(level=0)[r] for r in reg_list[1:]],
 	'cont': [df_eco_cont.sum(level=0)[r] for r in reg_list[1:]]}, index =reg_list[1:])
-	comm_cumul_non_fr.T.plot.barh(stacked=True,fontsize=17,figsize=(12,8))#,colormap=my_cmap_noFR)
+	comm_cumul_non_fr.T.plot.barh(stacked=True,fontsize=17,figsize=(12,8),color=colors_no_FR)
 	plt.title("Importations totales françaises",size=17)
 	plt.tight_layout()
 	plt.grid(visible=True)
@@ -776,7 +788,7 @@ def vision_commerce(notallsectors=False):
 
 	df_plot = pd.DataFrame(data=dict_sect_plot,index=reg_list[1:])
 
-	ax=df_plot.T.plot.barh(stacked=True, figsize=(18,12),fontsize=17)#,colormap=my_cmap_noFR)
+	ax=df_plot.T.plot.barh(stacked=True, figsize=(18,12),fontsize=17,color=colors_no_FR)
 	
 	plt.title("Part de chaque région dans les importations françaises",size=17)
 	plt.tight_layout()
@@ -836,9 +848,9 @@ def visualisation_carbone(scenario,scenario_name,type_emissions='D_cba',saveghg=
 
 	pour_plot=pd.DataFrame(data=dict_pour_plot,index=scenario.get_regions())
 	if type_emissions == 'D_cba' :
-		pour_plot.transpose().plot.bar(stacked=True,rot=45,figsize=(18,12),fontsize=17)#,colormap=my_cmap)
+		pour_plot.transpose().plot.bar(stacked=True,rot=45,figsize=(18,12),fontsize=17,color=colors)
 	elif type_emissions == 'D_imp' :
-		pour_plot.drop('FR').transpose().plot.bar(stacked=True,rot=45,figsize=(18,12),fontsize=17,color=['green','orange','red','gray'])#,colormap=my_cmap_noFR)
+		pour_plot.drop('FR').transpose().plot.bar(stacked=True,rot=45,figsize=(18,12),fontsize=17,color=colors_no_FR)
 	plt.title(dict_plot_title[type_emissions]+" (scenario "+scenario_name+")",size=17)
 	plt.ylabel("MtCO2eq",size=17)
 	plt.grid(visible=True)
@@ -852,9 +864,9 @@ def visualisation_carbone(scenario,scenario_name,type_emissions='D_cba',saveghg=
 			for reg in scenario.get_regions():
 				df.loc[:,reg]=emissions_df.loc[(reg,ghg)]
 			if type_emissions == 'D_cba' :
-				ax=df.plot.barh(stacked=True, figsize=(18,12),fontsize=17,colormap=my_cmap)
+				ax=df.plot.barh(stacked=True, figsize=(18,12),fontsize=17,color=colors)
 			elif type_emissions == 'D_imp' :
-				ax=df.drop('FR').plot.barh(stacked=True, figsize=(18,12),fontsize=17,colormap=my_cmap_noFR)
+				ax=df.drop('FR').plot.barh(stacked=True, figsize=(18,12),fontsize=17,color=colors_no_FR)
 			plt.grid(visible=True)
 			plt.xlabel("MtCO2eq",size=17)
 			plt.legend(prop={'size': 25})
@@ -868,13 +880,13 @@ def visualisation_carbone(scenario,scenario_name,type_emissions='D_cba',saveghg=
 	reform = {(outerKey, innerKey): values for outerKey, innerDict in dict_sect_plot.items() for innerKey, values in innerDict.items()}
 	df_plot = pd.DataFrame(data=reform)
 	if type_emissions == 'D_cba' :
-		ax=df_plot.T.plot.barh(stacked=True, figsize=(18,16),fontsize=17)#,colormap=my_cmap)
+		ax=df_plot.T.plot.barh(stacked=True, figsize=(18,16),fontsize=17,color=colors)
 	elif type_emissions == 'D_imp' :
-		ax=df_plot.drop('FR').T.plot.barh(stacked=True, figsize=(18,16),fontsize=17,color=['green','orange','red','gray'])#,colormap=my_cmap_noFR)
+		ax=df_plot.drop('FR').T.plot.barh(stacked=True, figsize=(18,16),fontsize=17,color=colors_no_FR)
 	plt.grid(visible=True)
 	plt.xlabel("MtCO2eq",size=20)
 	plt.legend(prop={'size': 25})
-	#plt.tight_layout()
+	plt.tight_layout()
 	plt.title(dict_plot_title[type_emissions]+" de tous GES par secteurs (scenario "+scenario_name+")",size=17)
 	plt.savefig('figures/'+scenario_name+dict_fig_name[type_emissions]+'_provenance_sectors')
 	#plt.show()
@@ -905,7 +917,10 @@ def visualisation_carbone_ref(scenario,scenario_name,type_emissions='D_cba',save
 		sectors_list=list(reference.get_sectors())
 	
 	pour_plot=pd.DataFrame(data=dict_pour_plot,index=reg_list)
-	pour_plot.transpose().plot.bar(stacked=True,rot=45,figsize=(18,12),fontsize=17,colormap=my_cmap)
+	if type == 'D_cba' or type=='D_pba':
+		pour_plot.transpose().plot.bar(stacked=True,rot=45,figsize=(18,12),fontsize=17,color=colors)
+	else:
+		pour_plot.transpose().plot.bar(stacked=True,rot=45,figsize=(18,12),fontsize=17,color=colors_no_FR)
 	plt.title(dict_plot_title[type_emissions]+" (scenario "+scenario_name+")",size=17)
 	plt.ylabel("MtCO2eq",size=17)
 	plt.legend(prop={'size': 25})
@@ -919,7 +934,10 @@ def visualisation_carbone_ref(scenario,scenario_name,type_emissions='D_cba',save
 		dict_sect_plot[sector] = [emissions_df.sum(level=0)[sector].loc[r] for r in reg_list]
 	
 	df_plot = pd.DataFrame(data=dict_sect_plot,index=reg_list)
-	ax=df_plot.T.plot.barh(stacked=True, figsize=(17,16),fontsize=17,rot=45,colormap=my_cmap)
+	if type=='D_cba' or type=='D_pba':
+		ax=df_plot.T.plot.barh(stacked=True, figsize=(17,16),fontsize=17,rot=45,color=colors)
+	else :
+		ax=df_plot.T.plot.barh(stacked=True, figsize=(17,16),fontsize=17,rot=45,color=colors_no_FR)
 	plt.grid(visible=True)
 	plt.xlabel("MtCO2eq",size=17)
 	plt.legend(prop={'size': 25})
