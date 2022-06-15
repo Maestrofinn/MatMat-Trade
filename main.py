@@ -67,68 +67,8 @@ calib = False
 #%% READ/ORGANIZE/CLEAN DATA
 ###########################
 
-# define file name
-file_name = "IOT_" + str(base_year) + "_" + system + ".zip"
-pickle_file_name = "IOT_" + str(base_year) + "_" + system + ".pickle"
-
-
-# download data online
-if not os.path.isfile(data_dir / file_name):
-
-    pymrio.download_exiobase3(storage_folder=data_dir, system=system, years=base_year)
-
-
-# import or build calibration data
-if calib:
-    print("Début calib")
-    # import exiobase data
-    if os.path.isfile(data_dir / pickle_file_name):
-        with open(data_dir / pickle_file_name, "rb") as f:
-            reference = pkl.load(f)
-    else:
-        reference = pymrio.parse_exiobase3(  # may need RAM + SWAP ~ 15 Gb
-            data_dir / file_name
-        )
-        with open(data_dir / pickle_file_name, "wb") as f:
-            pkl.dump(reference, f)
-
-    # isolate ghg emissions
-    reference.ghg_emissions = Tools.extract_ghg_emissions(reference)
-
-    # del useless extensions
-    reference.remove_extension(["satellite", "impacts"])
-
-    # import agregation matrices
-    agg_matrix = {
-        key: pd.read_excel(
-            data_dir / "agg_matrix_opti_S.xlsx", sheet_name=key + "_" + value
-        )
-        for (key, value) in agg_name.items()
-    }
-    agg_matrix["sector"].set_index(["category", "sub_category", "sector"], inplace=True)
-    agg_matrix["region"].set_index(["Country name", "Country code"], inplace=True)
-
-    # apply regional and sectorial agregations
-    reference.aggregate(
-        region_agg=agg_matrix["region"].T.values,
-        sector_agg=agg_matrix["sector"].T.values,
-        region_names=agg_matrix["region"].columns.tolist(),
-        sector_names=agg_matrix["sector"].columns.tolist(),
-    )
-
-    # reset all to flows before saving
-    reference = reference.reset_to_flows()
-    reference.ghg_emissions.reset_to_flows()
-
-    # save calibration data
-
-    reference.save_all(data_dir / ("reference" + "_" + concat_settings))
-    print("Fin calib")
-
-else:
-
-    # import calibration data built with calib = True
-    reference = pymrio.parse_exiobase3(data_dir / ("reference" + "_" + concat_settings))
+# build calibrated data
+reference = Tools.build_reference(calib, data_dir, base_year, system, agg_name)
 
 
 ###########################
