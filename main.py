@@ -1,9 +1,5 @@
 """ Python main script of MatMat trade module
-
-	Notes
-	------
-	Fill notes if necessary
-
+	
 	"""
 
 ###########################
@@ -12,6 +8,7 @@
 # general
 
 import warnings
+
 warnings.simplefilter(action="ignore", category=FutureWarning)
 
 # scientific
@@ -851,54 +848,32 @@ chosen_scenario = scenarios[2]
 #%% COMPUTE COUNTERFACTUAL SYSTEM
 ###########################
 
-if chosen_scenario == "best":
-    sectors, moves = scenar_bestv2()
-    for sector in sectors:
-        counterfactual.Z, counterfactual.Y = Tools.shockv2(
-            sectors,
-            demcat_list,
-            reg_list,
-            counterfactual.Z,
-            counterfactual.Y,
-            moves[sector],
-            sector,
-        )
-elif chosen_scenario == "worst":
-    sectors, moves = scenar_worstv2()
-    for sector in sectors:
-        counterfactual.Z, counterfactual.Y = Tools.shockv2(
-            sectors,
-            demcat_list,
-            reg_list,
-            counterfactual.Z,
-            counterfactual.Y,
-            moves[sector],
-            sector,
-        )
-elif chosen_scenario == "pref_eu":
-    sectors, moves = scenar_pref_europev3()
-    for sector in sectors:
-        counterfactual.Z, counterfactual.Y = Tools.shockv3(
-            sectors,
-            demcat_list,
-            reg_list,
-            counterfactual.Z,
-            counterfactual.Y,
-            moves[sector],
-            sector,
-        )
-elif chosen_scenario == "war_china":
-    sectors, moves = scenar_guerre_chine()
-    for sector in sectors:
-        counterfactual.Z, counterfactual.Y = Tools.shockv3(
-            sectors,
-            demcat_list,
-            reg_list,
-            counterfactual.Z,
-            counterfactual.Y,
-            moves[sector],
-            sector,
-        )
+scenario_dict = {
+    "best": {"sector_moves": scenar_bestv2(), "shock_function": Tools.shockv2},
+    "worst": {"sector_moves": scenar_worstv2(), "shock_function": Tools.shockv2},
+    "pref_eu": {
+        "sector_moves": scenar_pref_europev3(),
+        "shock_function": Tools.shockv3,
+    },
+    "war_china": {
+        "sector_moves": scenar_guerre_chine(),
+        "shock_function": Tools.shockv3,
+    },
+}
+
+sectors, moves = scenario_dict[chosen_scenario]["sector_moves"]
+for sector in sectors:
+    counterfactual.Z, counterfactual.Y = scenario_dict[chosen_scenario][
+        "shock_function"
+    ](
+        sectors,
+        demcat_list,
+        reg_list,
+        counterfactual.Z,
+        counterfactual.Y,
+        moves[sector],
+        sector,
+    )
 
 counterfactual.A = None
 counterfactual.x = None
