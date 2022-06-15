@@ -10,12 +10,12 @@ sys.path.append(dir_separator.join(current_pythonpath[0].split(dir_separator)[:-
 
 # repository
 base_dir = pathlib.Path(__file__).parents[0]
-data_dir = base_dir.joinpath('data')
-output_dir = base_dir.joinpath('outputs')
+data_dir = base_dir.joinpath("data")
+output_dir = base_dir.joinpath("outputs")
 
 # create repositories
 if not data_dir.exists():
-	os.mkdir(data_dir)
+    os.mkdir(data_dir)
 
 if not output_dir.exists():
-	os.mkdir(output_dir)
+    os.mkdir(output_dir)
