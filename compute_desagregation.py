@@ -25,6 +25,7 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 # scientific
 import numpy as np
 import pandas as pd
+import pickle as pkl
 import pymrio
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -70,6 +71,7 @@ calib = True #Obligé.e.s de refaire le calib à chaque fois pour ne pas écrase
 
 # define file name
 file_name = 'IOT_' + str(base_year) + '_' + system + '.zip'
+pickle_file_name = 'IOT_' + str(base_year) + '_' + system + '.pickle'
 
 
 # download data online
@@ -86,9 +88,15 @@ if not os.path.isfile(data_dir / file_name):
 if calib:
 	print("Début calib")
 	# import exiobase data
-	reference = pymrio.parse_exiobase3(
-		data_dir / file_name
-	)
+	if os.path.isfile(data_dir / pickle_file_name):
+		with open(data_dir / pickle_file_name, "rb") as f:
+			reference = pkl.load(f)
+	else:
+		reference = pymrio.parse_exiobase3( # may need RAM + SWAP ~ 15 Gb
+			data_dir / file_name
+		)
+		with open(data_dir / pickle_file_name, "wb") as f:
+			pkl.dump(reference, f)
 
 	# isolate ghg emissions
 	reference.ghg_emissions = Tools.extract_ghg_emissions(reference)

@@ -130,6 +130,7 @@ dmypy.json
 
 # additional gitignore from user
 data/reference*
+data/*.pickle
 data/*.zip
 data/metadata.json
 outputs/*
