@@ -159,8 +159,12 @@ print(reg_list)
 print(sectors_list)
 
 
-Carbon_content = pd.DataFrame(reference.ghg_emissions_desag.S.sum()).mean(level=0)
-#Carbon_content = pd.DataFrame(reference.ghg_emissions_desag.M.sum()).mean(level=0)
+# A region's carbon content is the average GHG intensity among
+# a region's sectors, weighted with the production of each sector
+ghg_emissions = reference.ghg_emissions_desag.S.sum(axis=0)
+production = reference.x
+Carbon_content = (ghg_emissions * production["indout"]).sum(level=0) / production["indout"].sum(level=0)
+
 
 A=pd.DataFrame(reference.ghg_emissions_desag.M.T).sum(axis=1)
 Carbon_content_sec = pd.DataFrame(np.zeros((len(sectors_list),len(reg_list))),index=sectors_list,columns=reg_list)
@@ -172,6 +176,8 @@ sum_imports = imports.sum()
 
 data = pd.DataFrame(np.zeros((len(reg_list[1:]),2)),index = reg_list[1:],columns = ['Carbon_content','Import_FR_share'])
 data_sec = Carbon_content_sec
+
+print(data.head())
 
 data.loc[:,'Carbon_content'] = Carbon_content.copy()
 data.loc[:,'Import_FR_share'] = imports.copy()/sum_imports
