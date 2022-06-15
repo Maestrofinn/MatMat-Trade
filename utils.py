@@ -10,17 +10,14 @@
     """
 
 # general
-import sys
 import os
 
 # scientific
 import numpy as np
-from numpy.core.fromnumeric import var
 import pandas as pd
 import pickle as pkl
 import pymrio
 from pymrio.tools import ioutil
-import matplotlib.pyplot as plt
 
 
 class Tools:
@@ -378,8 +375,8 @@ class Tools:
         file_name = "IOT_" + str(base_year) + "_" + system + ".zip"
         pickle_file_name = "IOT_" + str(base_year) + "_" + system + ".pickle"
         concat_settings = (
-                str(base_year) + "_" + agg_name["sector"] + "_" + agg_name["region"]
-            )
+            str(base_year) + "_" + agg_name["sector"] + "_" + agg_name["region"]
+        )
 
         # downloading data if necessary
         if not os.path.isfile(data_dir / file_name):
@@ -443,5 +440,5 @@ class Tools:
             reference = pymrio.parse_exiobase3(
                 data_dir / ("reference" + "_" + concat_settings)
             )
-        
+
         return reference

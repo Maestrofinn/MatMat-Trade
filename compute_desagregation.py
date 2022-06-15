@@ -16,9 +16,6 @@ from adjustText import adjust_text
 
 
 # general
-import os
-
-
 import warnings
 
 warnings.simplefilter(action="ignore", category=FutureWarning)
@@ -26,8 +23,6 @@ warnings.simplefilter(action="ignore", category=FutureWarning)
 # scientific
 import numpy as np
 import pandas as pd
-import pickle as pkl
-import pymrio
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -35,7 +30,6 @@ sns.set_theme()
 
 # local folder
 from local_paths import data_dir
-from local_paths import output_dir
 
 # local library
 from utils import Tools

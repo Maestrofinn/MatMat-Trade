@@ -10,18 +10,13 @@
 #%% IMPORT MODULES
 ###########################
 # general
-import os
 
 import warnings
-from weakref import ref
-
 warnings.simplefilter(action="ignore", category=FutureWarning)
 
 # scientific
 import numpy as np
 import pandas as pd
-import pickle as pkl
-import pymrio
 import matplotlib.pyplot as plt
 import seaborn as sns
 
