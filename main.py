@@ -169,7 +169,7 @@ def get_least(sector, reloc):
     if reloc:
         regs = list(reference.get_regions())
     ind = 0
-    for i in range(1, len(regs)):
+    for i in range(len(regs)):
         if (
             M[regs[i], sector] < M[regs[ind], sector]
             and reference.Z.loc[regs[i]].drop(columns=regs[i]).sum(axis=1).loc[sector]
