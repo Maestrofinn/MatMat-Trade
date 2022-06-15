@@ -701,6 +701,19 @@ dict_regions = {
     ],
 }
 
+scenarios_dict = {
+    "Best": {"sector_moves": scenar_bestv2(), "shock_function": Tools.shockv2},
+    "Worst": {"sector_moves": scenar_worstv2(), "shock_function": Tools.shockv2},
+    "Pref_EU": {
+        "sector_moves": scenar_pref_europev3(),
+        "shock_function": Tools.shockv3,
+    },
+    "War_China": {
+        "sector_moves": scenar_guerre_chine(),
+        "shock_function": Tools.shockv3,
+    },
+}
+
 
 def compare_scenarios():
     """Draw figures to compare the carbont footprints associated with the different scenarios"""
@@ -731,41 +744,12 @@ def compare_scenarios():
             Commerce_all_scen.loc[reg, "Reference"] += (
                 reference.Y["FR"].sum(axis=1) + reference.Z["FR"].sum(axis=1)
             ).sum(level=0)[reg_2]
-    fun_dict = {
-        "Best": scenar_bestv2(),
-        "Pref_EU": scenar_pref_europev3(),
-        "Worst": scenar_worstv2(),
-        "War_China": scenar_guerre_chine(),
-    }
+	# calculate couterfactual systems
     for scenar in ["Best", "Pref_EU", "Worst", "War_China"]:
         print(scenar)
-        sectors, moves = fun_dict[scenar]
-        if scenar == "Pref_EU" or scenar == "War_China":
-            for sector in sectors:
-                counterfactual.Z, counterfactual.Y = Tools.shockv3(
-                    sectors,
-                    demcat_list,
-                    reg_list,
-                    counterfactual.Z,
-                    counterfactual.Y,
-                    moves[sector],
-                    sector,
-                )
-        else:
-            for sector in sectors:
-                counterfactual.Z, counterfactual.Y = Tools.shockv2(
-                    sectors,
-                    demcat_list,
-                    reg_list,
-                    counterfactual.Z,
-                    counterfactual.Y,
-                    moves[sector],
-                    sector,
-                )
-        counterfactual.A = None
-        counterfactual.x = None
-        counterfactual.L = None
-        # calculate counterfactual(s) system
+        counterfactual = Tools.compute_counterfactual(
+            counterfactual, scenarios_dict[scenar], demcat_list, reg_list
+        )
         counterfactual.calc_all()
         counterfactual.ghg_emissions_desag = Tools.recal_extensions_per_region(
             counterfactual, "ghg_emissions"
@@ -840,7 +824,7 @@ if plot_compare_scenarios:
 #%% CHOICE OF THE SCENARIO
 ###########################
 
-scenarios = ["best", "worst", "pref_eu", "war_china"]
+scenarios = ["Best", "Worst", "Pref_EU", "War_china"]
 chosen_scenario = scenarios[2]
 
 
@@ -848,36 +832,9 @@ chosen_scenario = scenarios[2]
 #%% COMPUTE COUNTERFACTUAL SYSTEM
 ###########################
 
-scenario_dict = {
-    "best": {"sector_moves": scenar_bestv2(), "shock_function": Tools.shockv2},
-    "worst": {"sector_moves": scenar_worstv2(), "shock_function": Tools.shockv2},
-    "pref_eu": {
-        "sector_moves": scenar_pref_europev3(),
-        "shock_function": Tools.shockv3,
-    },
-    "war_china": {
-        "sector_moves": scenar_guerre_chine(),
-        "shock_function": Tools.shockv3,
-    },
-}
-
-sectors, moves = scenario_dict[chosen_scenario]["sector_moves"]
-for sector in sectors:
-    counterfactual.Z, counterfactual.Y = scenario_dict[chosen_scenario][
-        "shock_function"
-    ](
-        sectors,
-        demcat_list,
-        reg_list,
-        counterfactual.Z,
-        counterfactual.Y,
-        moves[sector],
-        sector,
-    )
-
-counterfactual.A = None
-counterfactual.x = None
-counterfactual.L = None
+counterfactual = Tools.compute_counterfactual(
+    counterfactual, scenarios_dict[chosen_scenario], demcat_list, reg_list
+)
 
 
 # calculate counterfactual(s) system

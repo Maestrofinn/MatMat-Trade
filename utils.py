@@ -442,3 +442,23 @@ class Tools:
             )
 
         return reference
+
+    def compute_counterfactual(
+        counterfactual, scenario_parameters, demcat_list, reg_list
+    ):
+        sectors, moves = scenario_parameters["sector_moves"]
+        for sector in sectors:
+            counterfactual.Z, counterfactual.Y = scenario_parameters["shock_function"](
+                sectors,
+                demcat_list,
+                reg_list,
+                counterfactual.Z,
+                counterfactual.Y,
+                moves[sector],
+                sector,
+            )
+
+        counterfactual.A = None
+        counterfactual.x = None
+        counterfactual.L = None
+        return counterfactual
