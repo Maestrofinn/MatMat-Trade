@@ -135,12 +135,14 @@ def sort_by_content(sector: str, regs: List[str]) -> np.array:
     return index_sorted
 
 
-def moves_from_sorted_index(sector: str, regions_index:List[int], reloc: bool) -> Tuple[np.array]:
+def moves_from_sorted_index(
+    sector: str, regions_index: List[int], reloc: bool
+) -> Tuple[np.array]:
     """Allocate french importations for a sector in the order given by region_index
 
     Args:
         sector (str): name of a product (or industry)
-		regions_index (List[int]): list of ordered region indices
+                regions_index (List[int]): list of ordered region indices
         reloc (bool): True if relocation is allowed
 
     Returns:
@@ -154,7 +156,7 @@ def moves_from_sorted_index(sector: str, regions_index:List[int], reloc: bool) -
         regs = reference.get_regions()
     else:
         regs = reference.get_regions()[1:]  # remove FR
-	
+
     sectors = reference.get_sectors()
     demcats = reference.get_Y_categories()
 
@@ -228,34 +230,36 @@ def moves_from_sorted_index(sector: str, regions_index:List[int], reloc: bool) -
     return parts_sects, parts_demcats, regions_index
 
 
-def worst_moves(sector : str, reloc : bool) -> Tuple[np.array]:
-	"""Find the most carbon-intense imports reallocation for a sector
+def worst_moves(sector: str, reloc: bool) -> Tuple[np.array]:
+    """Find the most carbon-intense imports reallocation for a sector
 
-	Args:
-	    sector (str): name of a product (or industry)
-	    reloc (bool): True if relocation is allowed
-	Returns:
-	    Tuple[np.array]: tuple with 3 elements :
-	                    - 2D-array of imports of 'sector' from regions (rows) for french intermediary demands (columns)
-                    	- 2D-array of imports of 'sector' from regions (rows) for french final demands (columns)
-                    	- array of indices of regions descendantly sorted by carbon content
+    Args:
+        sector (str): name of a product (or industry)
+        reloc (bool): True if relocation is allowed
+    Returns:
+        Tuple[np.array]: tuple with 3 elements :
+                        - 2D-array of imports of 'sector' from regions (rows) for french intermediary demands (columns)
+                    - 2D-array of imports of 'sector' from regions (rows) for french final demands (columns)
+                    - array of indices of regions descendantly sorted by carbon content
     """
-	return moves_from_sorted_index(sector, sort_by_content(sector, reg_list)[::-1], reloc)
+    return moves_from_sorted_index(
+        sector, sort_by_content(sector, reg_list)[::-1], reloc
+    )
 
 
-def best_moves(sector : str, reloc : bool) -> Tuple[np.array]:
-	"""Find the least carbon-intense imports reallocation for a sector
+def best_moves(sector: str, reloc: bool) -> Tuple[np.array]:
+    """Find the least carbon-intense imports reallocation for a sector
 
-	Args:
-	    sector (str): name of a product (or industry)
-	    reloc (bool): True if relocation is allowed
-	Returns:
-	    Tuple[np.array]: tuple with 3 elements :
-	                    - 2D-array of imports of 'sector' from regions (rows) for french intermediary demands (columns)
-                    	- 2D-array of imports of 'sector' from regions (rows) for french final demands (columns)
-                    	- array of indices of regions ascendantly sorted by carbon content
+    Args:
+        sector (str): name of a product (or industry)
+        reloc (bool): True if relocation is allowed
+    Returns:
+        Tuple[np.array]: tuple with 3 elements :
+                        - 2D-array of imports of 'sector' from regions (rows) for french intermediary demands (columns)
+                    - 2D-array of imports of 'sector' from regions (rows) for french final demands (columns)
+                    - array of indices of regions ascendantly sorted by carbon content
     """
-	return moves_from_sorted_index(sector, sort_by_content(sector, reg_list), reloc)
+    return moves_from_sorted_index(sector, sort_by_content(sector, reg_list), reloc)
 
 
 def scenar_bestv2(reloc=False):
