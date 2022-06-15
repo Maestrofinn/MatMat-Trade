@@ -135,11 +135,12 @@ def sort_by_content(sector: str, regs: List[str]) -> np.array:
     return index_sorted
 
 
-def worst_moves(sector: str, reloc: bool) -> Tuple[np.array]:
-    """Find the most carbon-intense imports reallocation for a sector
+def moves_from_sorted_index(sector: str, regions_index:List[int], reloc: bool) -> Tuple[np.array]:
+    """Allocate french importations for a sector in the order given by region_index
 
     Args:
         sector (str): name of a product (or industry)
+		regions_index (List[int]): list of ordered region indices
         reloc (bool): True if relocation is allowed
 
     Returns:
@@ -153,8 +154,7 @@ def worst_moves(sector: str, reloc: bool) -> Tuple[np.array]:
         regs = reference.get_regions()
     else:
         regs = reference.get_regions()[1:]  # remove FR
-
-    index_sorted = sort_by_content(sector, regs)[::-1]  # reverse sort
+	
     sectors = reference.get_sectors()
     demcats = reference.get_Y_categories()
 
@@ -191,8 +191,8 @@ def worst_moves(sector: str, reloc: bool) -> Tuple[np.array]:
 
     # export capacities of each regions
     remaining_reg_export = []
-    for i in index_sorted:
-        reg = regs[i]  # region with (i+1)th lowest carbon content for this sector
+    for i in regions_index:
+        reg = regs[i]
         remaining_reg_export.append(
             reference.Z.drop(columns=reg).sum(axis=1).loc[(reg, sector)]
         )
@@ -200,7 +200,7 @@ def worst_moves(sector: str, reloc: bool) -> Tuple[np.array]:
     # allocations for intermediary demand
     for j in range(nbsect):
         covered = 0
-        for i in index_sorted:
+        for i in regions_index:
             if covered < totalinterfromsector[j] and remaining_reg_export[i] > 0:
                 # if french importations demand from sector j is not satisfied
                 # and the ith region is able to export
@@ -215,7 +215,7 @@ def worst_moves(sector: str, reloc: bool) -> Tuple[np.array]:
     # allocations for final demands
     for j in range(nbdemcats):
         covered = 0
-        for i in index_sorted:
+        for i in regions_index:
             if covered < totalfinalfromsector[j] and remaining_reg_export[i] > 0:
                 if remaining_reg_export[i] > totalfinalfromsector[j] - covered:
                     alloc = totalfinalfromsector[j] - covered
@@ -225,108 +225,37 @@ def worst_moves(sector: str, reloc: bool) -> Tuple[np.array]:
                 remaining_reg_export[i] -= alloc
                 covered += alloc
 
-    return parts_sects, parts_demcats, index_sorted
+    return parts_sects, parts_demcats, regions_index
 
 
-def best_moves(sector, reloc):
-    """Find the best imports reallocation for a sector, allowing reallocating on several regions. Regions are sorted by carbon intensity"""
-    if reloc:
-        regs = list(reference.get_regions())
-    else:
-        regs = list(reference.get_regions())[1:]  # remove FR
-    index_sorted = sort_by_content(sector, regs)
-    sectors_list = list(reference.get_sectors())
-    demcats = list(reference.get_Y_categories())
+def worst_moves(sector : str, reloc : bool) -> Tuple[np.array]:
+	"""Find the most carbon-intense imports reallocation for a sector
 
-    # compute the part of the french economy that depends on broad activities, for this sector :
-    final_demfr = reference.Y["FR"].drop(["FR"]).sum(axis=1).sum(level=1).loc[sector]
-    interdemfr = reference.Z["FR"].drop(["FR"]).sum(axis=1).sum(level=1).loc[sector]
-    import_demand_FR = final_demfr + interdemfr
-    # part de chaque secteur français dans les importations intermédiaires françaises depuis un secteur étranger
-    part_prod_secteurs = []
-    part_dem_secteurs = []
-    for sec in sectors_list:
-        part_prod_secteurs.append(
-            reference.Z[("FR", sec)].drop(["FR"]).sum(level=1).loc[sector]
-            / import_demand_FR
-        )
-    for dem in demcats:
-        part_dem_secteurs.append(
-            reference.Y[("FR", dem)].drop(["FR"]).sum(level=1).loc[sector]
-            / import_demand_FR
-        )
+	Args:
+	    sector (str): name of a product (or industry)
+	    reloc (bool): True if relocation is allowed
+	Returns:
+	    Tuple[np.array]: tuple with 3 elements :
+	                    - 2D-array of imports of 'sector' from regions (rows) for french intermediary demands (columns)
+                    	- 2D-array of imports of 'sector' from regions (rows) for french final demands (columns)
+                    	- array of indices of regions descendantly sorted by carbon content
+    """
+	return moves_from_sorted_index(sector, sort_by_content(sector, reg_list)[::-1], reloc)
 
-    # parts des importations françaises *totales pour un secteur* à importer depuis le 1er best, 2nd best...
-    nbreg = len(regs)
-    nbsect = len(sectors_list)
-    nbdemcats = len(demcats)
-    parts_sects = np.zeros((nbreg, nbsect))
-    parts_demcats = np.zeros((nbreg, nbdemcats))
-    # construction of french needs of imports
-    totalfromsector = np.zeros(nbsect)
-    totalfinalfromsector = np.zeros(nbdemcats)
-    for j in range(nbsect):
-        # sum on regions of imports of imports of sector for french sector j
-        totalfromsector[j] = np.sum(
-            [
-                reference.Z["FR"].drop("FR")[sectors_list[j]].loc[(regs[k], sector)]
-                for k in range(nbreg)
-            ]
-        )
-    for j in range(nbdemcats):
-        totalfinalfromsector[j] = np.sum(
-            [
-                reference.Y["FR"].drop("FR")[demcats[j]].loc[(regs[k], sector)]
-                for k in range(nbreg)
-            ]
-        )
 
-    # export capacities of each regions
-    remaining_reg_export = np.zeros(nbreg)
-    for i in range(nbreg):
-        my_best = regs[
-            index_sorted[i]
-        ]  # region with ith lowest carbon content for this sector
-        reg_export = (
-            reference.Z.drop(columns=my_best).sum(axis=1).loc[(my_best, sector)]
-        )  # exports from this reg/sec
-        remaining_reg_export[index_sorted[i]] = reg_export
+def best_moves(sector : str, reloc : bool) -> Tuple[np.array]:
+	"""Find the least carbon-intense imports reallocation for a sector
 
-    for j in range(nbsect):
-        covered = 0
-        for i in range(nbreg):
-            if (
-                covered < totalfromsector[j]
-                and remaining_reg_export[index_sorted[i]] > 0
-            ):
-                # if imp demand from sector j is not satisfied and if my_best can still export some sector
-                if remaining_reg_export[index_sorted[i]] > totalfromsector[j] - covered:
-                    alloc = totalfromsector[j] - covered
-                else:
-                    alloc = remaining_reg_export[index_sorted[i]]
-                parts_sects[index_sorted[i], j] = alloc
-                remaining_reg_export[index_sorted[i]] -= alloc
-                covered += alloc
-
-    for j in range(nbdemcats):
-        # idem for final demand categories
-        covered = 0
-        for i in range(nbreg):
-            if (
-                covered < totalfinalfromsector[j]
-                and remaining_reg_export[index_sorted[i]] > 0
-            ):
-                if (
-                    remaining_reg_export[index_sorted[i]]
-                    > totalfinalfromsector[j] - covered
-                ):
-                    alloc = totalfinalfromsector[j] - covered
-                else:
-                    alloc = remaining_reg_export[index_sorted[i]]
-                parts_demcats[index_sorted[i], j] = alloc
-                remaining_reg_export[index_sorted[i]] -= alloc
-                covered += alloc
-    return parts_sects, parts_demcats, index_sorted
+	Args:
+	    sector (str): name of a product (or industry)
+	    reloc (bool): True if relocation is allowed
+	Returns:
+	    Tuple[np.array]: tuple with 3 elements :
+	                    - 2D-array of imports of 'sector' from regions (rows) for french intermediary demands (columns)
+                    	- 2D-array of imports of 'sector' from regions (rows) for french final demands (columns)
+                    	- array of indices of regions ascendantly sorted by carbon content
+    """
+	return moves_from_sorted_index(sector, sort_by_content(sector, reg_list), reloc)
 
 
 def scenar_bestv2(reloc=False):
