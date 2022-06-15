@@ -80,33 +80,44 @@ reference.save_all(output_dir / ("reference" + "_" + concat_settings))
 counterfactual = reference.copy()
 counterfactual.remove_extension("ghg_emissions_desag")
 
-nbsect = len(list(reference.get_sectors()))  # number of economic sectors
+nbsect = len(reference.get_sectors())  # number of economic sectors
 
 ###########################
 #%% DEFINE FUNCTIONS FOR SCENARIOS
 ###########################
 
 
-def get_least(sector, reloc):
-    """Find the best region for a given sector, i.e. the least carbon-intense region associated with this sector"""
-    # par défaut on ne se laisse pas la possibilité de relocaliser en FR
-    M = reference.ghg_emissions_desag.M.sum()
-    # compute the part of the french economy that depends on broad activities, for each sector :
-    final_demfr = reference.Y["FR"].drop(["FR"]).sum(axis=1)
-    interdemfr = reference.Z["FR"].drop(["FR"]).sum(axis=1)
-    import_demand_FR = (final_demfr + interdemfr).sum(level=1)
+def get_least(sector: str, reloc: bool = False) -> str:
+    """Find the least carbon-intense region associated with a given sector,
+    among these who export more than French demand for this sector
 
-    regs = list(reference.get_regions())[1:]
+    Args:
+            sector (str): name of a product (or industry)
+            reloc (bool): True if relocation is allowed. Defaults to False.
+
+    Returns:
+            str: name of a region
+    """
+
+    M = reference.ghg_emissions_desag.M.sum()
+
+    # compute the part of the french economy that depends on broad activities, for each sector
+    final_demfr = reference.Y["FR"].drop(["FR"]).sum(axis=1)
+    inter_demfr = reference.Z["FR"].drop(["FR"]).sum(axis=1)
+    import_demfr = (final_demfr + inter_demfr).sum(level=1)
 
     if reloc:
-        regs = list(reference.get_regions())
+        regs = reference.get_regions()
+    else:
+        regs = reference.get_regions()[1:]
+
     ind = 0
     for i in range(len(regs)):
         if (
             M[regs[i], sector] < M[regs[ind], sector]
             and reference.Z.loc[regs[i]].drop(columns=regs[i]).sum(axis=1).loc[sector]
-            > import_demand_FR.loc[sector]
-        ):  # pour choisir une région comme région de report, elle doit au moins déjà exporter l'équivalent de la partie importée de la demande française
+            > import_demfr.loc[sector]
+        ):  # choose a region iff it emits less than the previous best AND its export are higher than french total demand
             ind = i
     return regs[ind]
 
@@ -744,7 +755,7 @@ def compare_scenarios():
             Commerce_all_scen.loc[reg, "Reference"] += (
                 reference.Y["FR"].sum(axis=1) + reference.Z["FR"].sum(axis=1)
             ).sum(level=0)[reg_2]
-	# calculate couterfactual systems
+    # calculate couterfactual systems
     for scenar in ["Best", "Pref_EU", "Worst", "War_China"]:
         print(scenar)
         counterfactual = Tools.compute_counterfactual(
