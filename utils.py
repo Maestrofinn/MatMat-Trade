@@ -462,3 +462,22 @@ class Tools:
         counterfactual.x = None
         counterfactual.L = None
         return counterfactual
+
+    def compute_french_demands(reference: pymrio.IOSystem, sector: str) -> float:
+        """Compute the french total demands in importations for a sector
+
+        Args:
+            reference (pymrio.IOSystem): pymrio model, with the region "FR"
+            sector (str): name of a product (or industry)
+
+        Returns:
+            float: french total demand in importations for the sector
+        """
+
+        final_demfr = (
+            reference.Y["FR"].drop(["FR"]).sum(axis=1).sum(level=1).loc[sector]
+        )
+        inter_demfr = (
+            reference.Z["FR"].drop(["FR"]).sum(axis=1).sum(level=1).loc[sector]
+        )
+        return final_demfr + inter_demfr

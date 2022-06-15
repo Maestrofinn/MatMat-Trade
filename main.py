@@ -1,5 +1,4 @@
 """ Python main script of MatMat trade module
-	
 	"""
 
 ###########################
@@ -7,6 +6,7 @@
 ###########################
 # general
 
+from typing import List, Tuple
 import warnings
 
 warnings.simplefilter(action="ignore", category=FutureWarning)
@@ -92,143 +92,139 @@ def get_least(sector: str, reloc: bool = False) -> str:
     among these who export more than French demand for this sector
 
     Args:
-            sector (str): name of a product (or industry)
-            reloc (bool): True if relocation is allowed. Defaults to False.
+        sector (str): name of a product (or industry)
+        reloc (bool): True if relocation is allowed. Defaults to False.
 
     Returns:
-            str: name of a region
+        str: name of a region
     """
 
-    M = reference.ghg_emissions_desag.M.sum()
+    M = reference.ghg_emissions_desag.M.sum(axis=0)
 
-    # compute the part of the french economy that depends on broad activities, for each sector
-    final_demfr = reference.Y["FR"].drop(["FR"]).sum(axis=1)
-    inter_demfr = reference.Z["FR"].drop(["FR"]).sum(axis=1)
-    import_demfr = (final_demfr + inter_demfr).sum(level=1)
+    import_demfr = Tools.compute_french_demands(reference, sector)
 
     if reloc:
         regs = reference.get_regions()
     else:
-        regs = reference.get_regions()[1:]
+        regs = reference.get_regions()[1:]  # remove FR
 
     ind = 0
     for i in range(len(regs)):
         if (
             M[regs[i], sector] < M[regs[ind], sector]
             and reference.Z.loc[regs[i]].drop(columns=regs[i]).sum(axis=1).loc[sector]
-            > import_demfr.loc[sector]
-        ):  # choose a region iff it emits less than the previous best AND its export are higher than french total demand
+            > import_demfr
+        ):  # choose a region iff it emits less than the previous best AND its export are higher than french demand
             ind = i
     return regs[ind]
 
 
-def sort_by_content(sector, regs):
-    """sort all regions by carbon content of a sector"""
-    # carbon contents
-    M = reference.ghg_emissions_desag.M.sum()
-    carbon_content_sector = [M[regs[i], sector] for i in range(len(regs))]
+def sort_by_content(sector: str, regs: List[str]) -> np.array:
+    """Sort all regions by carbon content of a sector
+
+    Args:
+        sector (str): name of a product (or industry)
+        regs (List[str]): list of the names of regions
+
+    Returns:
+        np.array: array of indices of regions sorted by carbon content
+    """
+    M = reference.ghg_emissions_desag.M.sum(axis=0)
+    carbon_content_sector = [M[reg, sector] for reg in regs]
     index_sorted = np.argsort(carbon_content_sector)
     return index_sorted
 
 
-def worst_moves(sector, reloc):
-    """Find the worst imports reallocation for a sector, allowing reallocating on several regions. Regions are sorted by carbon intensity"""
-    if reloc:
-        regs = list(reference.get_regions())
-    else:
-        regs = list(reference.get_regions())[1:]  # remove FR
-    index_sorted = list(reversed(sort_by_content(sector, regs)))
-    sectors_list = list(reference.get_sectors())
-    demcats = list(reference.get_Y_categories())
+def worst_moves(sector: str, reloc: bool) -> Tuple[np.array]:
+    """Find the most carbon-intense imports reallocation for a sector
 
-    # compute the part of the french economy that depends on broad activities, for this sector :
-    final_demfr = reference.Y["FR"].drop(["FR"]).sum(axis=1).sum(level=1).loc[sector]
-    interdemfr = reference.Z["FR"].drop(["FR"]).sum(axis=1).sum(level=1).loc[sector]
-    import_demand_FR = final_demfr + interdemfr
-    # part de chaque secteur français dans les importations intermédiaires françaises depuis un secteur étranger
+    Args:
+        sector (str): name of a product (or industry)
+        reloc (bool): True if relocation is allowed
+
+    Returns:
+        Tuple[np.array]: tuple with 3 elements :
+                        - 2D-array of imports of 'sector' from regions (rows) for french intermediary demands (columns)
+                        - 2D-array of imports of 'sector' from regions (rows) for french final demands (columns)
+                        - array of indices of regions sorted by carbon content
+    """
+
+    if reloc:
+        regs = reference.get_regions()
+    else:
+        regs = reference.get_regions()[1:]  # remove FR
+
+    index_sorted = sort_by_content(sector, regs)[::-1]  # reverse sort
+    sectors = reference.get_sectors()
+    demcats = reference.get_Y_categories()
+
+    import_demfr = Tools.compute_french_demands(reference, sector)
+
+    # share of each french intermediary or final demand in french importations from a given sector
     part_prod_secteurs = []
     part_dem_secteurs = []
-    for sec in sectors_list:
+    for sec in sectors:
         part_prod_secteurs.append(
             reference.Z[("FR", sec)].drop(["FR"]).sum(level=1).loc[sector]
-            / import_demand_FR
+            / import_demfr
         )
     for dem in demcats:
         part_dem_secteurs.append(
             reference.Y[("FR", dem)].drop(["FR"]).sum(level=1).loc[sector]
-            / import_demand_FR
+            / import_demfr
         )
 
-    # parts des importations françaises *totales pour un secteur* à importer depuis le 1er best, 2nd best...
+    # french total importations demand for each sector / final demand
+    totalinterfromsector = [
+        reference.Z["FR"].drop("FR")[sec].sum(level=1).loc[sector] for sec in sectors
+    ]
+    totalfinalfromsector = [
+        reference.Y["FR"].drop("FR")[dem].sum(level=1).loc[sector] for dem in demcats
+    ]
+
+    # intialization of parts_sects and parts_demcats (result of the function)
     nbreg = len(regs)
-    nbsect = len(sectors_list)
+    nbsect = len(sectors)
     nbdemcats = len(demcats)
     parts_sects = np.zeros((nbreg, nbsect))
     parts_demcats = np.zeros((nbreg, nbdemcats))
-    # construction of french needs of imports
-    totalfromsector = np.zeros(nbsect)
-    totalfinalfromsector = np.zeros(nbdemcats)
-    for j in range(nbsect):
-        # sum on regions of imports of imports of sector for french sector j
-        totalfromsector[j] = np.sum(
-            [
-                reference.Z["FR"].drop("FR")[sectors_list[j]].loc[(regs[k], sector)]
-                for k in range(nbreg)
-            ]
-        )
-    for j in range(nbdemcats):
-        totalfinalfromsector[j] = np.sum(
-            [
-                reference.Y["FR"].drop("FR")[demcats[j]].loc[(regs[k], sector)]
-                for k in range(nbreg)
-            ]
-        )
 
     # export capacities of each regions
-    remaining_reg_export = np.zeros(nbreg)
-    for i in range(nbreg):
-        my_best = regs[
-            index_sorted[i]
-        ]  # region with ith lowest carbon content for this sector
-        reg_export = (
-            reference.Z.drop(columns=my_best).sum(axis=1).loc[(my_best, sector)]
-        )  # exports from this reg/sec
-        remaining_reg_export[index_sorted[i]] = reg_export
+    remaining_reg_export = []
+    for i in index_sorted:
+        reg = regs[i]  # region with (i+1)th lowest carbon content for this sector
+        remaining_reg_export.append(
+            reference.Z.drop(columns=reg).sum(axis=1).loc[(reg, sector)]
+        )
 
+    # allocations for intermediary demand
     for j in range(nbsect):
         covered = 0
-        for i in range(nbreg):
-            if (
-                covered < totalfromsector[j]
-                and remaining_reg_export[index_sorted[i]] > 0
-            ):
-                # if imp demand from sector j is not satisfied and if my_best can still export some sector
-                if remaining_reg_export[index_sorted[i]] > totalfromsector[j] - covered:
-                    alloc = totalfromsector[j] - covered
+        for i in index_sorted:
+            if covered < totalinterfromsector[j] and remaining_reg_export[i] > 0:
+                # if french importations demand from sector j is not satisfied
+                # and the ith region is able to export
+                if remaining_reg_export[i] > totalinterfromsector[j] - covered:
+                    alloc = totalinterfromsector[j] - covered
                 else:
-                    alloc = remaining_reg_export[index_sorted[i]]
-                parts_sects[index_sorted[i], j] = alloc
-                remaining_reg_export[index_sorted[i]] -= alloc
+                    alloc = remaining_reg_export[i]
+                parts_sects[i, j] = alloc
+                remaining_reg_export[i] -= alloc
                 covered += alloc
 
+    # allocations for final demands
     for j in range(nbdemcats):
-        # idem for final demand categories
         covered = 0
-        for i in range(nbreg):
-            if (
-                covered < totalfinalfromsector[j]
-                and remaining_reg_export[index_sorted[i]] > 0
-            ):
-                if (
-                    remaining_reg_export[index_sorted[i]]
-                    > totalfinalfromsector[j] - covered
-                ):
+        for i in index_sorted:
+            if covered < totalfinalfromsector[j] and remaining_reg_export[i] > 0:
+                if remaining_reg_export[i] > totalfinalfromsector[j] - covered:
                     alloc = totalfinalfromsector[j] - covered
                 else:
-                    alloc = remaining_reg_export[index_sorted[i]]
-                parts_demcats[index_sorted[i], j] = alloc
-                remaining_reg_export[index_sorted[i]] -= alloc
+                    alloc = remaining_reg_export[i]
+                parts_demcats[i, j] = alloc
+                remaining_reg_export[i] -= alloc
                 covered += alloc
+
     return parts_sects, parts_demcats, index_sorted
 
 
