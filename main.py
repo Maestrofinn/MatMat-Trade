@@ -145,9 +145,7 @@ def moves_from_sorted_index_by_sector(
     for reg in regs:
         remaining_reg_export[reg] = (
             reference.Z.drop(columns=reg).sum(axis=1).loc[(reg, sector)]
-        ) + (
-            reference.Y.drop(columns=reg).sum(axis=1).loc[(reg, sector)]
-		)
+        ) + (reference.Y.drop(columns=reg).sum(axis=1).loc[(reg, sector)])
 
     # allocations for intermediary demand
     for j in range(nbsect):
@@ -343,9 +341,7 @@ def scenar_pref_europe(reloc: bool = False) -> Dict:
         for reg in regs:
             remaining_reg_export[reg] = (
                 reference.Z.drop(columns=reg).sum(axis=1).loc[(reg, sector)]
-            ) + (
-                reference.Y.drop(columns=reg).sum(axis=1).loc[(reg, sector)]
-            )
+            ) + (reference.Y.drop(columns=reg).sum(axis=1).loc[(reg, sector)])
 
         remaining_reg_export_EU = remaining_reg_export["EU"]
         for j in range(nbsect):
@@ -366,8 +362,12 @@ def scenar_pref_europe(reloc: bool = False) -> Dict:
                         ] * (
                             1
                             - alloc
-                            / (totalinterfromsector[j] - remaining_reg_export["EU"] - parts_sects["EU"].sum())
-                        ) # understandable format, but should be rewritten
+                            / (
+                                totalinterfromsector[j]
+                                - remaining_reg_export["EU"]
+                                - parts_sects["EU"].sum()
+                            )
+                        )  # understandable format, but should be rewritten
 
         for j in range(nbdemcats):
             if totalfinalfromsector[j] != 0 and remaining_reg_export_EU > 0:
@@ -389,8 +389,13 @@ def scenar_pref_europe(reloc: bool = False) -> Dict:
                         ] * (
                             1
                             - alloc
-                            / (totalinterfromsector[j] - remaining_reg_export["EU"] - parts_sects["EU"].sum() - parts_demcats["EU"].sum())
-                        ) # understandable format, but should be rewritten
+                            / (
+                                totalinterfromsector[j]
+                                - remaining_reg_export["EU"]
+                                - parts_sects["EU"].sum()
+                                - parts_demcats["EU"].sum()
+                            )
+                        )  # understandable format, but should be rewritten
 
         moves[sector] = {
             "parts_sec": parts_sects,
