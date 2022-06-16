@@ -80,8 +80,6 @@ reference.save_all(output_dir / ("reference" + "_" + concat_settings))
 counterfactual = reference.copy()
 counterfactual.remove_extension("ghg_emissions_desag")
 
-nbsect = len(reference.get_sectors())  # number of economic sectors
-
 ###########################
 #%% GENERIC FUNCTIONS FOR SCENARIOS
 ###########################
@@ -224,7 +222,7 @@ def moves_from_sort_rule(
 
 
 def sort_by_content(sector: str, reloc : bool = False) -> np.array:
-    """Sort all regions by carbon content of a sector
+    """Ascendantly sort all regions by carbon content of a sector
 
     Args:
         sector (str): name of a product (or industry)
@@ -235,14 +233,8 @@ def sort_by_content(sector: str, reloc : bool = False) -> np.array:
         np.array: array of indices of regions sorted by carbon content
     """
 
-    if reloc:
-        regs = reference.get_regions()
-    else:
-        regs = reference.get_regions()[1:]  # remove FR
-
     M = reference.ghg_emissions_desag.M.sum(axis=0)
-    carbon_content_sector = [M[reg, sector] for reg in regs]
-    regions_index = np.argsort(carbon_content_sector)
+    regions_index = np.argsort(M[:, sector].values[1 - reloc:])
     return regions_index
 
 
@@ -281,32 +273,38 @@ def scenar_worst(reloc: bool = False) -> Dict:
 
     return moves_from_sort_rule(lambda *args: sort_by_content(*args)[::-1], reloc)
 
-def scenar_pref_europe():
-    """Implement a scenario illustrating the preference for trade with European Union"""
-    nbreg = len(list(reference.get_regions()))
-    sectors = (nbreg - 2) * list(reference.get_sectors())
-    quantities = [1 for i in range(len(sectors))]
-    moves = []
-    for i in range(nbreg):
-        reg = reference.get_regions()[i]
-        if reg != "Europe" and reg != "FR":
-            for j in range(len(list(reference.get_sectors()))):
-                moves.append([reg, "Europe"])
-    return sectors, moves, quantities
+
+###########################
+#%% Preference for Europe
+###########################
 
 
-def scenar_pref_europev3(reloc=False):
-    """Implement a scenario illustrating the preference for trade with European Union"""
+def scenar_pref_europe(reloc : bool=False) -> Dict:
+    """Find imports reallocation for all sectors that prioritize trade with European Union
+
+
+    Args:
+            reloc (bool, optional): True if relocation is allowed. Defaults to False.
+
+    Returns:
+            Dict: dictionnary associating to each sector a dictionnary with :
+        		- parts_sec : 2D-array of imports of 'sector' from regions (rows) for french intermediary demands (columns)
+        		- parts_dem : 2D-array of imports of 'sector' from regions (rows) for french final demands (columns)
+                - sort : array of indices of regions ascendantly sorted by carbon content
+                - reloc : True if relocation is allowed
+    """
     if reloc:
-        regs = list(reference.get_regions())
+        regs = reference.get_regions()
     else:
-        regs = list(reference.get_regions())[1:]  # remove FR
-    sectors_list = list(reference.get_sectors())
-    demcats = list(reference.get_Y_categories())
+        regs = reference.get_regions()[1:]  # remove FR
+		
+    sectors_list = reference.get_sectors()
+    demcats = reference.get_Y_categories()
     nbdemcats = len(demcats)
     nbreg = len(regs)
+    nbsect = len(sectors_list)
     moves = {}
-    for i in range(nbsect):
+    for sector in sectors_list:
         # initialization of outputs
         parts_sects = {}
         parts_dem = {}
@@ -323,7 +321,7 @@ def scenar_pref_europev3(reloc=False):
                 [
                     reference.Z["FR"]
                     .drop("FR")[sectors_list[j]]
-                    .loc[(regs[k], sectors_list[i])]
+                    .loc[(regs[k], sector)]
                     for k in range(nbreg)
                 ]
             )
@@ -332,7 +330,7 @@ def scenar_pref_europev3(reloc=False):
                 [
                     reference.Y["FR"]
                     .drop("FR")[demcats[j]]
-                    .loc[(regs[k], sectors_list[i])]
+                    .loc[(regs[k], sector)]
                     for k in range(nbreg)
                 ]
             )
@@ -343,7 +341,7 @@ def scenar_pref_europev3(reloc=False):
             reg_export[regs[r]] = (
                 reference.Z.drop(columns=regs[r])
                 .sum(axis=1)
-                .loc[(regs[r], sectors_list[i])]
+                .loc[(regs[r], sector)]
             )  # exports from this reg/sec
 
         remaining_reg_export_UE = reg_export["EU"]
@@ -355,7 +353,7 @@ def scenar_pref_europev3(reloc=False):
                         alloc = totalfromsector[j]
                     else:
                         alloc = reference.Z.loc[
-                            ("EU", sectors_list[i]), ("FR", sectors_list[j])
+                            ("EU", sector), ("FR", sectors_list[j])
                         ]  # tout ou rien ici
                     parts_sects["EU"][j] = alloc
                     remaining_reg_export_UE -= alloc
@@ -364,7 +362,7 @@ def scenar_pref_europev3(reloc=False):
                     for r in regs:
                         if r != "EU":
                             parts_sects[r][j] = reference.Z.loc[
-                                (r, sectors_list[i]), ("FR", sectors_list[j])
+                                (r, sector), ("FR", sectors_list[j])
                             ] * (1 - alloc / totalfromsector[j])
 
         for j in range(nbdemcats):
@@ -375,7 +373,7 @@ def scenar_pref_europev3(reloc=False):
                         alloc = totalfinalfromsector[j]
                     else:
                         alloc = reference.Y.loc[
-                            ("EU", sectors_list[i]), ("FR", demcats[j])
+                            ("EU", sector), ("FR", demcats[j])
                         ]  # tout ou rien ici
                     parts_dem["EU"][j] = alloc
                     remaining_reg_export_UE -= alloc
@@ -384,16 +382,16 @@ def scenar_pref_europev3(reloc=False):
                     for r in regs:
                         if r != "EU":
                             parts_sects[r][j] = reference.Y.loc[
-                                (r, sectors_list[i]), ("FR", demcats[j])
+                                (r, sector), ("FR", demcats[j])
                             ] * (1 - alloc / totalfinalfromsector[j])
 
-        moves[sectors_list[i]] = {
+        moves[sector] = {
             "parts_sec": parts_sects,
             "parts_dem": parts_dem,
             "sort": [i for i in range(len(regs))],
             "reloc": reloc,
         }
-    return sectors_list, moves
+    return moves
 
 
 def scenar_guerre_chine(reloc=False):
@@ -406,6 +404,7 @@ def scenar_guerre_chine(reloc=False):
     sectors_list = list(reference.get_sectors())
     demcats = list(reference.get_Y_categories())
     nbdemcats = len(demcats)
+    nbsect = len(sectors_list)
     nbreg = len(regs)
     moves = {}
     for i in range(nbsect):
@@ -570,7 +569,7 @@ scenarios_dict = {
     "Best": {"sector_moves": scenar_best(), "shock_function": Tools.shockv2},
     "Worst": {"sector_moves": scenar_worst(), "shock_function": Tools.shockv2},
     "Pref_EU": {
-        "sector_moves": scenar_pref_europev3(),
+        "sector_moves": scenar_pref_europe(),
         "shock_function": Tools.shockv3,
     },
     "War_China": {
