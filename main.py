@@ -6,7 +6,7 @@
 ###########################
 # general
 
-from typing import List, Tuple
+from typing import Callable, Dict, List, Tuple
 import warnings
 
 warnings.simplefilter(action="ignore", category=FutureWarning)
@@ -135,14 +135,14 @@ def sort_by_content(sector: str, regs: List[str]) -> np.array:
     return index_sorted
 
 
-def moves_from_sorted_index(
+def moves_from_sorted_index_by_sector(
     sector: str, regions_index: List[int], reloc: bool
 ) -> Tuple[np.array]:
     """Allocate french importations for a sector in the order given by region_index
 
     Args:
         sector (str): name of a product (or industry)
-                regions_index (List[int]): list of ordered region indices
+        regions_index (List[int]): list of ordered region indices
         reloc (bool): True if relocation is allowed
 
     Returns:
@@ -239,11 +239,17 @@ def worst_moves(sector: str, reloc: bool) -> Tuple[np.array]:
     Returns:
         Tuple[np.array]: tuple with 3 elements :
                         - 2D-array of imports of 'sector' from regions (rows) for french intermediary demands (columns)
-                    - 2D-array of imports of 'sector' from regions (rows) for french final demands (columns)
-                    - array of indices of regions descendantly sorted by carbon content
+                        - 2D-array of imports of 'sector' from regions (rows) for french final demands (columns)
+                        - array of indices of regions descendantly sorted by carbon content
     """
-    return moves_from_sorted_index(
-        sector, sort_by_content(sector, reg_list)[::-1], reloc
+
+    if reloc:
+        regs = reference.get_regions()
+    else:
+        regs = reference.get_regions()[1:]  # remove FR
+
+    return moves_from_sorted_index_by_sector(
+        sector, sort_by_content(sector, regs)[::-1], reloc
     )
 
 
@@ -256,40 +262,91 @@ def best_moves(sector: str, reloc: bool) -> Tuple[np.array]:
     Returns:
         Tuple[np.array]: tuple with 3 elements :
                         - 2D-array of imports of 'sector' from regions (rows) for french intermediary demands (columns)
-                    - 2D-array of imports of 'sector' from regions (rows) for french final demands (columns)
-                    - array of indices of regions ascendantly sorted by carbon content
+                        - 2D-array of imports of 'sector' from regions (rows) for french final demands (columns)
+                        - array of indices of regions ascendantly sorted by carbon content
     """
-    return moves_from_sorted_index(sector, sort_by_content(sector, reg_list), reloc)
+
+    if reloc:
+        regs = reference.get_regions()
+    else:
+        regs = reference.get_regions()[1:]  # remove FR
+
+    return moves_from_sorted_index_by_sector(
+        sector, sort_by_content(sector, regs), reloc
+    )
 
 
-def scenar_bestv2(reloc=False):
-    """Implement a scenario illustrating the best possible trade policy"""
-    sectors_list = list(reference.get_sectors())
+def moves_from_sort_rule(
+    sorting_rule_by_sector: Callable[[List[str], str], List[int]], reloc: bool = False
+) -> Dict:
+    """Allocate french importations for all sectors, sorting the regions with a given rule for each sector
+
+    Args:
+            sorting_rule_by_sector (Callable[[List[str], str], List[int]]): given a list of regions' names and a sector's name, returns a sorted list of regions' indices
+            reloc (bool, optional): True if relocation is allowed. Defaults to False.
+
+    Returns:
+            Dict: dictionnary associating to each sector a dictionnary with :
+                            - parts_sec : 2D-array of imports of 'sector' from regions (rows) for french intermediary demands (columns)
+                            - parts_dem : 2D-array of imports of 'sector' from regions (rows) for french final demands (columns)
+                            - sort : array of indices of regions ascendantly sorted by carbon content
+                            - reloc : True if relocation is allowed
+    """
+
+    sectors_list = reference.get_sectors()
+    if reloc:
+        regs = reference.get_regions()
+    else:
+        regs = reference.get_regions()[1:]  # remove FR
     moves = {}
     for sector in sectors_list:
-        part_sec, part_dem, index_sorted = best_moves(sector, reloc)
+        regions_index = sorting_rule_by_sector(sector, regs)
+        parts_sec, parts_dem, _ = moves_from_sorted_index_by_sector(
+            sector, regions_index, reloc
+        )
         moves[sector] = {
-            "parts_sec": part_sec,
-            "parts_dem": part_dem,
-            "sort": index_sorted,
+            "parts_sec": parts_sec,
+            "parts_dem": parts_dem,
+            "sort": regions_index,
             "reloc": reloc,
         }
     return sectors_list, moves
 
 
-def scenar_worstv2(reloc=False):
-    """Implement a scenario illustrating the worst possible trade policy"""
-    sectors_list = list(reference.get_sectors())
-    moves = {}
-    for sector in sectors_list:
-        part_sec, part_dem, index_sorted = worst_moves(sector, reloc)
-        moves[sector] = {
-            "parts_sec": part_sec,
-            "parts_dem": part_dem,
-            "sort": index_sorted,
-            "reloc": reloc,
-        }
-    return sectors_list, moves
+def scenar_bestv2(reloc: bool = False) -> Dict:
+    """Find the least carbon-intense imports reallocation for all sectors
+
+
+    Args:
+            reloc (bool, optional): True if relocation is allowed. Defaults to False.
+
+    Returns:
+            Dict: dictionnary associating to each sector a dictionnary with :
+                            - parts_sec : 2D-array of imports of 'sector' from regions (rows) for french intermediary demands (columns)
+                            - parts_dem : 2D-array of imports of 'sector' from regions (rows) for french final demands (columns)
+                            - sort : array of indices of regions ascendantly sorted by carbon content
+                            - reloc : True if relocation is allowed
+    """
+
+    return moves_from_sort_rule(sort_by_content, reloc)
+
+
+def scenar_worstv2(reloc: bool = False) -> Dict:
+    """Find the most carbon-intense imports reallocation for all sectors
+
+
+    Args:
+            reloc (bool, optional): True if relocation is allowed. Defaults to False.
+
+    Returns:
+            Dict: dictionnary associating to each sector a dictionnary with :
+                            - parts_sec : 2D-array of imports of 'sector' from regions (rows) for french intermediary demands (columns)
+                            - parts_dem : 2D-array of imports of 'sector' from regions (rows) for french final demands (columns)
+                            - sort : array of indices of regions ascendantly sorted by carbon content
+                            - reloc : True if relocation is allowed
+    """
+
+    return moves_from_sort_rule(lambda *args: sort_by_content(*args)[::-1], reloc)
 
 
 def get_worst(sector, reloc):
