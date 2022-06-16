@@ -185,15 +185,15 @@ def moves_from_sort_rule(
     """Allocate french importations for all sectors, sorting the regions with a given rule for each sector
 
     Args:
-                    sorting_rule_by_sector (Callable[[List[str], str], List[int]]): given a list of regions' names and a sector's name, returns a sorted list of regions' indices
-                    reloc (bool, optional): True if relocation is allowed. Defaults to False.
+        sorting_rule_by_sector (Callable[[List[str], str], List[int]]): given a list of regions' names and a sector's name, returns a sorted list of regions' indices
+        reloc (bool, optional): True if relocation is allowed. Defaults to False.
 
     Returns:
-                    Dict: dictionnary associating to each sector a dictionnary with :
-                        - parts_sec : 2D-array of imports of 'sector' from regions (rows) for french intermediary demands (columns)
-                        - parts_dem : 2D-array of imports of 'sector' from regions (rows) for french final demands (columns)
-                        - sort : array of indices of regions ascendantly sorted by carbon content
-                        - reloc : True if relocation is allowed
+        Dict: dictionnary associating to each sector a dictionnary with :
+            - parts_sec : 2D-array of imports of 'sector' from regions (rows) for french intermediary demands (columns)
+            - parts_dem : 2D-array of imports of 'sector' from regions (rows) for french final demands (columns)
+            - sort : array of indices of regions ascendantly sorted by carbon content
+            - reloc : True if relocation is allowed
     """
 
     sectors_list = reference.get_sectors()
@@ -225,12 +225,12 @@ def sort_by_content(sector: str, reloc: bool = False) -> np.array:
     """Ascendantly sort all regions by carbon content of a sector
 
     Args:
-            sector (str): name of a product (or industry)
-            reloc (bool, optional): True if relocation is allowed. Defaults to False.
+        sector (str): name of a product (or industry)
+        reloc (bool, optional): True if relocation is allowed. Defaults to False.
 
 
     Returns:
-            np.array: array of indices of regions sorted by carbon content
+        np.array: array of indices of regions sorted by carbon content
     """
 
     M = reference.ghg_emissions_desag.M.sum(axis=0)
@@ -243,14 +243,14 @@ def scenar_best(reloc: bool = False) -> Dict:
 
 
     Args:
-                    reloc (bool, optional): True if relocation is allowed. Defaults to False.
+        reloc (bool, optional): True if relocation is allowed. Defaults to False.
 
     Returns:
-                    Dict: dictionnary associating to each sector a dictionnary with :
-                        - parts_sec : 2D-array of imports of 'sector' from regions (rows) for french intermediary demands (columns)
-                        - parts_dem : 2D-array of imports of 'sector' from regions (rows) for french final demands (columns)
-                        - sort : array of indices of regions ascendantly sorted by carbon content
-                        - reloc : True if relocation is allowed
+        Dict: dictionnary associating to each sector a dictionnary with :
+            - parts_sec : 2D-array of imports of 'sector' from regions (rows) for french intermediary demands (columns)
+            - parts_dem : 2D-array of imports of 'sector' from regions (rows) for french final demands (columns)
+            - sort : array of indices of regions ascendantly sorted by carbon content
+            - reloc : True if relocation is allowed
     """
 
     return moves_from_sort_rule(sort_by_content, reloc)
@@ -261,14 +261,14 @@ def scenar_worst(reloc: bool = False) -> Dict:
 
 
     Args:
-                    reloc (bool, optional): True if relocation is allowed. Defaults to False.
+        reloc (bool, optional): True if relocation is allowed. Defaults to False.
 
     Returns:
-                    Dict: dictionnary associating to each sector a dictionnary with :
-                        - parts_sec : 2D-array of imports of 'sector' from regions (rows) for french intermediary demands (columns)
-                        - parts_dem : 2D-array of imports of 'sector' from regions (rows) for french final demands (columns)
-                        - sort : array of indices of regions ascendantly sorted by carbon content
-                        - reloc : True if relocation is allowed
+        Dict: dictionnary associating to each sector a dictionnary with :
+            - parts_sec : 2D-array of imports of 'sector' from regions (rows) for french intermediary demands (columns)
+            - parts_dem : 2D-array of imports of 'sector' from regions (rows) for french final demands (columns)
+            - sort : array of indices of regions ascendantly sorted by carbon content
+            - reloc : True if relocation is allowed
     """
 
     return moves_from_sort_rule(lambda *args: sort_by_content(*args)[::-1], reloc)
@@ -284,14 +284,14 @@ def scenar_pref_europe(reloc: bool = False) -> Dict:
 
 
     Args:
-                    reloc (bool, optional): True if relocation is allowed. Defaults to False.
+        reloc (bool, optional): True if relocation is allowed. Defaults to False.
 
     Returns:
-                    Dict: dictionnary associating to each sector a dictionnary with :
-                        - parts_sec : 2D-array of imports of 'sector' from regions (rows) for french intermediary demands (columns)
-                        - parts_dem : 2D-array of imports of 'sector' from regions (rows) for french final demands (columns)
-                        - sort : array of indices of regions ascendantly sorted by carbon content
-                        - reloc : True if relocation is allowed
+        Dict: dictionnary associating to each sector a dictionnary with :
+            - parts_sec : 2D-array of imports of 'sector' from regions (rows) for french intermediary demands (columns)
+            - parts_dem : 2D-array of imports of 'sector' from regions (rows) for french final demands (columns)
+            - sort : array of indices of regions ascendantly sorted by carbon content
+            - reloc : True if relocation is allowed
     """
     if reloc:
         regs = reference.get_regions()
