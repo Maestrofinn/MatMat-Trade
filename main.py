@@ -366,8 +366,8 @@ def scenar_pref_europe(reloc: bool = False) -> Dict:
                         ] * (
                             1
                             - alloc
-                            / (totalinterfromsector[j] - remaining_reg_export_EU)
-                        )
+                            / (totalinterfromsector[j] - remaining_reg_export["EU"] - parts_sects["EU"].sum())
+                        ) # understandable format, but should be rewritten
 
         for j in range(nbdemcats):
             if totalfinalfromsector[j] != 0 and remaining_reg_export_EU > 0:
@@ -386,7 +386,11 @@ def scenar_pref_europe(reloc: bool = False) -> Dict:
                     if r != "EU":
                         parts_sects[r][j] = reference.Y.loc[
                             (r, sector), ("FR", demcats[j])
-                        ] * (1 - alloc / totalfinalfromsector[j])
+                        ] * (
+                            1
+                            - alloc
+                            / (totalinterfromsector[j] - remaining_reg_export["EU"] - parts_sects["EU"].sum() - parts_demcats["EU"].sum())
+                        ) # understandable format, but should be rewritten
 
         moves[sector] = {
             "parts_sec": parts_sects,
