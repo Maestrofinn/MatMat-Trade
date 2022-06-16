@@ -91,14 +91,14 @@ def moves_from_sorted_index_by_sector(
     """Allocate french importations for a sector in the order given by region_index
 
     Args:
-            sector (str): name of a product (or industry)
-            regions_index (List[int]): list of ordered region indices
-            reloc (bool): True if relocation is allowed
+        sector (str): name of a product (or industry)
+        regions_index (List[int]): list of ordered region indices
+        reloc (bool): True if relocation is allowed
 
     Returns:
-            Tuple[np.array]: tuple with 2 elements :
-                                            - 2D-array of imports of 'sector' from regions (rows) for french intermediary demands (columns)
-                                            - 2D-array of imports of 'sector' from regions (rows) for french final demands (columns)
+        Tuple[np.array]: tuple with 2 elements :
+            - 2D-array of imports of 'sector' from regions (rows) for french intermediary demands (columns)
+            - 2D-array of imports of 'sector' from regions (rows) for french final demands (columns)
     """
 
     if reloc:
@@ -190,10 +190,10 @@ def moves_from_sort_rule(
 
     Returns:
                     Dict: dictionnary associating to each sector a dictionnary with :
-                                                    - parts_sec : 2D-array of imports of 'sector' from regions (rows) for french intermediary demands (columns)
-                                                    - parts_dem : 2D-array of imports of 'sector' from regions (rows) for french final demands (columns)
-                                                    - sort : array of indices of regions ascendantly sorted by carbon content
-                                                    - reloc : True if relocation is allowed
+                        - parts_sec : 2D-array of imports of 'sector' from regions (rows) for french intermediary demands (columns)
+                        - parts_dem : 2D-array of imports of 'sector' from regions (rows) for french final demands (columns)
+                        - sort : array of indices of regions ascendantly sorted by carbon content
+                        - reloc : True if relocation is allowed
     """
 
     sectors_list = reference.get_sectors()
@@ -247,10 +247,10 @@ def scenar_best(reloc: bool = False) -> Dict:
 
     Returns:
                     Dict: dictionnary associating to each sector a dictionnary with :
-                            - parts_sec : 2D-array of imports of 'sector' from regions (rows) for french intermediary demands (columns)
-                            - parts_dem : 2D-array of imports of 'sector' from regions (rows) for french final demands (columns)
-                            - sort : array of indices of regions ascendantly sorted by carbon content
-                            - reloc : True if relocation is allowed
+                        - parts_sec : 2D-array of imports of 'sector' from regions (rows) for french intermediary demands (columns)
+                        - parts_dem : 2D-array of imports of 'sector' from regions (rows) for french final demands (columns)
+                        - sort : array of indices of regions ascendantly sorted by carbon content
+                        - reloc : True if relocation is allowed
     """
 
     return moves_from_sort_rule(sort_by_content, reloc)
@@ -265,10 +265,10 @@ def scenar_worst(reloc: bool = False) -> Dict:
 
     Returns:
                     Dict: dictionnary associating to each sector a dictionnary with :
-                            - parts_sec : 2D-array of imports of 'sector' from regions (rows) for french intermediary demands (columns)
-                            - parts_dem : 2D-array of imports of 'sector' from regions (rows) for french final demands (columns)
-                            - sort : array of indices of regions ascendantly sorted by carbon content
-                            - reloc : True if relocation is allowed
+                        - parts_sec : 2D-array of imports of 'sector' from regions (rows) for french intermediary demands (columns)
+                        - parts_dem : 2D-array of imports of 'sector' from regions (rows) for french final demands (columns)
+                        - sort : array of indices of regions ascendantly sorted by carbon content
+                        - reloc : True if relocation is allowed
     """
 
     return moves_from_sort_rule(lambda *args: sort_by_content(*args)[::-1], reloc)
@@ -288,10 +288,10 @@ def scenar_pref_europe(reloc: bool = False) -> Dict:
 
     Returns:
                     Dict: dictionnary associating to each sector a dictionnary with :
-                            - parts_sec : 2D-array of imports of 'sector' from regions (rows) for french intermediary demands (columns)
-                            - parts_dem : 2D-array of imports of 'sector' from regions (rows) for french final demands (columns)
-                            - sort : array of indices of regions ascendantly sorted by carbon content
-                            - reloc : True if relocation is allowed
+                        - parts_sec : 2D-array of imports of 'sector' from regions (rows) for french intermediary demands (columns)
+                        - parts_dem : 2D-array of imports of 'sector' from regions (rows) for french final demands (columns)
+                        - sort : array of indices of regions ascendantly sorted by carbon content
+                        - reloc : True if relocation is allowed
     """
     if reloc:
         regs = reference.get_regions()
