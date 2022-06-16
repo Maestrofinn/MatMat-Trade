@@ -83,56 +83,8 @@ counterfactual.remove_extension("ghg_emissions_desag")
 nbsect = len(reference.get_sectors())  # number of economic sectors
 
 ###########################
-#%% DEFINE FUNCTIONS FOR SCENARIOS
+#%% GENERIC FUNCTIONS FOR SCENARIOS
 ###########################
-
-
-def get_least(sector: str, reloc: bool = False) -> str:
-    """Find the least carbon-intense region associated with a given sector,
-    among these who export more than French demand for this sector
-
-    Args:
-        sector (str): name of a product (or industry)
-        reloc (bool): True if relocation is allowed. Defaults to False.
-
-    Returns:
-        str: name of a region
-    """
-
-    M = reference.ghg_emissions_desag.M.sum(axis=0)
-
-    import_demfr = Tools.compute_french_demands(reference, sector)
-
-    if reloc:
-        regs = reference.get_regions()
-    else:
-        regs = reference.get_regions()[1:]  # remove FR
-
-    ind = 0
-    for i in range(len(regs)):
-        if (
-            M[regs[i], sector] < M[regs[ind], sector]
-            and reference.Z.loc[regs[i]].drop(columns=regs[i]).sum(axis=1).loc[sector]
-            > import_demfr
-        ):  # choose a region iff it emits less than the previous best AND its export are higher than french demand
-            ind = i
-    return regs[ind]
-
-
-def sort_by_content(sector: str, regs: List[str]) -> np.array:
-    """Sort all regions by carbon content of a sector
-
-    Args:
-        sector (str): name of a product (or industry)
-        regs (List[str]): list of the names of regions
-
-    Returns:
-        np.array: array of indices of regions sorted by carbon content
-    """
-    M = reference.ghg_emissions_desag.M.sum(axis=0)
-    carbon_content_sector = [M[reg, sector] for reg in regs]
-    index_sorted = np.argsort(carbon_content_sector)
-    return index_sorted
 
 
 def moves_from_sorted_index_by_sector(
@@ -146,10 +98,9 @@ def moves_from_sorted_index_by_sector(
         reloc (bool): True if relocation is allowed
 
     Returns:
-        Tuple[np.array]: tuple with 3 elements :
+        Tuple[np.array]: tuple with 2 elements :
                         - 2D-array of imports of 'sector' from regions (rows) for french intermediary demands (columns)
                         - 2D-array of imports of 'sector' from regions (rows) for french final demands (columns)
-                        - array of indices of regions sorted by carbon content
     """
 
     if reloc:
@@ -227,53 +178,7 @@ def moves_from_sorted_index_by_sector(
                 remaining_reg_export[i] -= alloc
                 covered += alloc
 
-    return parts_sects, parts_demcats, regions_index
-
-
-def worst_moves(sector: str, reloc: bool) -> Tuple[np.array]:
-    """Find the most carbon-intense imports reallocation for a sector
-
-    Args:
-        sector (str): name of a product (or industry)
-        reloc (bool): True if relocation is allowed
-    Returns:
-        Tuple[np.array]: tuple with 3 elements :
-                        - 2D-array of imports of 'sector' from regions (rows) for french intermediary demands (columns)
-                        - 2D-array of imports of 'sector' from regions (rows) for french final demands (columns)
-                        - array of indices of regions descendantly sorted by carbon content
-    """
-
-    if reloc:
-        regs = reference.get_regions()
-    else:
-        regs = reference.get_regions()[1:]  # remove FR
-
-    return moves_from_sorted_index_by_sector(
-        sector, sort_by_content(sector, regs)[::-1], reloc
-    )
-
-
-def best_moves(sector: str, reloc: bool) -> Tuple[np.array]:
-    """Find the least carbon-intense imports reallocation for a sector
-
-    Args:
-        sector (str): name of a product (or industry)
-        reloc (bool): True if relocation is allowed
-    Returns:
-        Tuple[np.array]: tuple with 3 elements :
-                        - 2D-array of imports of 'sector' from regions (rows) for french intermediary demands (columns)
-                        - 2D-array of imports of 'sector' from regions (rows) for french final demands (columns)
-                        - array of indices of regions ascendantly sorted by carbon content
-    """
-
-    if reloc:
-        regs = reference.get_regions()
-    else:
-        regs = reference.get_regions()[1:]  # remove FR
-
-    return moves_from_sorted_index_by_sector(
-        sector, sort_by_content(sector, regs), reloc
-    )
+    return parts_sects, parts_demcats
 
 
 def moves_from_sort_rule(
@@ -301,7 +206,7 @@ def moves_from_sort_rule(
     moves = {}
     for sector in sectors_list:
         regions_index = sorting_rule_by_sector(sector, regs)
-        parts_sec, parts_dem, _ = moves_from_sorted_index_by_sector(
+        parts_sec, parts_dem = moves_from_sorted_index_by_sector(
             sector, regions_index, reloc
         )
         moves[sector] = {
@@ -310,10 +215,38 @@ def moves_from_sort_rule(
             "sort": regions_index,
             "reloc": reloc,
         }
-    return sectors_list, moves
+    return moves
 
 
-def scenar_bestv2(reloc: bool = False) -> Dict:
+###########################
+#%% BEST AND WORST SCENARIOS
+###########################
+
+
+def sort_by_content(sector: str, reloc : bool = False) -> np.array:
+    """Sort all regions by carbon content of a sector
+
+    Args:
+        sector (str): name of a product (or industry)
+        reloc (bool, optional): True if relocation is allowed. Defaults to False.
+
+
+    Returns:
+        np.array: array of indices of regions sorted by carbon content
+    """
+
+    if reloc:
+        regs = reference.get_regions()
+    else:
+        regs = reference.get_regions()[1:]  # remove FR
+
+    M = reference.ghg_emissions_desag.M.sum(axis=0)
+    carbon_content_sector = [M[reg, sector] for reg in regs]
+    regions_index = np.argsort(carbon_content_sector)
+    return regions_index
+
+
+def scenar_best(reloc: bool = False) -> Dict:
     """Find the least carbon-intense imports reallocation for all sectors
 
 
@@ -322,16 +255,16 @@ def scenar_bestv2(reloc: bool = False) -> Dict:
 
     Returns:
             Dict: dictionnary associating to each sector a dictionnary with :
-                            - parts_sec : 2D-array of imports of 'sector' from regions (rows) for french intermediary demands (columns)
-                            - parts_dem : 2D-array of imports of 'sector' from regions (rows) for french final demands (columns)
-                            - sort : array of indices of regions ascendantly sorted by carbon content
-                            - reloc : True if relocation is allowed
+                - parts_sec : 2D-array of imports of 'sector' from regions (rows) for french intermediary demands (columns)
+                - parts_dem : 2D-array of imports of 'sector' from regions (rows) for french final demands (columns)
+                - sort : array of indices of regions ascendantly sorted by carbon content
+                - reloc : True if relocation is allowed
     """
 
     return moves_from_sort_rule(sort_by_content, reloc)
 
 
-def scenar_worstv2(reloc: bool = False) -> Dict:
+def scenar_worst(reloc: bool = False) -> Dict:
     """Find the most carbon-intense imports reallocation for all sectors
 
 
@@ -340,78 +273,13 @@ def scenar_worstv2(reloc: bool = False) -> Dict:
 
     Returns:
             Dict: dictionnary associating to each sector a dictionnary with :
-                            - parts_sec : 2D-array of imports of 'sector' from regions (rows) for french intermediary demands (columns)
-                            - parts_dem : 2D-array of imports of 'sector' from regions (rows) for french final demands (columns)
-                            - sort : array of indices of regions ascendantly sorted by carbon content
-                            - reloc : True if relocation is allowed
+        		- parts_sec : 2D-array of imports of 'sector' from regions (rows) for french intermediary demands (columns)
+        		- parts_dem : 2D-array of imports of 'sector' from regions (rows) for french final demands (columns)
+                - sort : array of indices of regions ascendantly sorted by carbon content
+                - reloc : True if relocation is allowed
     """
 
     return moves_from_sort_rule(lambda *args: sort_by_content(*args)[::-1], reloc)
-
-
-def get_worst(sector, reloc):
-    """Find the worst region for a given sector, i.e. the most carbon-intense region associated with this sector"""
-    # par défaut on ne se laisse pas la possibilité de relocaliser en FR
-    M = reference.ghg_emissions_desag.M.sum()
-    regs = list(reference.get_regions())[1:]
-    if reloc:
-        regs = list(reference.get_regions())
-    ind = 0
-    for i in range(1, len(regs)):
-        if M[regs[i], sector] > M[regs[ind], sector]:
-            ind = i
-    return regs[ind]
-
-
-def scenar_best(reloc=False, deloc=False):
-    """Implement a scenario illustrating the best possible trade policy"""
-    sectors_list = list(reference.get_sectors())
-    sectors_gl = []
-    moves_gl = []
-    for sector in sectors_list:
-        best = get_least(sector, reloc)
-        if deloc:
-            for i in range(len(list(reference.get_regions())) - 1):
-                sectors_gl.append(sector)
-        else:
-            for i in range(len(list(reference.get_regions())) - 2):
-                sectors_gl.append(sector)
-        for reg in list(reference.get_regions()):
-            if deloc:
-                if reg != best:
-                    moves_gl.append([reg, best])
-            else:
-                if reg != best:
-                    if reg != "FR":
-                        moves_gl.append([reg, best])
-    quantities = [1 for i in range(len(sectors_gl))]
-    return sectors_gl, moves_gl, quantities
-
-
-def scenar_worst(reloc=False, deloc=False):
-    """Implement a scenario illustrating the worst possible trade policy"""
-    sectors_list = list(reference.get_sectors())
-    sectors_gl = []
-    moves_gl = []
-    for sector in sectors_list:
-        worst = get_worst(sector, reloc)
-        if deloc:
-            for i in range(len(list(reference.get_regions())) - 1):
-                sectors_gl.append(sector)
-        else:
-            for i in range(len(list(reference.get_regions())) - 2):
-                sectors_gl.append(sector)
-        for reg in list(reference.get_regions()):
-            if deloc:
-                if reg != worst:
-                    moves_gl.append([reg, worst])
-            else:
-                if reg != worst:
-                    if reg != "FR":
-                        moves_gl.append([reg, worst])
-    quantities = [1 for i in range(len(sectors_gl))]
-    return sectors_gl, moves_gl, quantities
-
 
 def scenar_pref_europe():
     """Implement a scenario illustrating the preference for trade with European Union"""
@@ -699,8 +567,8 @@ dict_regions = {
 }
 
 scenarios_dict = {
-    "Best": {"sector_moves": scenar_bestv2(), "shock_function": Tools.shockv2},
-    "Worst": {"sector_moves": scenar_worstv2(), "shock_function": Tools.shockv2},
+    "Best": {"sector_moves": scenar_best(), "shock_function": Tools.shockv2},
+    "Worst": {"sector_moves": scenar_worst(), "shock_function": Tools.shockv2},
     "Pref_EU": {
         "sector_moves": scenar_pref_europev3(),
         "shock_function": Tools.shockv3,

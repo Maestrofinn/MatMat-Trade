@@ -446,6 +446,7 @@ class Tools:
     def compute_counterfactual(
         counterfactual, scenario_parameters, demcat_list, reg_list
     ):
+        sectors = counterfactual.get_sectors()
         sectors, moves = scenario_parameters["sector_moves"]
         for sector in sectors:
             counterfactual.Z, counterfactual.Y = scenario_parameters["shock_function"](
