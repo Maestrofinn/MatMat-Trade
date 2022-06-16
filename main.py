@@ -145,7 +145,9 @@ def moves_from_sorted_index_by_sector(
     for reg in regs:
         remaining_reg_export[reg] = (
             reference.Z.drop(columns=reg).sum(axis=1).loc[(reg, sector)]
-        )
+        ) + (
+            reference.Y.drop(columns=reg).sum(axis=1).loc[(reg, sector)]
+		)
 
     # allocations for intermediary demand
     for j in range(nbsect):
@@ -341,6 +343,8 @@ def scenar_pref_europe(reloc: bool = False) -> Dict:
         for reg in regs:
             remaining_reg_export[reg] = (
                 reference.Z.drop(columns=reg).sum(axis=1).loc[(reg, sector)]
+            ) + (
+                reference.Y.drop(columns=reg).sum(axis=1).loc[(reg, sector)]
             )
 
         remaining_reg_export_EU = remaining_reg_export["EU"]
@@ -454,6 +458,10 @@ def scenar_guerre_chine(reloc=False):
         for r in range(nbreg):
             reg_export[regs[r]] = (
                 reference.Z.drop(columns=regs[r])
+                .sum(axis=1)
+                .loc[(regs[r], sectors_list[i])]
+            ) + (
+                reference.Y.drop(columns=regs[r])
                 .sum(axis=1)
                 .loc[(regs[r], sectors_list[i])]
             )  # exports from this reg/sec
