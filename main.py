@@ -279,8 +279,143 @@ def scenar_worst(reloc: bool = False) -> Dict:
 ###########################
 
 
+def scenar_pref(allies: List[str], reloc: bool = False) -> Dict:
+    """Find imports reallocation in order to trade as much as possible with the allies
+
+    Args:
+        allies (List[str]): list of regions' names
+        reloc (bool, optional): True if relocation is allowed. Defaults to False.
+
+    Returns:
+        Dict: dictionnary associating to each sector a dictionnary with :
+            - parts_sec : 2D-array of imports of 'sector' from regions (rows) for french intermediary demands (columns)
+            - parts_dem : 2D-array of imports of 'sector' from regions (rows) for french final demands (columns)
+            - sort : array of indices of regions
+            - reloc : True if relocation is allowed
+    """
+
+    if reloc:
+        regions = reference.get_regions()
+        allies += ["FR"]
+    else:
+        regions = reference.get_regions()[1:]  # remove FR
+
+    moves = {}
+
+    sectors = reference.get_sectors()
+    demcats = reference.get_Y_categories()
+
+    for sector in sectors:
+
+        parts_sectors = {reg: [] for reg in regions}
+        parts_demcats = {reg: [] for reg in regions}
+
+        ## overall trade related with sector
+        sector_exports_Z = reference.Z.loc[(regions, sector), :].sum(axis=0, level=0)
+        sector_exports_Y = reference.Y.loc[(regions, sector), :].sum(axis=0, level=0)
+        sector_exports_by_region = sector_exports_Z.sum(
+            axis=1, level=0
+        ) + sector_exports_Y.sum(axis=1, level=0)
+
+        ## french importations
+        sector_imports_FR_Z = sector_exports_Z["FR"]
+        sector_imports_FR_Y = sector_exports_Y["FR"]
+        sector_imports_FR_nonallies_Z = sector_imports_FR_Z.drop(allies).sum()
+        sector_imports_FR_nonallies_Y = sector_imports_FR_Y.drop(allies).sum()
+        total_imports_FR_nonallies = (
+            sector_imports_FR_nonallies_Z.sum() + sector_imports_FR_nonallies_Y.sum()
+        )
+
+        ## allies' exportation capacities
+        allies_export_except_FR = (
+            sector_exports_by_region.loc[allies].drop(columns=["FR"]).sum(axis=1)
+        )
+        allies_autoexport = pd.Series(
+            np.diagonal(sector_exports_by_region.loc[allies, allies]),
+            index=allies,
+        )
+        allies_export_capacity = allies_export_except_FR.add(
+            -allies_autoexport.drop("FR", errors="ignore"), fill_value=0
+        )  # add() handles the possible values of reloc
+        allies_total_export_capacity = allies_export_capacity.sum()
+
+        ## specific case leading to a division by 0
+        if total_imports_FR_nonallies == 0 and allies_total_export_capacity == 0:
+            for reg in regions:
+                parts_sectors[reg] = sector_imports_FR_Z.loc[reg]
+                parts_demcats[reg] = sector_imports_FR_Y.loc[reg]
+            moves[sector] = {
+                "parts_sec": parts_sectors,
+                "parts_dem": parts_demcats,
+                "sort": list(range(len(regions))),
+                "reloc": reloc,
+            }
+            continue
+
+        ## reallocations
+        if total_imports_FR_nonallies < allies_total_export_capacity:
+
+            coef_Z = (
+                sector_imports_FR_nonallies_Z / allies_total_export_capacity
+            )  # alpha_s for s in Z
+            coef_Y = (
+                sector_imports_FR_nonallies_Y / allies_total_export_capacity
+            )  # alpha_s for s in Y
+
+            for reg in regions:
+                if reg not in allies:
+                    parts_sectors[reg] = pd.Series(0, index=sectors)
+                    parts_demcats[reg] = pd.Series(0, index=demcats)
+                else:
+                    parts_sectors[reg] = coef_Z * sector_imports_FR_Z.loc[reg]
+                    parts_demcats[reg] = coef_Y * sector_imports_FR_Y.loc[reg]
+        else:
+
+            coef_allies_Z = 1 + (
+                allies_export_capacity.to_frame().dot(
+                    sector_imports_FR_nonallies_Z.to_frame().T
+                )
+                / (sector_imports_FR_Z.loc[allies] * total_imports_FR_nonallies)
+            ).fillna(
+                0
+            )  # beta_r,s for Z
+            coef_allies_Y = 1 + (
+                allies_export_capacity.to_frame().dot(
+                    sector_imports_FR_nonallies_Y.to_frame().T
+                )
+                / (sector_imports_FR_Y.loc[allies] * total_imports_FR_nonallies)
+            ).fillna(
+                0
+            )  # beta_r,s for Y
+
+            coef_nonallies = (
+                1 - allies_total_export_capacity / total_imports_FR_nonallies
+            )  # gamma
+
+            for reg in regions:
+                if reg not in allies:
+                    parts_sectors[reg] = coef_nonallies * sector_imports_FR_Z.loc[reg]
+                    parts_demcats[reg] = coef_nonallies * sector_imports_FR_Y.loc[reg]
+                else:
+                    parts_sectors[reg] = (
+                        coef_allies_Z.loc[reg] * sector_imports_FR_Z.loc[reg]
+                    )
+                    parts_demcats[reg] = (
+                        coef_allies_Y.loc[reg] * sector_imports_FR_Y.loc[reg]
+                    )
+
+        moves[sector] = {
+            "parts_sec": parts_sectors,
+            "parts_dem": parts_demcats,
+            "sort": list(range(len(regions))),
+            "reloc": reloc,
+        }
+
+    return moves
+
+
 def scenar_pref_europe(reloc: bool = False) -> Dict:
-    """Find imports reallocation for all sectors that prioritize trade with European Union
+    """Find imports reallocation that prioritize trade with European Union
 
 
     Args:
@@ -290,246 +425,52 @@ def scenar_pref_europe(reloc: bool = False) -> Dict:
         Dict: dictionnary associating to each sector a dictionnary with :
             - parts_sec : 2D-array of imports of 'sector' from regions (rows) for french intermediary demands (columns)
             - parts_dem : 2D-array of imports of 'sector' from regions (rows) for french final demands (columns)
-            - sort : array of indices of regions ascendantly sorted by carbon content
+            - sort : array of indices of regions
             - reloc : True if relocation is allowed
     """
-    if reloc:
-        regs = reference.get_regions()
-    else:
-        regs = reference.get_regions()[1:]  # remove FR
-
-    sectors = reference.get_sectors()
-    demcats = reference.get_Y_categories()
-    nbdemcats = len(demcats)
-    nbsect = len(sectors)
-    moves = {}
-
-    for sector in sectors:
-
-        import_demfr = Tools.compute_french_demands(reference, sector)
-
-        # share of each french intermediary or final demand in french importations from the current sector
-        part_prod_secteurs = []
-        part_dem_secteurs = []
-        for sec in sectors:
-            part_prod_secteurs.append(
-                reference.Z[("FR", sec)].drop(["FR"]).sum(level=1).loc[sector]
-                / import_demfr
-            )
-        for dem in demcats:
-            part_dem_secteurs.append(
-                reference.Y[("FR", dem)].drop(["FR"]).sum(level=1).loc[sector]
-                / import_demfr
-            )
-
-        # french total importations demand for each sector / final demand
-        totalinterfromsector = [
-            reference.Z["FR"].drop("FR")[sec].sum(level=1).loc[sector]
-            for sec in sectors
-        ]
-        totalfinalfromsector = [
-            reference.Y["FR"].drop("FR")[dem].sum(level=1).loc[sector]
-            for dem in demcats
-        ]
-
-        # intialization of parts_sects and parts_demcats
-        parts_sects = {reg: np.zeros(nbsect) for reg in regs}
-        parts_demcats = {reg: np.zeros(nbdemcats) for reg in regs}
-
-        # export capacities of each regions
-        remaining_reg_export = {}
-        for reg in regs:
-            remaining_reg_export[reg] = (
-                reference.Z.drop(columns=reg).sum(axis=1).loc[(reg, sector)]
-            ) + (reference.Y.drop(columns=reg).sum(axis=1).loc[(reg, sector)])
-
-        remaining_reg_export_EU = remaining_reg_export["EU"]
-        for j in range(nbsect):
-            if totalinterfromsector[j] != 0 and remaining_reg_export_EU > 0:
-                # if europe can still export some sector[i]
-                if remaining_reg_export_EU > totalinterfromsector[j]:
-                    alloc = totalinterfromsector[j]
-                else:
-                    alloc = reference.Z.loc[("EU", sector), ("FR", sectors[j])]
-                parts_sects["EU"][j] = alloc
-                remaining_reg_export_EU -= alloc
-                # remove from other regions a part of what has been assigned to the EU
-                # this part corresponds to the part of the country in original french imports for sector j
-                for r in regs:
-                    if r != "EU":
-                        parts_sects[r][j] = reference.Z.loc[
-                            (r, sector), ("FR", sectors[j])
-                        ] * (
-                            1
-                            - alloc
-                            / (
-                                totalinterfromsector[j]
-                                - remaining_reg_export["EU"]
-                                - parts_sects["EU"].sum()
-                            )
-                        )  # understandable format, but should be rewritten
-
-        for j in range(nbdemcats):
-            if totalfinalfromsector[j] != 0 and remaining_reg_export_EU > 0:
-                # if europe can still export some sector[i]
-                if remaining_reg_export_EU > totalfinalfromsector[j]:
-                    alloc = totalfinalfromsector[j]
-                else:
-                    alloc = reference.Y.loc[
-                        ("EU", sector), ("FR", demcats[j])
-                    ]  # tout ou rien ici
-                parts_demcats["EU"][j] = alloc
-                remaining_reg_export_UE -= alloc
-                # remove from other regions a part of what has been assigned to the EU
-                # this part corresponds to the part of the country in original french imports for sector j
-                for r in regs:
-                    if r != "EU":
-                        parts_sects[r][j] = reference.Y.loc[
-                            (r, sector), ("FR", demcats[j])
-                        ] * (
-                            1
-                            - alloc
-                            / (
-                                totalinterfromsector[j]
-                                - remaining_reg_export["EU"]
-                                - parts_sects["EU"].sum()
-                                - parts_demcats["EU"].sum()
-                            )
-                        )  # understandable format, but should be rewritten
-
-        moves[sector] = {
-            "parts_sec": parts_sects,
-            "parts_dem": parts_demcats,
-            "sort": list(range(len(regs))),
-            "reloc": reloc,
-        }
-    return moves
+    return scenar_pref(["EU"], reloc)
 
 
-def scenar_guerre_chine(reloc=False):
-    """Implement a scenario illustrating an economic war with the region containing China"""
-    china_region = "China, RoW Asia and Pacific"
-    if reloc:
-        regs = list(reference.get_regions())
-    else:
-        regs = list(reference.get_regions())[1:]  # remove FR
-    sectors_list = list(reference.get_sectors())
-    demcats = list(reference.get_Y_categories())
-    nbdemcats = len(demcats)
-    nbsect = len(sectors_list)
-    nbreg = len(regs)
-    moves = {}
-    for i in range(nbsect):
-        # initialization of outputs
-        parts_sects = {}
-        parts_dem = {}
-        for r in regs:
-            parts_sects[r] = np.zeros(nbsect)
-            parts_dem[r] = np.zeros(nbdemcats)
+###########################
+#%% Trade war with China
+###########################
 
-        # construction of french needs of imports
-        totalfromsector = np.zeros(nbsect)
-        fromchinasector = np.zeros(nbsect)
-        totalfinalfromsector = np.zeros(nbdemcats)
-        finalfromchinasector = np.zeros(nbdemcats)
-        for j in range(nbsect):
-            # sum on regions of imports of imports of sector for french sector j
-            totalfromsector[j] = np.sum(
-                [
-                    reference.Z["FR"]
-                    .drop("FR")[sectors_list[j]]
-                    .loc[(regs[k], sectors_list[i])]
-                    for k in range(nbreg)
-                ]
-            )
-            fromchinasector[j] = (
-                reference.Z["FR"]
-                .drop("FR")[sectors_list[j]]
-                .loc[(china_region, sectors_list[i])]
-            )
 
-        for j in range(nbdemcats):
-            totalfinalfromsector[j] = np.sum(
-                [
-                    reference.Y["FR"]
-                    .drop("FR")[demcats[j]]
-                    .loc[(regs[k], sectors_list[i])]
-                    for k in range(nbreg)
-                ]
-            )
-            finalfromchinasector[j] = (
-                reference.Y["FR"]
-                .drop("FR")[demcats[j]]
-                .loc[(china_region, sectors_list[i])]
-            )
-        # exports capacity of all regions for sector i
-        reg_export = {}
-        for r in range(nbreg):
-            reg_export[regs[r]] = (
-                reference.Z.drop(columns=regs[r])
-                .sum(axis=1)
-                .loc[(regs[r], sectors_list[i])]
-            ) + (
-                reference.Y.drop(columns=regs[r])
-                .sum(axis=1)
-                .loc[(regs[r], sectors_list[i])]
-            )  # exports from this reg/sec
+def scenar_embargo(opponents: List[str], reloc: bool = False) -> Dict:
+    """Find imports reallocation in order to exclude a list of opponents as much as possible
 
-        for j in range(nbsect):
-            if totalfromsector[j] != 0:
-                for r in regs:
-                    if r != china_region:
-                        old = reference.Z.loc[
-                            (r, sectors_list[i]), ("FR", sectors_list[j])
-                        ]
-                        parts_sects[r][j] = old
-                if fromchinasector[j] > 0:
-                    for r in regs:
-                        if r != china_region:
-                            old = reference.Z.loc[
-                                (r, sectors_list[i]), ("FR", sectors_list[j])
-                            ]
-                            if fromchinasector[j] + old < reg_export[r]:
-                                alloc = fromchinasector[j]
-                                parts_sects[r][j] += alloc
-                                fromchinasector[j] = 0
-                                reg_export[r] -= alloc
-                                break
-                            else:
-                                alloc = reg_export[r]
-                                reg_export[r] -= alloc
-                                fromchinasector[j] -= alloc
-                    parts_sects[china_region][j] = fromchinasector[j]
+    Args:
+        opponents (List[str]): list of regions' names
+        reloc (bool, optional): True if relocation is allowed. Defaults to False.
 
-        for j in range(nbdemcats):
-            if totalfinalfromsector[j] != 0:
-                for r in regs:
-                    if r != china_region:
-                        old = reference.Y.loc[(r, sectors_list[i]), ("FR", demcats[j])]
-                        parts_dem[r][j] = old
-                if finalfromchinasector[j] > 0:
-                    for r in regs:
-                        if r != china_region:
-                            old = reference.Y.loc[
-                                (r, sectors_list[i]), ("FR", demcats[j])
-                            ]
-                            if finalfromchinasector[j] + old < reg_export[r]:
-                                alloc = finalfromchinasector[j]
-                                parts_dem[r][j] += alloc
-                                finalfromchinasector[j] = 0
-                                break
-                            else:
-                                alloc = reg_export[r]
-                                finalfromchinasector[j] -= alloc
-                    parts_dem[china_region][j] = finalfromchinasector[j]
+    Returns:
+        Dict: dictionnary associating to each sector a dictionnary with :
+            - parts_sec : 2D-array of imports of 'sector' from regions (rows) for french intermediary demands (columns)
+            - parts_dem : 2D-array of imports of 'sector' from regions (rows) for french final demands (columns)
+            - sort : array of indices of regions
+            - reloc : True if relocation is allowed
+    """
 
-        moves[sectors_list[i]] = {
-            "parts_sec": parts_sects,
-            "parts_dem": parts_dem,
-            "sort": [i for i in range(len(regs))],
-            "reloc": reloc,
-        }
-    return sectors_list, moves
+    allies = list(set(reference.get_regions()) - set(opponents))
+    return scenar_pref(allies, reloc)
+
+
+def scenar_guerre_chine(reloc: bool = False) -> Dict:
+    """Find imports reallocation that prevents trade with China as much as possible
+
+
+    Args:
+        reloc (bool, optional): True if relocation is allowed. Defaults to False.
+
+    Returns:
+        Dict: dictionnary associating to each sector a dictionnary with :
+            - parts_sec : 2D-array of imports of 'sector' from regions (rows) for french intermediary demands (columns)
+            - parts_dem : 2D-array of imports of 'sector' from regions (rows) for french final demands (columns)
+            - sort : array of indices of regions
+            - reloc : True if relocation is allowed
+    """
+
+    return scenar_embargo(["China, RoW Asia and Pacific"], reloc)
 
 
 ###########################
