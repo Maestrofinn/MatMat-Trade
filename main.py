@@ -6,7 +6,7 @@
 ###########################
 # general
 
-from typing import Callable, Dict, List, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 import warnings
 
 warnings.simplefilter(action="ignore", category=FutureWarning)
@@ -167,25 +167,26 @@ def moves_from_sorted_index_by_sector(
     for j in range(nbdemcats):
         covered = 0
         for i in regions_index:
-            if covered < totalfinalfromsector[j] and remaining_reg_export[i] > 0:
-                if remaining_reg_export[i] > totalfinalfromsector[j] - covered:
+            reg = regs[i]
+            if covered < totalfinalfromsector[j] and remaining_reg_export[reg] > 0:
+                if remaining_reg_export[reg] > totalfinalfromsector[j] - covered:
                     alloc = totalfinalfromsector[j] - covered
                 else:
-                    alloc = remaining_reg_export[i]
+                    alloc = remaining_reg_export[reg]
                 parts_demcats[i, j] = alloc
-                remaining_reg_export[i] -= alloc
+                remaining_reg_export[reg] -= alloc
                 covered += alloc
 
     return parts_sects, parts_demcats
 
 
 def moves_from_sort_rule(
-    sorting_rule_by_sector: Callable[[List[str], str], List[int]], reloc: bool = False
+    sorting_rule_by_sector: Callable[[str, bool], List[int]], reloc: bool = False
 ) -> Dict:
     """Allocate french importations for all sectors, sorting the regions with a given rule for each sector
 
     Args:
-        sorting_rule_by_sector (Callable[[List[str], str], List[int]]): given a list of regions' names and a sector's name, returns a sorted list of regions' indices
+        sorting_rule_by_sector (Callable[str, bool], List[int]]): given a sector name and the reloc value, returns a sorted list of regions' indices
         reloc (bool, optional): True if relocation is allowed. Defaults to False.
 
     Returns:
@@ -203,7 +204,7 @@ def moves_from_sort_rule(
         regs = reference.get_regions()[1:]  # remove FR
     moves = {}
     for sector in sectors_list:
-        regions_index = sorting_rule_by_sector(sector, regs)
+        regions_index = sorting_rule_by_sector(sector, reloc)
         parts_sec, parts_dem = moves_from_sorted_index_by_sector(
             sector, regions_index, reloc
         )
@@ -452,6 +453,8 @@ def scenar_embargo(opponents: List[str], reloc: bool = False) -> Dict:
     """
 
     allies = list(set(reference.get_regions()) - set(opponents))
+    if not reloc:
+        allies.remove("FR")
     return scenar_pref(allies, reloc)
 
 
