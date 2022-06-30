@@ -311,12 +311,11 @@ class Tools:
         else:
             return D_reag_sec
 
-
     def reag_D_regions(
         scenario: pymrio.IOSystem,
         dict_reag_regions: Dict,
-        inplace: bool = False,
         type: str = "D_cba",
+        inplace: bool = False,
     ) -> Optional[pd.DataFrame]:
         """Reaggregate any account matrix with a new set of regions
 
@@ -324,7 +323,7 @@ class Tools:
             scenario (pymrio.IOSystem): pymrio MRIO object
             dict_reag_regions (Dict): associates to each new region the corresponding list of old regions
             inplace (bool, optional): True to modify directly scenario, otherwise returns the new matrix. Defaults to False.
-            type (str, optional): scenario's account matrix to consider (eg : "D_cba", "F_Y"...). Defaults to "D_cba".
+            type (str, optional): scenario's account matrix to consider (eg : "D_cba", "D_pba"...). Defaults to "D_cba".
 
         Returns:
             Optional[pd.DataFrame]: the reaggregated matrix if inplace is False, otherwise None.
@@ -443,15 +442,25 @@ class Tools:
         return reference
 
     def compute_counterfactual(
-        counterfactual, scenario_parameters, demcat_list, reg_list
-    ):
+        counterfactual: pymrio.IOSystem, scenario_parameters: Dict
+    ) -> pymrio.IOSystem:
+        """Applies a given scenario with a given shock function to counterfactual's Y and Z
+
+        Args:
+            counterfactual (pymrio.IOSystem): pymrio model
+            scenario_parameters (Dict): contains the changes for each sector ('sector_moves') and the shock function to apply ('shock_function')
+
+        Returns:
+            pymrio.IOSystem: modified pymrio model, with A, x and L set as None
+        """
         sectors = counterfactual.get_sectors()
         moves = scenario_parameters["sector_moves"]
+
         for sector in sectors:
             counterfactual.Z, counterfactual.Y = scenario_parameters["shock_function"](
                 sectors,
-                demcat_list,
-                reg_list,
+                counterfactual.get_Y_categories(),
+                counterfactual.get_regions(),
                 counterfactual.Z,
                 counterfactual.Y,
                 moves[sector],
@@ -461,7 +470,11 @@ class Tools:
         counterfactual.A = None
         counterfactual.x = None
         counterfactual.L = None
+
+        counterfactual.calc_all()
+
         return counterfactual
+
 
     def compute_french_demands(reference: pymrio.IOSystem, sector: str) -> float:
         """Compute the french total demands in importations for a sector
