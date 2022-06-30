@@ -11,6 +11,7 @@
 
 # general
 import os
+from typing import Dict, Optional
 
 # scientific
 import numpy as np
@@ -269,9 +270,9 @@ class Tools:
         if list_reg is None:
             list_reg = scenario.get_regions()
 
-        list_sec_new = []
+        sectors_new = []
         for sec in dict_reag_sectors:
-            list_sec_new.append(sec)
+            sectors_new.append(sec)
 
         D_mat = getattr(scenario.ghg_emissions_desag, type)
 
@@ -279,7 +280,7 @@ class Tools:
         multi_reg = []
         multi_sec = []
         for reg in list_reg:
-            for sec in list_sec_new:
+            for sec in sectors_new:
                 multi_reg.append(reg)
                 multi_sec.append(sec)
         arrays = [multi_reg, multi_sec]
@@ -299,8 +300,8 @@ class Tools:
 
         for reg_import in list_reg:
             for sec_agg in dict_reag_sectors:
-                list_sec_agg_2 = dict_reag_sectors[sec_agg]
-                for sec2 in list_sec_agg_2:
+                sectors_agg_2 = dict_reag_sectors[sec_agg]
+                for sec2 in sectors_agg_2:
                     D_reag_sec.loc[:, (reg_import, sec_agg)] += D_mat.loc[
                         :, (reg_import, sec2)
                     ]
@@ -310,64 +311,62 @@ class Tools:
         else:
             return D_reag_sec
 
+
     def reag_D_regions(
-        scenario, dict_reag_regions, inplace=False, type="D_cba", list_sec=None
-    ):  # can easily be extended to Z or Y
-        """Reaggregate any account matrix with a new set of region"""
+        scenario: pymrio.IOSystem,
+        dict_reag_regions: Dict,
+        inplace: bool = False,
+        type: str = "D_cba",
+    ) -> Optional[pd.DataFrame]:
+        """Reaggregate any account matrix with a new set of regions
 
-        ghg_list = ["CO2", "CH4", "N2O", "SF6", "HFC", "PFC"]
-        if list_sec is None:
-            list_sec = scenario.get_sectors()
+        Args:
+            scenario (pymrio.IOSystem): pymrio MRIO object
+            dict_reag_regions (Dict): associates to each new region the corresponding list of old regions
+            inplace (bool, optional): True to modify directly scenario, otherwise returns the new matrix. Defaults to False.
+            type (str, optional): scenario's account matrix to consider (eg : "D_cba", "F_Y"...). Defaults to "D_cba".
 
-        list_reg_new = []
-        for reg in dict_reag_regions:
-            list_reg_new.append(reg)
+        Returns:
+            Optional[pd.DataFrame]: the reaggregated matrix if inplace is False, otherwise None.
+        """
 
-        D_mat = getattr(scenario.ghg_emissions_desag, type)
-        # creating new_col and new_index for the new matrix :
-        multi_reg = []
-        multi_sec = []
-        for reg in list_reg_new:
-            for sec in list_sec:
-                multi_reg.append(reg)
-                multi_sec.append(sec)
-        arrays = [multi_reg, multi_sec]
-        new_col = pd.MultiIndex.from_arrays(arrays, names=("region", "sector"))
+        ghg_list = list(scenario.ghg_emissions.get_rows())
+        sectors = list(scenario.get_sectors())
+        regions_new = list(dict_reag_regions.keys())
+        nbghg = len(ghg_list)
+        nbsectors = len(sectors)
+        nbregions_new = len(regions_new)
 
-        multi_reg2 = []
-        multi_ghg = []
-        for reg in list_reg_new:
-            for ghg in ghg_list:
-                multi_reg2.append(reg)
-                multi_ghg.append(ghg)
-        arrays2 = [multi_reg2, multi_ghg]
-        new_index = pd.MultiIndex.from_arrays(arrays2, names=("region", "stressor"))
+        multi_col_reg = sum([nbsectors * [reg] for reg in regions_new], [])
+        multi_col_sec = nbregions_new * sectors
+        multi_col = [multi_col_reg, multi_col_sec]
+        new_columns = pd.MultiIndex.from_arrays(multi_col, names=("region", "sector"))
 
-        D_reag_reg = pd.DataFrame(None, index=new_index, columns=new_col)
-        D_reag_reg.fillna(value=0.0, inplace=True)
+        multi_row_reg = sum([nbghg * [reg] for reg in regions_new], [])
+        multi_row_ghg = nbregions_new * ghg_list
+        multi_row = [multi_row_reg, multi_row_ghg]
+        new_index = pd.MultiIndex.from_arrays(multi_row, names=("region", "stressor"))
 
-        for reg_export in dict_reag_regions:
-            list_reg_agg_1 = dict_reag_regions[reg_export]
-            for reg_import in dict_reag_regions:
-                list_reg_agg_2 = dict_reag_regions[reg_import]
-                s1 = pd.DataFrame(
-                    np.zeros_like(D_reag_reg.loc[reg_export, reg_import]),
-                    index=D_reag_reg.loc[reg_export, reg_import].index,
-                    columns=D_reag_reg.loc[reg_export, reg_import].columns,
+        old_matrix = getattr(scenario.ghg_emissions_desag, type)
+
+        new_matrix = pd.DataFrame(0.0, index=new_index, columns=new_columns)
+
+        for new_reg_export, list_old_reg_export in dict_reag_regions.items():
+            for new_reg_import, list_old_reg_import in dict_reag_regions.items():
+                sub_matrix = (
+                    old_matrix.loc[list_old_reg_export, list_old_reg_import]
+                    .sum(level=1, axis=0)
+                    .sum(level=1, axis=1)
                 )
-                for reg1 in list_reg_agg_1:
-                    for reg2 in list_reg_agg_2:
-                        s1 += D_mat.loc[reg1, reg2]
-                for line in s1.index:
-                    for col in s1.columns:
-                        D_reag_reg.at[(reg_export, line), (reg_import, col)] = s1.loc[
-                            line, col
-                        ]
+                new_matrix.loc[
+                    (new_reg_export, slice(None)), (new_reg_import, slice(None))
+                ] += sub_matrix
+
         if inplace:
-            Tools.set_attribute(scenario, "ghg_emissions_desag." + type, D_reag_reg)
-            return
+            Tools.set_attribute(scenario, "ghg_emissions_desag." + type, new_matrix)
         else:
-            return D_reag_reg
+            return new_matrix
+
 
     def build_reference(calib, data_dir, base_year, system, agg_name):
 
