@@ -124,9 +124,17 @@ class Tools:
 
         return (D_cba, D_pba, D_imp, D_exp)
 
-    def recal_extensions_per_region(IOT, extension_name):
+    def recal_extensions_per_region(counterfactual : pymrio.IOSystem, extension_name : str) -> pymrio.core.mriosystem.Extension:
+        """Computes the account matrices D_cba, D_pba, D_imp and D_exp
 
-        extension = getattr(IOT, extension_name).copy()
+        Args:
+            counterfactual (pymrio.IOSystem): _description_
+            extension_name (str): _description_
+
+        Returns:
+            pymrio.core.mriosystem.Extension: _description_
+        """
+        extension = getattr(counterfactual, extension_name).copy()
 
         (
             extension.D_cba,
@@ -134,10 +142,10 @@ class Tools:
             extension.D_imp,
             extension.D_exp,
         ) = Tools.calc_accounts(
-            getattr(IOT, extension_name).S,
-            IOT.L,
-            IOT.Y.sum(level="region", axis=1),
-            IOT.get_sectors().size,
+            getattr(counterfactual, extension_name).S,
+            counterfactual.L,
+            counterfactual.Y.sum(level="region", axis=1),
+            counterfactual.get_sectors().size,
         )
 
         return extension
@@ -238,7 +246,7 @@ class Tools:
             i += 1
 
     def reag_D_sectors(
-        scenario, inplace=False, dict_reag_sectors=None, type="D_cba", list_reg=None
+        scenario, inplace=False, dict_reag_sectors=None, type_emissions="D_cba", list_reg=None
     ):  # can easily be extended to Z or Y
         """Reaggregate any account matrix with a new set of sectors"""
         # create dict for sector reaggregation for visualisation:
@@ -274,7 +282,7 @@ class Tools:
         for sec in dict_reag_sectors:
             sectors_new.append(sec)
 
-        D_mat = getattr(scenario.ghg_emissions_desag, type)
+        D_mat = getattr(scenario.ghg_emissions_desag, type_emissions)
 
         # creating new_col and new_index for the new matrix :
         multi_reg = []
@@ -306,7 +314,7 @@ class Tools:
                         :, (reg_import, sec2)
                     ]
         if inplace:
-            Tools.set_attribute(scenario, "ghg_emissions_desag." + type, D_reag_sec)
+            Tools.set_attribute(scenario, "ghg_emissions_desag." + type_emissions, D_reag_sec)
             return
         else:
             return D_reag_sec
@@ -314,7 +322,7 @@ class Tools:
     def reag_D_regions(
         scenario: pymrio.IOSystem,
         dict_reag_regions: Dict,
-        type: str = "D_cba",
+        type_emissions: str = "D_cba",
         inplace: bool = False,
     ) -> Optional[pd.DataFrame]:
         """Reaggregate any account matrix with a new set of regions
@@ -323,7 +331,7 @@ class Tools:
             scenario (pymrio.IOSystem): pymrio MRIO object
             dict_reag_regions (Dict): associates to each new region the corresponding list of old regions
             inplace (bool, optional): True to modify directly scenario, otherwise returns the new matrix. Defaults to False.
-            type (str, optional): scenario's account matrix to consider (eg : "D_cba", "D_pba"...). Defaults to "D_cba".
+            type_emissions (str, optional): scenario's account matrix to consider (eg : "D_cba", "D_pba"...). Defaults to "D_cba".
 
         Returns:
             Optional[pd.DataFrame]: the reaggregated matrix if inplace is False, otherwise None.
@@ -346,7 +354,7 @@ class Tools:
         multi_row = [multi_row_reg, multi_row_ghg]
         new_index = pd.MultiIndex.from_arrays(multi_row, names=("region", "stressor"))
 
-        old_matrix = getattr(scenario.ghg_emissions_desag, type)
+        old_matrix = getattr(scenario.ghg_emissions_desag, type_emissions)
 
         new_matrix = pd.DataFrame(0.0, index=new_index, columns=new_columns)
 
@@ -362,7 +370,7 @@ class Tools:
                 ] += sub_matrix
 
         if inplace:
-            Tools.set_attribute(scenario, "ghg_emissions_desag." + type, new_matrix)
+            Tools.set_attribute(scenario, "ghg_emissions_desag." + type_emissions, new_matrix)
         else:
             return new_matrix
 
@@ -442,7 +450,7 @@ class Tools:
         return reference
 
     def compute_counterfactual(
-        counterfactual: pymrio.IOSystem, scenario_parameters: Dict
+        counterfactual: pymrio.IOSystem, scenario_parameters: Dict,
     ) -> pymrio.IOSystem:
         """Applies a given scenario with a given shock function to counterfactual's Y and Z
 
@@ -474,23 +482,3 @@ class Tools:
         counterfactual.calc_all()
 
         return counterfactual
-
-
-    def compute_french_demands(reference: pymrio.IOSystem, sector: str) -> float:
-        """Compute the french total demands in importations for a sector
-
-        Args:
-            reference (pymrio.IOSystem): pymrio model, with the region "FR"
-            sector (str): name of a product (or industry)
-
-        Returns:
-            float: french total demand in importations for the sector
-        """
-
-        final_demfr = (
-            reference.Y["FR"].drop(["FR"]).sum(axis=1).sum(level=1).loc[sector]
-        )
-        inter_demfr = (
-            reference.Z["FR"].drop(["FR"]).sum(axis=1).sum(level=1).loc[sector]
-        )
-        return final_demfr + inter_demfr
