@@ -12,6 +12,7 @@ sys.path.append(dir_separator.join(current_pythonpath[0].split(dir_separator)[:-
 base_dir = pathlib.Path(__file__).parents[0]
 data_dir = base_dir.joinpath("data")
 output_dir = base_dir.joinpath("outputs")
+figures_dir = base_dir.joinpath("figures")
 
 # create repositories
 if not data_dir.exists():

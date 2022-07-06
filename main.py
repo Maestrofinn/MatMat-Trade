@@ -21,8 +21,7 @@ import seaborn as sns
 sns.set_theme()
 
 # local folder
-from local_paths import data_dir
-from local_paths import output_dir
+from local_paths import data_dir, figures_dir, output_dir
 
 # local library
 from utils import Tools
@@ -525,7 +524,7 @@ def plot_carbon_footprint(
     plt.grid(visible=True)
     plt.legend(prop={"size": 17})
 
-    plt.savefig(f"figures/empreinte_carbone_{region}.png")
+    plt.savefig(figures_dir / f"empreinte_carbone_{region}.png")
     if display:
         plt.show()
 
@@ -534,7 +533,7 @@ def plot_carbon_footprint_FR(display: bool = True) -> None:
     """Plots french carbon footprint (D_pba-D_exp+D_imp+F_Y)
 
     Args:
-        display (bool, optional): True to display the figure. Defaults ro True.
+        display (bool, optional): True to display the figure. Defaults to True.
     """
     plot_carbon_footprint("FR", display, "Empreinte carbone de la France")
 
@@ -556,18 +555,36 @@ DICT_REGIONS = {
     ],
 }
 
-DICT_SCENARIOS = {
-    "best": {"sector_moves": scenar_best(True), "shock_function": Tools.shockv2},
-    "worst": {"sector_moves": scenar_worst(True), "shock_function": Tools.shockv2},
-    "pref_eu": {
-        "sector_moves": scenar_pref_eu(True),
-        "shock_function": Tools.shockv3,
-    },
-    "tradewar_china": {
-        "sector_moves": scenar_tradewar_china(True),
-        "shock_function": Tools.shockv3,
-    },
-}
+
+def get_dict_scenarios(reloc: bool = False) -> Dict:
+    """Get the different scenarios
+
+    Args:
+        reloc (bool, optional): True if relocation is allowed. Defaults to False.
+
+    Returns:
+        Dict: dictionnary associating the scenarios' names to their parameters
+    """
+
+    return {
+        "best": {
+            "sector_moves": scenar_best(reloc=reloc),
+            "shock_function": Tools.shockv2,
+        },
+        "worst": {
+            "sector_moves": scenar_worst(reloc=reloc),
+            "shock_function": Tools.shockv2,
+        },
+        "pref_eu": {
+            "sector_moves": scenar_pref_eu(reloc=reloc),
+            "shock_function": Tools.shockv3,
+        },
+        "tradewar_china": {
+            "sector_moves": scenar_tradewar_china(reloc=reloc),
+            "shock_function": Tools.shockv3,
+        },
+    }
+
 
 # Scenarios comparison
 
@@ -583,9 +600,21 @@ def create_counterfactual_base() -> pymrio.IOSystem:
     return counterfactual_base
 
 
-def compare_scenarios(reloc=False):
-    """Draw figures to compare the carbon footprints associated with the different scenarios"""
-    print("compare_scenarios")
+def compare_scenarios(
+    reloc: bool = False, verbose: bool = False, display: bool = True
+) -> None:
+    """Plot the carbon footprints associated with the different scenarios
+
+    Args:
+        reloc (bool, optional): True if relocation is allowed. Defaults to False.
+        verbose (bool, optional): True to print infos. Defaults to False.
+        display (bool, optional): True to display the figure. Defaults to True.
+    """
+
+    DICT_SCENARIOS = get_dict_scenarios(reloc=reloc)
+
+    if verbose:
+        print("Comparing scenarios...")
 
     regions = list(DICT_REGIONS.keys())
     scenarios = list(DICT_SCENARIOS.keys()) + ["reference"]
@@ -603,7 +632,8 @@ def compare_scenarios(reloc=False):
 
     for scenar in scenarios:
 
-        print(scenar)
+        if verbose:
+            print(f"Processing scenario : {scenar}")
 
         if scenar == "reference":
             counterfactual = reference.copy()
@@ -636,9 +666,6 @@ def compare_scenarios(reloc=False):
                 .sum()
             )
 
-    print(trade_all_scen)
-    print(ghg_all_scen)
-
     ghg_all_scen.T.plot.bar(
         stacked=True, fontsize=17, figsize=(12, 8), rot=0, color=colors[:5]
     )
@@ -648,7 +675,7 @@ def compare_scenarios(reloc=False):
     plt.tight_layout()
     plt.grid(visible=True)
     plt.legend(prop={"size": 15})
-    plt.savefig("figures/comparaison_5_scenarios.png")
+    plt.savefig(figures_dir / "compare_scenarios_ghg1.png")
 
     trade_all_scen.T.plot.bar(
         stacked=True, fontsize=17, figsize=(12, 8), rot=0, color=colors[:5]
@@ -659,7 +686,7 @@ def compare_scenarios(reloc=False):
     plt.tight_layout()
     plt.grid(visible=True)
     plt.legend(prop={"size": 15})
-    plt.savefig("figures/comparaison_6_scenarios.png")
+    plt.savefig(figures_dir / "compare_scenarios_trade1.png")
 
     _, axes = plt.subplots(nrows=1, ncols=2)
     ghg_all_scen.drop("FR").T.plot.bar(
@@ -686,8 +713,9 @@ def compare_scenarios(reloc=False):
     axes[1].set_ylabel("M€", size=15)
     axes[1].legend(prop={"size": 15})
     plt.tight_layout()
-    plt.savefig("figures/comparaison_3_scenarios_bornes.png")
-    plt.show()
+    plt.savefig(figures_dir / "compare_scenario_ghg_trade.png")
+    if display:
+        plt.show()
 
 
 plot_compare_scenarios = False  # True for plotting scenarios comparison
@@ -701,7 +729,7 @@ if plot_compare_scenarios:
 ###########################
 
 
-scenarios = ["Best", "Worst", "Pref_EU", "War_china"]
+scenarios = ["best", "worst", "pref_eu", "tradewar_china"]
 chosen_scenario = scenarios[2]
 
 
@@ -711,9 +739,7 @@ chosen_scenario = scenarios[2]
 
 counterfactual = Tools.compute_counterfactual(
     create_counterfactual_base(),
-    DICT_SCENARIOS[chosen_scenario],
-    reference.get_Y_categories(),
-    reference.get_regions(),
+    get_dict_scenarios()[chosen_scenario],
 )
 
 
@@ -757,7 +783,7 @@ def vision_commerce(notallsectors=False):
     plt.tight_layout()
     plt.grid(visible=True)
     plt.legend(prop={"size": 12})
-    plt.savefig("figures/commerce_ref.png")
+    plt.savefig(figures_dir / "commerce_ref.png")
     plt.close()
 
     comm_ref.T.plot.barh(stacked=True, fontsize=17, color=colors)
@@ -780,7 +806,7 @@ def vision_commerce(notallsectors=False):
     plt.tight_layout()
     plt.grid(visible=True)
     plt.legend(prop={"size": 12})
-    plt.savefig("figures/commerce_imports_totales")
+    plt.savefig(figures_dir / "commerce_imports_totales")
     # plt.show()
 
     dict_sect_plot = {}
@@ -809,7 +835,7 @@ def vision_commerce(notallsectors=False):
     plt.tight_layout()
     plt.grid(visible=True)
     plt.legend(prop={"size": 15})
-    plt.savefig("figures/commerce_parts_imports_secteur.png")
+    plt.savefig(figures_dir / "commerce_parts_imports_secteur.png")
     # plt.show()
 
 
@@ -913,7 +939,7 @@ def visualisation_carbone(
     plt.grid(visible=True)
     plt.legend(prop={"size": 25})
     plt.tight_layout()
-    plt.savefig("figures/" + scenario_name + dict_fig_name[type_emissions] + ".png")
+    plt.savefig(figures_dir / (scenario_name + dict_fig_name[type_emissions] + ".png"))
     plt.close()
     if saveghg:
         for ghg in ghg_list:
@@ -941,12 +967,14 @@ def visualisation_carbone(
                 size=17,
             )
             plt.savefig(
-                "figures/"
-                + scenario_name
-                + "_french_"
-                + ghg
-                + dict_fig_name[type_emissions]
-                + "_provenance_sectors"
+                figures_dir
+                / (
+                    scenario_name
+                    + "_french_"
+                    + ghg
+                    + dict_fig_name[type_emissions]
+                    + "_provenance_sectors"
+                )
             )
             plt.close()
     dict_sect_plot = {}
@@ -982,10 +1010,8 @@ def visualisation_carbone(
         size=17,
     )
     plt.savefig(
-        "figures/"
-        + scenario_name
-        + dict_fig_name[type_emissions]
-        + "_provenance_sectors"
+        figures_dir
+        / (scenario_name + dict_fig_name[type_emissions] + "_provenance_sectors")
     )
     # plt.show()
     plt.close()
@@ -1052,7 +1078,7 @@ def visualisation_carbone_ref(
     plt.ylabel("MtCO2eq", size=17)
     plt.legend(prop={"size": 25})
     plt.grid(visible=True)
-    plt.savefig("figures/" + scenario_name + dict_fig_name[type_emissions] + ".png")
+    plt.savefig(figures_dir / (scenario_name + dict_fig_name[type_emissions] + ".png"))
     plt.close()
 
     dict_sect_plot = {}
@@ -1082,10 +1108,8 @@ def visualisation_carbone_ref(
         size=17,
     )
     plt.savefig(
-        "figures/"
-        + scenario_name
-        + dict_fig_name[type_emissions]
-        + "_provenance_sectors"
+        figures_dir
+        / (scenario_name + dict_fig_name[type_emissions] + "_provenance_sectors")
     )
     # plt.show()
     plt.close()
@@ -1120,11 +1144,12 @@ def heat_S(activity, notallsectors=False):
     plt.yticks(size=11)
     plt.xticks(size=11)
     fig.tight_layout()
-    plt.savefig("figures/heatmap_intensite_" + activity)
+    plt.savefig(figures_dir / ("heatmap_intensite_" + activity))
     # plt.show()
     return
 
 
+'''
 ###########################
 #%% VISUALISE
 ###########################
@@ -1219,4 +1244,4 @@ print(
     "Variation relative EC réelle :",
     np.round(100 * (EC_cont["FR"].sum() - EC_ref["FR"].sum()) / EC_ref["FR"].sum(), 2),
     "%",
-)
+)'''
