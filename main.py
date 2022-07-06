@@ -15,6 +15,7 @@ warnings.simplefilter(action="ignore", category=FutureWarning)
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import pymrio
 import seaborn as sns
 
 sns.set_theme()
@@ -72,13 +73,8 @@ reference.ghg_emissions_desag = Tools.recal_extensions_per_region(
     reference, "ghg_emissions"
 )
 
-
 # save reference data base
 reference.save_all(output_dir / ("reference" + "_" + concat_settings))
-
-# init counterfactual(s)
-counterfactual = reference.copy()
-counterfactual.remove_extension("ghg_emissions_desag")
 
 ###########################
 #%% GENERIC FUNCTIONS FOR SCENARIOS
@@ -102,14 +98,17 @@ def moves_from_sorted_index_by_sector(
     """
 
     if reloc:
-        regs = reference.get_regions()
+        regions = reference.get_regions()
     else:
-        regs = reference.get_regions()[1:]  # remove FR
+        regions = reference.get_regions()[1:]  # remove FR
 
     sectors = reference.get_sectors()
     demcats = reference.get_Y_categories()
 
-    import_demfr = Tools.compute_french_demands(reference, sector)
+    import_demfr = (
+        reference.Z["FR"].drop(["FR"]).sum(axis=1).sum(level=1).loc[sector]
+        + reference.Y["FR"].drop(["FR"]).sum(axis=1).sum(level=1).loc[sector]
+    )
 
     # share of each french intermediary or final demand in french importations from a given sector
     part_prod_secteurs = []
@@ -132,9 +131,15 @@ def moves_from_sorted_index_by_sector(
     totalfinalfromsector = [
         reference.Y["FR"].drop("FR")[dem].sum(level=1).loc[sector] for dem in demcats
     ]
+    totalinterfromsectorFR = [
+        reference.Z["FR"].loc["FR"][sec].loc[sector] for sec in sectors
+    ]
+    totalfinalfromsectorFR = [
+        reference.Y["FR"].loc["FR"][dem].loc[sector] for dem in demcats
+    ]
 
     # intialization of parts_sects and parts_demcats (result of the function)
-    nbreg = len(regs)
+    nbreg = len(regions)
     nbsect = len(sectors)
     nbdemcats = len(demcats)
     parts_sects = np.zeros((nbreg, nbsect))
@@ -142,7 +147,7 @@ def moves_from_sorted_index_by_sector(
 
     # export capacities of each regions
     remaining_reg_export = {}
-    for reg in regs:
+    for reg in regions:
         remaining_reg_export[reg] = (
             reference.Z.drop(columns=reg).sum(axis=1).loc[(reg, sector)]
         ) + (reference.Y.drop(columns=reg).sum(axis=1).loc[(reg, sector)])
@@ -151,7 +156,7 @@ def moves_from_sorted_index_by_sector(
     for j in range(nbsect):
         covered = 0
         for i in regions_index:
-            reg = regs[i]
+            reg = regions[i]
             if covered < totalinterfromsector[j] and remaining_reg_export[reg] > 0:
                 # if french importations demand from sector j is not satisfied
                 # and the ith region is able to export
@@ -162,12 +167,14 @@ def moves_from_sorted_index_by_sector(
                 parts_sects[i, j] = alloc
                 remaining_reg_export[reg] -= alloc
                 covered += alloc
+            if reg == "FR":
+                parts_sects[i, j] += totalinterfromsectorFR[j]
 
     # allocations for final demands
     for j in range(nbdemcats):
         covered = 0
         for i in regions_index:
-            reg = regs[i]
+            reg = regions[i]
             if covered < totalfinalfromsector[j] and remaining_reg_export[reg] > 0:
                 if remaining_reg_export[reg] > totalfinalfromsector[j] - covered:
                     alloc = totalfinalfromsector[j] - covered
@@ -176,6 +183,8 @@ def moves_from_sorted_index_by_sector(
                 parts_demcats[i, j] = alloc
                 remaining_reg_export[reg] -= alloc
                 covered += alloc
+            if reg == "FR":
+                parts_demcats[i, j] += totalfinalfromsectorFR[j]
 
     return parts_sects, parts_demcats
 
@@ -198,10 +207,6 @@ def moves_from_sort_rule(
     """
 
     sectors_list = reference.get_sectors()
-    if reloc:
-        regs = reference.get_regions()
-    else:
-        regs = reference.get_regions()[1:]  # remove FR
     moves = {}
     for sector in sectors_list:
         regions_index = sorting_rule_by_sector(sector, reloc)
@@ -297,7 +302,8 @@ def scenar_pref(allies: List[str], reloc: bool = False) -> Dict:
 
     if reloc:
         regions = reference.get_regions()
-        allies += ["FR"]
+        if not "FR" in allies:
+            allies += ["FR"]
     else:
         regions = reference.get_regions()[1:]  # remove FR
 
@@ -368,27 +374,33 @@ def scenar_pref(allies: List[str], reloc: bool = False) -> Dict:
                     parts_sectors[reg] = pd.Series(0, index=sectors)
                     parts_demcats[reg] = pd.Series(0, index=demcats)
                 else:
-                    parts_sectors[reg] = coef_Z * sector_imports_FR_Z.loc[reg]
-                    parts_demcats[reg] = coef_Y * sector_imports_FR_Y.loc[reg]
+                    parts_sectors[reg] = (
+                        sector_imports_FR_Z.loc[reg]
+                        + coef_Z * allies_export_capacity[reg]
+                    )
+                    parts_demcats[reg] = (
+                        sector_imports_FR_Y.loc[reg]
+                        + coef_Y * allies_export_capacity[reg]
+                    )
         else:
-
             coef_allies_Z = 1 + (
                 allies_export_capacity.to_frame().dot(
                     sector_imports_FR_nonallies_Z.to_frame().T
                 )
                 / (sector_imports_FR_Z.loc[allies] * total_imports_FR_nonallies)
-            ).fillna(
+            ).replace([np.inf, -np.inf], np.nan).fillna(
                 0
             )  # beta_r,s for Z
             coef_allies_Y = 1 + (
                 allies_export_capacity.to_frame().dot(
-                    sector_imports_FR_nonallies_Y.to_frame().T
+                    sector_imports_FR_nonallies_Y.to_frame()
+                    .replace([np.inf, -np.inf], np.nan)
+                    .T
                 )
                 / (sector_imports_FR_Y.loc[allies] * total_imports_FR_nonallies)
-            ).fillna(
+            ).replace([np.inf, -np.inf], np.nan).fillna(
                 0
             )  # beta_r,s for Y
-
             coef_nonallies = (
                 1 - allies_total_export_capacity / total_imports_FR_nonallies
             )  # gamma
@@ -415,7 +427,7 @@ def scenar_pref(allies: List[str], reloc: bool = False) -> Dict:
     return moves
 
 
-def scenar_pref_europe(reloc: bool = False) -> Dict:
+def scenar_pref_eu(reloc: bool = False) -> Dict:
     """Find imports reallocation that prioritize trade with European Union
 
 
@@ -429,6 +441,7 @@ def scenar_pref_europe(reloc: bool = False) -> Dict:
             - sort : array of indices of regions
             - reloc : True if relocation is allowed
     """
+
     return scenar_pref(["EU"], reloc)
 
 
@@ -437,7 +450,7 @@ def scenar_pref_europe(reloc: bool = False) -> Dict:
 ###########################
 
 
-def scenar_embargo(opponents: List[str], reloc: bool = False) -> Dict:
+def scenar_tradewar(opponents: List[str], reloc: bool = False) -> Dict:
     """Find imports reallocation in order to exclude a list of opponents as much as possible
 
     Args:
@@ -458,7 +471,7 @@ def scenar_embargo(opponents: List[str], reloc: bool = False) -> Dict:
     return scenar_pref(allies, reloc)
 
 
-def scenar_guerre_chine(reloc: bool = False) -> Dict:
+def scenar_tradewar_china(reloc: bool = False) -> Dict:
     """Find imports reallocation that prevents trade with China as much as possible
 
 
@@ -473,43 +486,61 @@ def scenar_guerre_chine(reloc: bool = False) -> Dict:
             - reloc : True if relocation is allowed
     """
 
-    return scenar_embargo(["China, RoW Asia and Pacific"], reloc)
+    return scenar_tradewar(["China, RoW Asia and Pacific"], reloc)
 
 
 ###########################
 #%% PLOT FIGURES
 ###########################
 
-sectors_list = list(reference.get_sectors())  # List of economic sectors
-reg_list = list(reference.get_regions())  # List of regions
-demcat_list = list(reference.get_Y_categories())  # List of final demand categories
 
-plot_EC_France = False  # True for plotting French carbon footprint
+# Carbon footprints
 
-if plot_EC_France:  # Plots the french carbon footprint (D_pba-D_exp+D_imp+F_Y)
-    reference.ghg_emissions_desag.D_imp.sum(level=0)["FR"].sum(axis=1).sum()  # ['EU']
-    new_df = pd.DataFrame(
-        None,
-        columns=["Exportees", "Production", "Importees", "Conso finale"],
-        index=[""],
+
+def plot_carbon_footprint(
+    region: str = "FR", display: bool = True, title: Optional[str] = None
+) -> None:
+    """Plots region's carbon footprint (D_pba-D_exp+D_imp+F_Y)
+
+    Args:
+        region (str, optional): region name. Defaults to "FR".
+        display (bool, optional): True to display the figure. Defaults ro True.
+        title (Optional[str], optional): title of the figure. Defaults to None.
+    """
+    carbon_footprint = pd.DataFrame(
+        {
+            "Exportées": [-reference.ghg_emissions_desag.D_exp[region].sum().sum()],
+            "Production": [reference.ghg_emissions_desag.D_pba[region].sum().sum()],
+            "Importées": [reference.ghg_emissions_desag.D_imp[region].sum().sum()],
+            "Conso finale": [reference.ghg_emissions_desag.F_Y[region].sum().sum()],
+        }
     )
-    new_df.fillna(value=0.0, inplace=True)
-    new_df["Exportees"] = -reference.ghg_emissions_desag.D_exp["FR"].sum().sum()
-    new_df["Production"] = reference.ghg_emissions_desag.D_pba["FR"].sum().sum()
-    new_df["Importees"] = reference.ghg_emissions_desag.D_imp["FR"].sum().sum()
-    new_df["Conso finale"] = reference.ghg_emissions_desag.F_Y["FR"].sum().sum()
-    new_df.plot.barh(stacked=True, fontsize=17, figsize=(10, 5), rot=0)
-    plt.title("Empreinte carbone de la France", size=17)
+    carbon_footprint.plot.barh(stacked=True, fontsize=17, figsize=(10, 5), rot=0)
+
+    if title is None:
+        title = f"Empreinte carbone de la région {region}"
+    plt.title(title, size=17)
     plt.xlabel("MtCO2eq", size=15)
     plt.tight_layout()
     plt.grid(visible=True)
     plt.legend(prop={"size": 17})
-    plt.savefig("figures/EC_France.png")
-    # plt.show()
+
+    plt.savefig(f"figures/empreinte_carbone_{region}.png")
+    if display:
+        plt.show()
+
+
+def plot_carbon_footprint_FR(display: bool = True) -> None:
+    """Plots french carbon footprint (D_pba-D_exp+D_imp+F_Y)
+
+    Args:
+        display (bool, optional): True to display the figure. Defaults ro True.
+    """
+    plot_carbon_footprint("FR", display, "Empreinte carbone de la France")
 
 
 # Dictionary to reaggreagate account matrices with less regions for the sake of better visibility
-dict_regions = {
+DICT_REGIONS = {
     "FR": ["FR"],
     "UK, Norway, Switzerland": ["UK, Norway, Switzerland"],
     "China+": ["China, RoW Asia and Pacific"],
@@ -525,77 +556,90 @@ dict_regions = {
     ],
 }
 
-scenarios_dict = {
-    "Best": {"sector_moves": scenar_best(), "shock_function": Tools.shockv2},
-    "Worst": {"sector_moves": scenar_worst(), "shock_function": Tools.shockv2},
-    "Pref_EU": {
-        "sector_moves": scenar_pref_europe(),
+DICT_SCENARIOS = {
+    "best": {"sector_moves": scenar_best(True), "shock_function": Tools.shockv2},
+    "worst": {"sector_moves": scenar_worst(True), "shock_function": Tools.shockv2},
+    "pref_eu": {
+        "sector_moves": scenar_pref_eu(True),
         "shock_function": Tools.shockv3,
     },
-    "War_China": {
-        "sector_moves": scenar_guerre_chine(),
+    "tradewar_china": {
+        "sector_moves": scenar_tradewar_china(True),
         "shock_function": Tools.shockv3,
     },
 }
 
+# Scenarios comparison
 
-def compare_scenarios():
-    """Draw figures to compare the carbont footprints associated with the different scenarios"""
+
+def create_counterfactual_base() -> pymrio.IOSystem:
+    """Compute a counterfactual pymrio model from the reference
+
+    Returns:
+        pymrio.IOSystem: pymrio model
+    """
+    counterfactual_base = reference.copy()
+    counterfactual_base.remove_extension("ghg_emissions_desag")
+    return counterfactual_base
+
+
+def compare_scenarios(reloc=False):
+    """Draw figures to compare the carbon footprints associated with the different scenarios"""
     print("compare_scenarios")
 
-    D_cba_all_scen = pd.DataFrame(
-        None,
-        index=["FR", "UK, Norway, Switzerland", "China+", "EU", "RoW"],
-        columns=["Best", "Pref_EU", "War_China", "Reference", "Worst"],
+    regions = list(DICT_REGIONS.keys())
+    scenarios = list(DICT_SCENARIOS.keys()) + ["reference"]
+
+    ghg_all_scen = pd.DataFrame(
+        0.0,
+        index=regions,
+        columns=scenarios,
     )
-    D_cba_all_scen.fillna(value=0.0, inplace=True)
-    D_cba_all_scen["Reference"] = (
-        Tools.reag_D_regions(reference, dict_reag_regions=dict_regions)["FR"]
-        .sum(level=0)
-        .sum(axis=1)
+    trade_all_scen = pd.DataFrame(
+        0.0,
+        index=regions,
+        columns=scenarios,
     )
-    D_cba_all_scen.loc["FR", "Reference"] += (
-        reference.ghg_emissions_desag.F_Y["FR"].sum().sum()
-    )
-    Commerce_all_scen = pd.DataFrame(
-        None,
-        index=["FR", "UK, Norway, Switzerland", "China+", "EU", "RoW"],
-        columns=["Best", "Pref_EU", "War_China", "Reference", "Worst"],
-    )
-    Commerce_all_scen.fillna(value=0.0, inplace=True)
-    for reg in dict_regions:
-        for reg_2 in dict_regions[reg]:
-            Commerce_all_scen.loc[reg, "Reference"] += (
-                reference.Y["FR"].sum(axis=1) + reference.Z["FR"].sum(axis=1)
-            ).sum(level=0)[reg_2]
-    # calculate couterfactual systems
-    for scenar in ["Best", "Pref_EU", "Worst", "War_China"]:
+
+    for scenar in scenarios:
+
         print(scenar)
-        counterfactual = Tools.compute_counterfactual(
-            counterfactual, scenarios_dict[scenar], demcat_list, reg_list
-        )
-        counterfactual.calc_all()
-        counterfactual.ghg_emissions_desag = Tools.recal_extensions_per_region(
-            counterfactual, "ghg_emissions"
-        )
-        D_cba_all_scen[scenar] = (
-            Tools.reag_D_regions(counterfactual, dict_reag_regions=dict_regions)["FR"]
-            .sum(level=0)
-            .sum(axis=1)
-        )
-        for reg in dict_regions:
-            for reg_2 in dict_regions[reg]:
-                Commerce_all_scen.loc[reg, scenar] += (
-                    counterfactual.Y["FR"].sum(axis=1)
-                    + counterfactual.Z["FR"].sum(axis=1)
-                ).sum(level=0)[reg_2]
-        D_cba_all_scen.loc["FR", scenar] += (
+
+        if scenar == "reference":
+            counterfactual = reference.copy()
+        else:
+            counterfactual = Tools.compute_counterfactual(
+                create_counterfactual_base(),
+                DICT_SCENARIOS[scenar],
+            )
+            counterfactual.ghg_emissions_desag = Tools.recal_extensions_per_region(
+                counterfactual,
+                "ghg_emissions",
+            )
+
+        for reg in regions:
+            ghg_all_scen.loc[reg, scenar] = (
+                (counterfactual.ghg_emissions_desag.D_cba["FR"].sum(axis=1))
+                .sum(level=0)[DICT_REGIONS[reg]]
+                .sum()
+            )
+        ghg_all_scen.loc["FR", scenar] += (
             counterfactual.ghg_emissions_desag.F_Y["FR"].sum().sum()
         )
-    # print(D_cba_all_scen)
-    # print(Commerce_all_scen)
+        for reg in regions:
+            trade_all_scen.loc[reg, scenar] = (
+                (
+                    counterfactual.Y["FR"].sum(axis=1)
+                    + counterfactual.Z["FR"].sum(axis=1)
+                )
+                .sum(level=0)[DICT_REGIONS[reg]]
+                .sum()
+            )
 
-    D_cba_all_scen.T.plot.bar(
+    print(trade_all_scen)
+    print(ghg_all_scen)
+
+    ghg_all_scen.T.plot.bar(
         stacked=True, fontsize=17, figsize=(12, 8), rot=0, color=colors[:5]
     )
 
@@ -605,10 +649,20 @@ def compare_scenarios():
     plt.grid(visible=True)
     plt.legend(prop={"size": 15})
     plt.savefig("figures/comparaison_5_scenarios.png")
-    # plt.show()
 
-    fig, axes = plt.subplots(nrows=1, ncols=2)
-    D_cba_all_scen.drop("FR").T.drop(["War_China", "Pref_EU"]).plot.bar(
+    trade_all_scen.T.plot.bar(
+        stacked=True, fontsize=17, figsize=(12, 8), rot=0, color=colors[:5]
+    )
+
+    plt.title("Provenance de la consommation de la France", size=17)
+    plt.ylabel("x 1000 milliards d'€", size=15)
+    plt.tight_layout()
+    plt.grid(visible=True)
+    plt.legend(prop={"size": 15})
+    plt.savefig("figures/comparaison_6_scenarios.png")
+
+    _, axes = plt.subplots(nrows=1, ncols=2)
+    ghg_all_scen.drop("FR").T.plot.bar(
         ax=axes[0],
         stacked=True,
         fontsize=17,
@@ -619,7 +673,7 @@ def compare_scenarios():
     axes[0].set_title("Emissions de GES importées par la France", size=17)
     axes[0].legend(prop={"size": 15})
     axes[0].set_ylabel("MtCO2eq", size=15)
-    Commerce_all_scen.drop("FR").T.drop(["War_China", "Pref_EU"]).plot.bar(
+    trade_all_scen.drop("FR").T.plot.bar(
         ax=axes[1],
         stacked=True,
         fontsize=17,
@@ -630,12 +684,10 @@ def compare_scenarios():
     )
     axes[1].set_title("Importations françaises", size=17)
     axes[1].set_ylabel("M€", size=15)
-    # axes[1].legend(prop={'size': 15})
+    axes[1].legend(prop={"size": 15})
     plt.tight_layout()
     plt.savefig("figures/comparaison_3_scenarios_bornes.png")
     plt.show()
-
-    return
 
 
 plot_compare_scenarios = False  # True for plotting scenarios comparison
@@ -648,6 +700,7 @@ if plot_compare_scenarios:
 #%% CHOICE OF THE SCENARIO
 ###########################
 
+
 scenarios = ["Best", "Worst", "Pref_EU", "War_china"]
 chosen_scenario = scenarios[2]
 
@@ -657,12 +710,14 @@ chosen_scenario = scenarios[2]
 ###########################
 
 counterfactual = Tools.compute_counterfactual(
-    counterfactual, scenarios_dict[chosen_scenario], demcat_list, reg_list
+    create_counterfactual_base(),
+    DICT_SCENARIOS[chosen_scenario],
+    reference.get_Y_categories(),
+    reference.get_regions(),
 )
 
 
 # calculate counterfactual(s) system
-counterfactual.calc_all()
 
 counterfactual.ghg_emissions_desag = Tools.recal_extensions_per_region(
     counterfactual, "ghg_emissions"
@@ -983,7 +1038,7 @@ def visualisation_carbone_ref(
         sectors_list = list(reference.get_sectors())
 
     pour_plot = pd.DataFrame(data=dict_pour_plot, index=reg_list)
-    if type == "D_cba" or type == "D_pba":
+    if type_emissions == "D_cba" or type_emissions == "D_pba":
         pour_plot.transpose().plot.bar(
             stacked=True, rot=45, figsize=(18, 12), fontsize=17, color=colors
         )
@@ -1008,7 +1063,7 @@ def visualisation_carbone_ref(
         ]
 
     df_plot = pd.DataFrame(data=dict_sect_plot, index=reg_list)
-    if type == "D_cba" or type == "D_pba":
+    if type_emissions == "D_cba" or type_emissions == "D_pba":
         ax = df_plot.T.plot.barh(
             stacked=True, figsize=(17, 16), fontsize=17, rot=45, color=colors
         )
@@ -1036,7 +1091,7 @@ def visualisation_carbone_ref(
     plt.close()
 
 
-def heat_S(type, notallsectors=False):
+def heat_S(activity, notallsectors=False):
     if notallsectors:
         sectors_list = ["Agriculture", "Energy", "Industry", "Composite"]
     else:
@@ -1047,16 +1102,16 @@ def heat_S(type, notallsectors=False):
     for reg in reg_list:
         in_reg = []
         for sector in sectors_list:
-            if type == "consommation":
+            if activity == "consommation":
                 in_reg.append(M[reg, sector])
-            if type == "production":
+            if activity == "production":
                 in_reg.append(S[reg, sector])
         sec_reg.append(in_reg)
     df = pd.DataFrame(data=sec_reg, columns=sectors_list, index=reg_list).T
     df_n = df.div(df.max(axis=1), axis=0) * 100
-    if type == "consommation":
+    if activity == "consommation":
         title = "Contenu carbone du bien importé"
-    if type == "production":
+    if activity == "production":
         title = "Intensité carbone de la production"
     fig, ax = plt.subplots()
     sns.heatmap(
@@ -1065,7 +1120,7 @@ def heat_S(type, notallsectors=False):
     plt.yticks(size=11)
     plt.xticks(size=11)
     fig.tight_layout()
-    plt.savefig("figures/heatmap_intensite_" + type)
+    plt.savefig("figures/heatmap_intensite_" + activity)
     # plt.show()
     return
 
@@ -1075,40 +1130,40 @@ def heat_S(type, notallsectors=False):
 ###########################
 
 # reference analysis
-for type in ["D_cba", "D_imp"]:
-    print(type)
-    visualisation_carbone_ref(reference, "Ref", type, saveghg=False)
+for type_emissions in ["D_cba", "D_imp"]:
+    print(type_emissions)
+    visualisation_carbone_ref(reference, "Ref", type_emissions, saveghg=False)
 
 
 ##reagreate from 17 to 4 sectors :
-Tools.reag_D_sectors(reference, inplace=True, type="D_cba")
-Tools.reag_D_sectors(counterfactual, inplace=True, type="D_cba")
-Tools.reag_D_sectors(reference, inplace=True, type="D_imp")
-Tools.reag_D_sectors(counterfactual, inplace=True, type="D_imp")
+Tools.reag_D_sectors(reference, inplace=True, type_emissions="D_cba")
+Tools.reag_D_sectors(counterfactual, inplace=True, type_emissions="D_cba")
+Tools.reag_D_sectors(reference, inplace=True, type_emissions="D_imp")
+Tools.reag_D_sectors(counterfactual, inplace=True, type_emissions="D_imp")
 
 ##reagreate from 11 to 5 regions :
 Tools.reag_D_regions(
     reference,
     inplace=True,
-    type="D_imp",
-    dict_reag_regions=dict_regions,
+    type_emissions="D_imp",
+    dict_reag_regions=DICT_REGIONS,
     list_sec=["Agriculture", "Energy", "Industry", "Composite"],
 )
 Tools.reag_D_regions(
     counterfactual,
     inplace=True,
-    type="D_imp",
-    dict_reag_regions=dict_regions,
+    type_emissions="D_imp",
+    dict_reag_regions=DICT_REGIONS,
     list_sec=["Agriculture", "Energy", "Industry", "Composite"],
 )
 
 # whole static comparative analysis
 
 # compare reference and counterfactual
-for type in ["D_cba", "D_imp"]:
-    print(type)
+for type_emissions in ["D_cba", "D_imp"]:
+    print(type_emissions)
     visualisation_carbone(
-        counterfactual, "Cont", type, saveghg=False, notallsectors=True
+        counterfactual, "Cont", type_emissions, saveghg=False, notallsectors=True
     )
 vision_commerce()
 

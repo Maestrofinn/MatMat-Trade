@@ -124,15 +124,17 @@ class Tools:
 
         return (D_cba, D_pba, D_imp, D_exp)
 
-    def recal_extensions_per_region(counterfactual : pymrio.IOSystem, extension_name : str) -> pymrio.core.mriosystem.Extension:
+    def recal_extensions_per_region(
+        counterfactual: pymrio.IOSystem, extension_name: str
+    ) -> pymrio.core.mriosystem.Extension:
         """Computes the account matrices D_cba, D_pba, D_imp and D_exp
 
         Args:
-            counterfactual (pymrio.IOSystem): _description_
-            extension_name (str): _description_
+            counterfactual (pymrio.IOSystem): pymrio MRIO object
+            extension_name (str): extension name
 
         Returns:
-            pymrio.core.mriosystem.Extension: _description_
+            pymrio.core.mriosystem.Extension: extension with account matrices completed
         """
         extension = getattr(counterfactual, extension_name).copy()
 
@@ -246,7 +248,11 @@ class Tools:
             i += 1
 
     def reag_D_sectors(
-        scenario, inplace=False, dict_reag_sectors=None, type_emissions="D_cba", list_reg=None
+        scenario,
+        inplace=False,
+        dict_reag_sectors=None,
+        type_emissions="D_cba",
+        list_reg=None,
     ):  # can easily be extended to Z or Y
         """Reaggregate any account matrix with a new set of sectors"""
         # create dict for sector reaggregation for visualisation:
@@ -314,7 +320,9 @@ class Tools:
                         :, (reg_import, sec2)
                     ]
         if inplace:
-            Tools.set_attribute(scenario, "ghg_emissions_desag." + type_emissions, D_reag_sec)
+            Tools.set_attribute(
+                scenario, "ghg_emissions_desag." + type_emissions, D_reag_sec
+            )
             return
         else:
             return D_reag_sec
@@ -370,10 +378,11 @@ class Tools:
                 ] += sub_matrix
 
         if inplace:
-            Tools.set_attribute(scenario, "ghg_emissions_desag." + type_emissions, new_matrix)
+            Tools.set_attribute(
+                scenario, "ghg_emissions_desag." + type_emissions, new_matrix
+            )
         else:
             return new_matrix
-
 
     def build_reference(calib, data_dir, base_year, system, agg_name):
 
@@ -450,7 +459,8 @@ class Tools:
         return reference
 
     def compute_counterfactual(
-        counterfactual: pymrio.IOSystem, scenario_parameters: Dict,
+        counterfactual: pymrio.IOSystem,
+        scenario_parameters: Dict,
     ) -> pymrio.IOSystem:
         """Applies a given scenario with a given shock function to counterfactual's Y and Z
 
