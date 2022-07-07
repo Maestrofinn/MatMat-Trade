@@ -15,7 +15,7 @@ warnings.simplefilter(action="ignore", category=FutureWarning)
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import pymrio
+import matplotlib.ticker as mtick
 import seaborn as sns
 
 sns.set_theme()
@@ -24,7 +24,7 @@ sns.set_theme()
 from local_paths import data_dir, figures_dir, output_dir
 
 # local library
-from utils import Tools
+from utils import *
 
 ###########################
 #%% SETTINGS
@@ -32,12 +32,8 @@ from utils import Tools
 # creating colormap for 11 regions and for 10 regions for plotting
 import matplotlib.colors as mpl_col
 
-colors = [plt.cm.tab10(i) for i in range(10)]
-colors.append(mpl_col.to_rgba("gold", alpha=1.0))
+colors = list(plt.cm.tab10(np.arange(10))) + ["gold"]
 colors_no_FR = colors[1:]
-
-my_cmap = mpl_col.LinearSegmentedColormap.from_list("my_cmap", colors)
-my_cmap_noFR = mpl_col.LinearSegmentedColormap.from_list("my_cmap_noFR", colors[1:])
 
 # year to study in [*range(1995, 2022 + 1)]
 base_year = 2015
@@ -60,7 +56,7 @@ calib = False
 ###########################
 
 # build calibrated data
-reference = Tools.build_reference(calib, data_dir, base_year, system, agg_name)
+reference = build_reference(calib, data_dir, base_year, system, agg_name)
 
 
 ###########################
@@ -68,9 +64,7 @@ reference = Tools.build_reference(calib, data_dir, base_year, system, agg_name)
 ###########################
 # Calculate reference system
 reference.calc_all()
-reference.ghg_emissions_desag = Tools.recal_extensions_per_region(
-    reference, "ghg_emissions"
-)
+reference.ghg_emissions_desag = recal_extensions_per_region(reference, "ghg_emissions")
 
 # save reference data base
 reference.save_all(output_dir / ("reference" + "_" + concat_settings))
@@ -555,6 +549,8 @@ DICT_REGIONS = {
     ],
 }
 
+GHG_LIST = list(reference.ghg_emissions_desag.get_index())
+
 
 def get_dict_scenarios(reloc: bool = False) -> Dict:
     """Get the different scenarios
@@ -569,19 +565,19 @@ def get_dict_scenarios(reloc: bool = False) -> Dict:
     return {
         "best": {
             "sector_moves": scenar_best(reloc=reloc),
-            "shock_function": Tools.shockv2,
+            "shock_function": shockv2,
         },
         "worst": {
             "sector_moves": scenar_worst(reloc=reloc),
-            "shock_function": Tools.shockv2,
+            "shock_function": shockv2,
         },
         "pref_eu": {
             "sector_moves": scenar_pref_eu(reloc=reloc),
-            "shock_function": Tools.shockv3,
+            "shock_function": shockv3,
         },
         "tradewar_china": {
             "sector_moves": scenar_tradewar_china(reloc=reloc),
-            "shock_function": Tools.shockv3,
+            "shock_function": shockv3,
         },
     }
 
@@ -589,26 +585,15 @@ def get_dict_scenarios(reloc: bool = False) -> Dict:
 # Scenarios comparison
 
 
-def create_counterfactual_base() -> pymrio.IOSystem:
-    """Compute a counterfactual pymrio model from the reference
-
-    Returns:
-        pymrio.IOSystem: pymrio model
-    """
-    counterfactual_base = reference.copy()
-    counterfactual_base.remove_extension("ghg_emissions_desag")
-    return counterfactual_base
-
-
 def compare_scenarios(
     reloc: bool = False, verbose: bool = False, display: bool = True
 ) -> None:
-    """Plot the carbon footprints associated with the different scenarios
+    """Plot the carbon footprints and the imports associated with the different scenarios
 
     Args:
         reloc (bool, optional): True if relocation is allowed. Defaults to False.
         verbose (bool, optional): True to print infos. Defaults to False.
-        display (bool, optional): True to display the figure. Defaults to True.
+        display (bool, optional): True to display the figures. Defaults to True.
     """
 
     DICT_SCENARIOS = get_dict_scenarios(reloc=reloc)
@@ -638,13 +623,9 @@ def compare_scenarios(
         if scenar == "reference":
             counterfactual = reference.copy()
         else:
-            counterfactual = Tools.compute_counterfactual(
-                create_counterfactual_base(),
+            counterfactual = compute_counterfactual(
+                reference,
                 DICT_SCENARIOS[scenar],
-            )
-            counterfactual.ghg_emissions_desag = Tools.recal_extensions_per_region(
-                counterfactual,
-                "ghg_emissions",
             )
 
         for reg in regions:
@@ -669,24 +650,22 @@ def compare_scenarios(
     ghg_all_scen.T.plot.bar(
         stacked=True, fontsize=17, figsize=(12, 8), rot=0, color=colors[:5]
     )
-
     plt.title("Empreinte carbone de la France", size=17)
     plt.ylabel("MtCO2eq", size=15)
     plt.tight_layout()
     plt.grid(visible=True)
     plt.legend(prop={"size": 15})
-    plt.savefig(figures_dir / "compare_scenarios_ghg1.png")
+    plt.savefig(figures_dir / "compare_scenarios_ghg.png")
 
     trade_all_scen.T.plot.bar(
         stacked=True, fontsize=17, figsize=(12, 8), rot=0, color=colors[:5]
     )
-
     plt.title("Provenance de la consommation de la France", size=17)
     plt.ylabel("x 1000 milliards d'€", size=15)
     plt.tight_layout()
     plt.grid(visible=True)
     plt.legend(prop={"size": 15})
-    plt.savefig(figures_dir / "compare_scenarios_trade1.png")
+    plt.savefig(figures_dir / "compare_scenarios_trade.png")
 
     _, axes = plt.subplots(nrows=1, ncols=2)
     ghg_all_scen.drop("FR").T.plot.bar(
@@ -695,7 +674,7 @@ def compare_scenarios(
         fontsize=17,
         figsize=(12, 8),
         rot=0,
-        color=colors_no_FR[:4],
+        color=colors_no_FR[: len(regions)],
     )
     axes[0].set_title("Emissions de GES importées par la France", size=17)
     axes[0].legend(prop={"size": 15})
@@ -707,50 +686,16 @@ def compare_scenarios(
         figsize=(12, 8),
         rot=0,
         legend=False,
-        color=colors_no_FR[:4],
+        color=colors_no_FR[: len(regions)],
     )
     axes[1].set_title("Importations françaises", size=17)
     axes[1].set_ylabel("M€", size=15)
     axes[1].legend(prop={"size": 15})
     plt.tight_layout()
-    plt.savefig(figures_dir / "compare_scenario_ghg_trade.png")
+    plt.savefig(figures_dir / "compare_scenarios_imports.png")
+
     if display:
         plt.show()
-
-
-plot_compare_scenarios = False  # True for plotting scenarios comparison
-
-if plot_compare_scenarios:
-    compare_scenarios()
-    exit()
-
-###########################
-#%% CHOICE OF THE SCENARIO
-###########################
-
-
-scenarios = ["best", "worst", "pref_eu", "tradewar_china"]
-chosen_scenario = scenarios[2]
-
-
-###########################
-#%% COMPUTE COUNTERFACTUAL SYSTEM
-###########################
-
-counterfactual = Tools.compute_counterfactual(
-    create_counterfactual_base(),
-    get_dict_scenarios()[chosen_scenario],
-)
-
-
-# calculate counterfactual(s) system
-
-counterfactual.ghg_emissions_desag = Tools.recal_extensions_per_region(
-    counterfactual, "ghg_emissions"
-)
-
-# save conterfactural(s)
-counterfactual.save_all(output_dir / ("counterfactual" + "_" + concat_settings))
 
 
 # ###########################
@@ -758,85 +703,146 @@ counterfactual.save_all(output_dir / ("counterfactual" + "_" + concat_settings))
 # ###########################
 
 
-ghg_list = ["CO2", "CH4", "N2O", "SF6", "HFC", "PFC"]
-sectors_list = list(reference.get_sectors())  # List of economic sectors
-reg_list = list(reference.get_regions())  # List of regions
+def plot_trade_figures(
+    scenario_parameters: Dict,
+    scenario_name: str,
+    sectors: List[str] = None,
+    display: bool = True,
+) -> None:
+    """Plot the french importations for a given scenario
 
+    Args:
+        scenario_parameters (Dict): contains the changes for each sector ('sector_moves') and the shock function to apply ('shock_function')
+        scenario_name(str): name of the scenario (used to save the figures)
+        sectors (List[str], optional): sublist of sectors. Defaults to None.
+        display (bool, optional): True to display the figures. Defaults to True.
+    """
 
-def vision_commerce(notallsectors=False):
-    """Plot the importations variations for every sector"""
-    if notallsectors:
-        sectors_list = ["Agriculture", "Energy", "Industry", "Composite"]
-    else:
-        sectors_list = list(reference.get_sectors())
-    df_eco_ref = reference.Y["FR"].sum(axis=1) + reference.Z["FR"].sum(axis=1)
-    df_eco_cont = counterfactual.Y["FR"].sum(axis=1) + counterfactual.Z["FR"].sum(
+    counterfactual = compute_counterfactual(reference, scenario_parameters)
+    regions = counterfactual.get_regions()
+    if sectors is None:
+        sectors = list(reference.get_sectors())
+
+    # plot reference importations
+    ref_conso_by_sector_FR = reference.Y["FR"].sum(axis=1) + reference.Z["FR"].sum(
         axis=1
     )
+    ref_imports_by_region_FR = ref_conso_by_sector_FR.drop("FR").sum(level=0)
 
-    comm_ref = pd.DataFrame(
-        [df_eco_ref.sum(level=0)[r] for r in reg_list[1:]], index=reg_list[1:]
+    ref_imports_by_region_FR.T.plot.barh(
+        stacked=True, fontsize=17, color=colors_no_FR, figsize=(12, 5)
     )
-
-    comm_ref.T.plot.barh(stacked=True, fontsize=17, color=colors_no_FR, figsize=(12, 5))
-    plt.title("Importations totales françaises, scenario Ref", size=17)
+    plt.title("Importations totales françaises (référence)", size=17)
     plt.tight_layout()
     plt.grid(visible=True)
-    plt.legend(prop={"size": 12})
-    plt.savefig(figures_dir / "commerce_ref.png")
-    plt.close()
+    plt.savefig(figures_dir / "reference_imports.png")
+    if display:
+        plt.show()
 
-    comm_ref.T.plot.barh(stacked=True, fontsize=17, color=colors)
-    plt.title("Importations totales françaises", size=17)
+    # plot counterfactual importations
+    scen_conso_by_sector_FR = counterfactual.Y["FR"].sum(axis=1) + counterfactual.Z[
+        "FR"
+    ].sum(axis=1)
+    scen_imports_by_region_FR = scen_conso_by_sector_FR.drop("FR").sum(level=0)
+
+    scen_imports_by_region_FR.T.plot.barh(
+        stacked=True, fontsize=17, color=colors_no_FR, figsize=(12, 5)
+    )
+    plt.title(f"Importations totales françaises (scénario {scenario_name})", size=17)
     plt.tight_layout()
     plt.grid(visible=True)
-    plt.legend(prop={"size": 12})
-    # plt.show()
-    comm_cumul_non_fr = pd.DataFrame(
+    plt.savefig(figures_dir / f"{scenario_name}_imports.png")
+    if display:
+        plt.show()
+
+    # compare counterfactual and reference importations
+    compare_imports_by_region_FR = pd.DataFrame(
         {
-            "ref": [df_eco_ref.sum(level=0)[r] for r in reg_list[1:]],
-            "cont": [df_eco_cont.sum(level=0)[r] for r in reg_list[1:]],
-        },
-        index=reg_list[1:],
+            "Référence": ref_imports_by_region_FR,
+            f"Scénario {scenario_name}": scen_imports_by_region_FR,
+        }
     )
-    comm_cumul_non_fr.T.plot.barh(
+    compare_imports_by_region_FR.T.plot.barh(
         stacked=True, fontsize=17, figsize=(12, 8), color=colors_no_FR
     )
     plt.title("Importations totales françaises", size=17)
     plt.tight_layout()
     plt.grid(visible=True)
     plt.legend(prop={"size": 12})
-    plt.savefig(figures_dir / "commerce_imports_totales")
-    # plt.show()
+    plt.savefig(figures_dir / f"compare_{scenario_name}_imports.png")
+    if display:
+        plt.show()
 
-    dict_sect_plot = {}
-    for sec in sectors_list:
-        dict_sect_plot[(sec, "ref")] = [
-            df_eco_ref.loc[(r, sec)] / df_eco_ref.drop(["FR"]).sum(level=1).loc[sec]
-            for r in reg_list[1:]
-        ]
-        dict_sect_plot[(sec, "cont")] = []
-        for r in reg_list[1:]:
-            if df_eco_cont.drop(["FR"]).sum(level=1).loc[sec] != 0:
-                dict_sect_plot[(sec, "cont")].append(
-                    df_eco_cont.loc[(r, sec)]
-                    / df_eco_cont.drop(["FR"]).sum(level=1).loc[sec]
-                )
-            else:
-                dict_sect_plot[(sec, "cont")].append(df_eco_cont.loc[(r, sec)])
-
-    df_plot = pd.DataFrame(data=dict_sect_plot, index=reg_list[1:])
-
-    ax = df_plot.T.plot.barh(
-        stacked=True, figsize=(18, 12), fontsize=17, color=colors_no_FR
+    # compare the part of each region for each importation sector for the reference and the counterfactual
+    ref_imports_parts_FR = (
+        (
+            ref_conso_by_sector_FR.drop("FR")
+            / ref_conso_by_sector_FR.drop("FR").sum(level=1)
+        )
+        .replace([np.inf, -np.inf], np.nan)
+        .fillna(0)
     )
-
-    plt.title("Part de chaque région dans les importations françaises", size=17)
+    scen_imports_parts_FR = (
+        (
+            scen_conso_by_sector_FR.drop("FR")
+            / scen_conso_by_sector_FR.drop("FR").sum(level=1)
+        )
+        .replace([np.inf, -np.inf], np.nan)
+        .fillna(0)
+    )
+    df_to_display = pd.DataFrame(
+        columns=regions[1:],
+        index=pd.MultiIndex.from_arrays(
+            [
+                sum([2 * [sec] for sec in sectors], []),
+                len(sectors) * ["Référence", f"Scénario {scenario_name}"],
+            ],
+            names=("sector", "scenario"),
+        ),
+    )
+    for sec in sectors:
+        df_to_display.loc[(sec, "Référence"), :] = ref_imports_parts_FR.loc[
+            (slice(None), sec)
+        ]
+        df_to_display.loc[
+            (sec, f"Scénario {scenario_name}"), :
+        ] = scen_imports_parts_FR.loc[(slice(None), sec)]
+    fig, axes = plt.subplots(nrows=len(sectors), ncols=1, sharex=True, figsize=(10, 10))
+    graph = dict(zip(df_to_display.index.levels[0], axes))
+    for ax in axes:
+        ax.yaxis.tick_right()
+        ax.tick_params(axis="y", which="both", rotation=0)
+        ax.xaxis.set_major_formatter(mtick.PercentFormatter(1.0))
+    list(
+        map(
+            lambda x: df_to_display.xs(x)
+            .plot(
+                kind="barh",
+                stacked="True",
+                ax=graph[x],
+                legend=False,
+                color=colors_no_FR,
+            )
+            .set_ylabel(
+                x,
+                rotation=0,
+                size=15,
+                horizontalalignment="right",
+                verticalalignment="center",
+            ),
+            graph,
+        )
+    )
+    fig.subplots_adjust(wspace=0)
+    fig.suptitle(
+        "Comparaison de la part de chaque région dans les importations françaises",
+        size=17,
+    )
     plt.tight_layout()
-    plt.grid(visible=True)
-    plt.legend(prop={"size": 15})
-    plt.savefig(figures_dir / "commerce_parts_imports_secteur.png")
-    # plt.show()
+    plt.legend(ncol=3, loc="lower left", bbox_to_anchor=(-0.35, -4))
+    plt.savefig(figures_dir / f"compare_{scenario_name}_imports_parts.png")
+    if display:
+        plt.show()
 
 
 def visualisation_carbone(
@@ -844,7 +850,6 @@ def visualisation_carbone(
 ):
     """Plot the emissions associated with each sector for all ghg, and associated with the different ghg,
     for the chosen scenario. Can be used with every type of emissions account"""
-    ghg_list = ["CO2", "CH4", "N2O", "SF6", "HFC", "PFC"]
     dict_fig_name = {
         "D_cba": "_empreinte_carbone_fr_importation",
         "D_pba": "_emissions_territoriales_fr",
@@ -870,7 +875,7 @@ def visualisation_carbone(
         total_ges_by_origin_ref = sumonsectors_ref.sum(level=0)
         liste_agg_ghg = []
         liste_agg_ghg_ref = []
-        for ghg in ghg_list:
+        for ghg in GHG_LIST:
             liste_agg_ghg.append(
                 sumonsectors.iloc[sumonsectors.index.get_level_values(1) == ghg].sum(
                     level=0
@@ -902,7 +907,7 @@ def visualisation_carbone(
         sumonsectors = emissions_df.sum(axis=1)
         total_ges_by_origin = sumonsectors.sum(level=0)
         liste_agg_ghg = []
-        for ghg in ghg_list:
+        for ghg in GHG_LIST:
             liste_agg_ghg.append(
                 sumonsectors.iloc[sumonsectors.index.get_level_values(1) == ghg].sum(
                     level=0
@@ -942,7 +947,7 @@ def visualisation_carbone(
     plt.savefig(figures_dir / (scenario_name + dict_fig_name[type_emissions] + ".png"))
     plt.close()
     if saveghg:
-        for ghg in ghg_list:
+        for ghg in GHG_LIST:
             df = pd.DataFrame(None, index=sectors_list, columns=scenario.get_regions())
             for reg in scenario.get_regions():
                 df.loc[:, reg] = emissions_df.loc[(reg, ghg)]
@@ -1020,7 +1025,6 @@ def visualisation_carbone(
 def visualisation_carbone_ref(
     scenario, scenario_name, type_emissions="D_cba", saveghg=False, notallsectors=False
 ):
-    ghg_list = ["CO2", "CH4", "N2O", "SF6", "HFC", "PFC"]
     dict_fig_name = {
         "D_cba": "_empreinte_carbone_fr_importation",
         "D_pba": "_emissions_territoriales_fr",
@@ -1036,14 +1040,14 @@ def visualisation_carbone_ref(
     d_ = pd.DataFrame(getattr(scenario.ghg_emissions_desag, type_emissions))
     emissions_df = d_["FR"]
     if type_emissions == "D_cba":
-        reg_list = list(reference.get_regions())
+        regions = list(reference.get_regions())
     if type_emissions == "D_imp":
-        reg_list = list(reference.get_regions())[1:]
+        regions = list(reference.get_regions())[1:]
         emissions_df = emissions_df.drop(["FR"])
     sumonsectors = emissions_df.sum(axis=1)
     total_ges_by_origin = sumonsectors.sum(level=0)
     liste_agg_ghg = []
-    for ghg in ghg_list:
+    for ghg in GHG_LIST:
         liste_agg_ghg.append(
             sumonsectors.iloc[sumonsectors.index.get_level_values(1) == ghg].sum(
                 level=0
@@ -1063,7 +1067,7 @@ def visualisation_carbone_ref(
     else:
         sectors_list = list(reference.get_sectors())
 
-    pour_plot = pd.DataFrame(data=dict_pour_plot, index=reg_list)
+    pour_plot = pd.DataFrame(data=dict_pour_plot, index=regions)
     if type_emissions == "D_cba" or type_emissions == "D_pba":
         pour_plot.transpose().plot.bar(
             stacked=True, rot=45, figsize=(18, 12), fontsize=17, color=colors
@@ -1085,10 +1089,10 @@ def visualisation_carbone_ref(
     for i in range(len(sectors_list)):
         sector = sectors_list[i]
         dict_sect_plot[sector] = [
-            emissions_df.sum(level=0)[sector].loc[r] for r in reg_list
+            emissions_df.sum(level=0)[sector].loc[r] for r in regions
         ]
 
-    df_plot = pd.DataFrame(data=dict_sect_plot, index=reg_list)
+    df_plot = pd.DataFrame(data=dict_sect_plot, index=regions)
     if type_emissions == "D_cba" or type_emissions == "D_pba":
         ax = df_plot.T.plot.barh(
             stacked=True, figsize=(17, 16), fontsize=17, rot=45, color=colors
@@ -1116,6 +1120,7 @@ def visualisation_carbone_ref(
 
 
 def heat_S(activity, notallsectors=False):
+    regions = list(reference.get_regions())
     if notallsectors:
         sectors_list = ["Agriculture", "Energy", "Industry", "Composite"]
     else:
@@ -1123,7 +1128,7 @@ def heat_S(activity, notallsectors=False):
     S = reference.ghg_emissions_desag.S.sum()
     M = reference.ghg_emissions_desag.M.sum()
     sec_reg = []
-    for reg in reg_list:
+    for reg in regions:
         in_reg = []
         for sector in sectors_list:
             if activity == "consommation":
@@ -1131,7 +1136,7 @@ def heat_S(activity, notallsectors=False):
             if activity == "production":
                 in_reg.append(S[reg, sector])
         sec_reg.append(in_reg)
-    df = pd.DataFrame(data=sec_reg, columns=sectors_list, index=reg_list).T
+    df = pd.DataFrame(data=sec_reg, columns=sectors_list, index=regions).T
     df_n = df.div(df.max(axis=1), axis=0) * 100
     if activity == "consommation":
         title = "Contenu carbone du bien importé"
@@ -1161,20 +1166,20 @@ for type_emissions in ["D_cba", "D_imp"]:
 
 
 ##reagreate from 17 to 4 sectors :
-Tools.reag_D_sectors(reference, inplace=True, type_emissions="D_cba")
-Tools.reag_D_sectors(counterfactual, inplace=True, type_emissions="D_cba")
-Tools.reag_D_sectors(reference, inplace=True, type_emissions="D_imp")
-Tools.reag_D_sectors(counterfactual, inplace=True, type_emissions="D_imp")
+reag_D_sectors(reference, inplace=True, type_emissions="D_cba")
+reag_D_sectors(counterfactual, inplace=True, type_emissions="D_cba")
+reag_D_sectors(reference, inplace=True, type_emissions="D_imp")
+reag_D_sectors(counterfactual, inplace=True, type_emissions="D_imp")
 
 ##reagreate from 11 to 5 regions :
-Tools.reag_D_regions(
+reag_D_regions(
     reference,
     inplace=True,
     type_emissions="D_imp",
     dict_reag_regions=DICT_REGIONS,
     list_sec=["Agriculture", "Energy", "Industry", "Composite"],
 )
-Tools.reag_D_regions(
+reag_D_regions(
     counterfactual,
     inplace=True,
     type_emissions="D_imp",
@@ -1190,7 +1195,7 @@ for type_emissions in ["D_cba", "D_imp"]:
     visualisation_carbone(
         counterfactual, "Cont", type_emissions, saveghg=False, notallsectors=True
     )
-vision_commerce()
+plot_trade_figures()
 
 
 def delta_CF(ref, contr):

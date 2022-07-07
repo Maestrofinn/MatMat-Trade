@@ -23,6 +23,7 @@ from pymrio.tools import ioutil
 # local folder
 from local_paths import output_dir
 
+
 def extract_ghg_emissions(IOT):
 
     mult_to_CO2eq = {
@@ -76,6 +77,7 @@ def extract_ghg_emissions(IOT):
 
     return ghg_emissions
 
+
 def calc_accounts(S, L, Y, nr_sectors):
 
     Y_diag = ioutil.diagonalize_blocks(Y.values, blocksize=nr_sectors)
@@ -125,6 +127,7 @@ def calc_accounts(S, L, Y, nr_sectors):
 
     return (D_cba, D_pba, D_imp, D_exp)
 
+
 def recal_extensions_per_region(
     counterfactual: pymrio.IOSystem, extension_name: str
 ) -> pymrio.core.mriosystem.Extension:
@@ -153,6 +156,7 @@ def recal_extensions_per_region(
 
     return extension
 
+
 def shock(sector_list, Z, Y, region1, region2, sector, quantity):
     # sector : secteur concerné par la politique de baisse d'émissions importées
     # region1 : region dont on veut diminuer les émissions importées en France
@@ -176,6 +180,7 @@ def shock(sector_list, Z, Y, region1, region2, sector, quantity):
         )
     return Z_modif, Y_modif
 
+
 def shockv2(sector_list, demcatlist, reg_list, Z, Y, move, sector):
     Z_modif = Z.copy()
     Y_modif = Y.copy()
@@ -186,15 +191,16 @@ def shockv2(sector_list, demcatlist, reg_list, Z, Y, move, sector):
 
     for i in range(len(sector_list)):
         for j in range(len(regs)):
-            Z_modif.loc[
-                (regs[move["sort"][j]], sector), ("FR", sector_list[i])
-            ] = move["parts_sec"][move["sort"][j], i]
+            Z_modif.loc[(regs[move["sort"][j]], sector), ("FR", sector_list[i])] = move[
+                "parts_sec"
+            ][move["sort"][j], i]
     for i in range(len(demcatlist)):
         for j in range(len(regs)):
-            Y_modif.loc[
-                (regs[move["sort"][j]], sector), ("FR", demcatlist[i])
-            ] = move["parts_dem"][move["sort"][j], i]
+            Y_modif.loc[(regs[move["sort"][j]], sector), ("FR", demcatlist[i])] = move[
+                "parts_dem"
+            ][move["sort"][j], i]
     return Z_modif, Y_modif
+
 
 def shockv3(sector_list, demcatlist, reg_list, Z, Y, move, sector):
     Z_modif = Z.copy()
@@ -206,15 +212,12 @@ def shockv3(sector_list, demcatlist, reg_list, Z, Y, move, sector):
 
     for j in range(len(sector_list)):
         for r in regs:
-            Z_modif.loc[(r, sector), ("FR", sector_list[j])] = move["parts_sec"][r][
-                j
-            ]
+            Z_modif.loc[(r, sector), ("FR", sector_list[j])] = move["parts_sec"][r][j]
     for i in range(len(demcatlist)):
         for r in regs:
-            Y_modif.loc[(r, sector), ("FR", demcatlist[i])] = move["parts_dem"][r][
-                i
-            ]
+            Y_modif.loc[(r, sector), ("FR", demcatlist[i])] = move["parts_dem"][r][i]
     return Z_modif, Y_modif
+
 
 def get_attribute(obj, path_string):
     """allows to easily get nested attributes"""
@@ -232,6 +235,7 @@ def get_attribute(obj, path_string):
         current_attribute = new_attr
         i += 1
 
+
 def set_attribute(obj, path_string, new_value):
     """allows to easily set nested attributes"""
     parts = path_string.split(".")
@@ -247,6 +251,7 @@ def set_attribute(obj, path_string, new_value):
             setattr(current_attribute, part, new_value)
         current_attribute = new_attr
         i += 1
+
 
 def reag_D_sectors(
     scenario,
@@ -321,12 +326,11 @@ def reag_D_sectors(
                     :, (reg_import, sec2)
                 ]
     if inplace:
-        set_attribute(
-            scenario, "ghg_emissions_desag." + type_emissions, D_reag_sec
-        )
+        set_attribute(scenario, "ghg_emissions_desag." + type_emissions, D_reag_sec)
         return
     else:
         return D_reag_sec
+
 
 def reag_D_regions(
     scenario: pymrio.IOSystem,
@@ -379,11 +383,10 @@ def reag_D_regions(
             ] += sub_matrix
 
     if inplace:
-        set_attribute(
-            scenario, "ghg_emissions_desag." + type_emissions, new_matrix
-        )
+        set_attribute(scenario, "ghg_emissions_desag." + type_emissions, new_matrix)
     else:
         return new_matrix
+
 
 def build_reference(calib, data_dir, base_year, system, agg_name):
 
@@ -400,6 +403,9 @@ def build_reference(calib, data_dir, base_year, system, agg_name):
             storage_folder=data_dir, system=system, years=base_year
         )
 
+    if not os.path.isdir(data_dir / ("reference" + "_" + concat_settings)):
+        calib = True
+
     if calib:
         print("Début calib")
         # import exiobase data
@@ -412,7 +418,7 @@ def build_reference(calib, data_dir, base_year, system, agg_name):
             )
             with open(data_dir / pickle_file_name, "wb") as f:
                 pkl.dump(reference, f)
-        
+
         # isolate ghg emissions
         reference.ghg_emissions = extract_ghg_emissions(reference)
 
@@ -429,9 +435,7 @@ def build_reference(calib, data_dir, base_year, system, agg_name):
         agg_matrix["sector"].set_index(
             ["category", "sub_category", "sector"], inplace=True
         )
-        agg_matrix["region"].set_index(
-            ["Country name", "Country code"], inplace=True
-        )
+        agg_matrix["region"].set_index(["Country name", "Country code"], inplace=True)
 
         # apply regional and sectorial agregations
         reference.aggregate(
@@ -446,7 +450,6 @@ def build_reference(calib, data_dir, base_year, system, agg_name):
         reference.ghg_emissions.reset_to_flows()
 
         # save calibration data
-        reference.concat_settings = concat_settings
         reference.save_all(data_dir / ("reference" + "_" + concat_settings))
         print("Fin calib")
 
@@ -456,6 +459,8 @@ def build_reference(calib, data_dir, base_year, system, agg_name):
         reference = pymrio.parse_exiobase3(
             data_dir / ("reference" + "_" + concat_settings)
         )
+
+    reference.concat_settings = concat_settings
 
     return reference
 
@@ -473,7 +478,7 @@ def compute_counterfactual(
     Returns:
         pymrio.IOSystem: modified pymrio model, with A, x and L set as None
     """
-    
+
     counterfactual = reference.copy()
     counterfactual.remove_extension("ghg_emissions_desag")
 
@@ -502,6 +507,8 @@ def compute_counterfactual(
         "ghg_emissions",
     )
 
-    counterfactual.save_all(output_dir / ("counterfactual" + "_" + reference.concat_settings))
+    counterfactual.save_all(
+        output_dir / ("counterfactual" + "_" + reference.concat_settings)
+    )
 
     return counterfactual
