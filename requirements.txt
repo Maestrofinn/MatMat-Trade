@@ -6,3 +6,4 @@ pymrio==0.4.5
 scikit_learn==1.1.1
 scipy==1.8.0
 seaborn==0.11.2
+Unidecode==1.1.1
