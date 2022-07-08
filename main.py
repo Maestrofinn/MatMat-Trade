@@ -905,6 +905,7 @@ def plot_trade_synthesis(
     scenario_parameters: Dict,
     scenario_name: str,
     sectors: List[str] = None,
+    notallsectors: bool = False,
     display: bool = True,
 ) -> None:
     """Plot the french importations for a given scenario
@@ -913,10 +914,13 @@ def plot_trade_synthesis(
         scenario_parameters (Dict): contains the changes for each sector ('sector_moves') and the shock function to apply ('shock_function')
         scenario_name(str): name of the scenario (used to save the figures)
         sectors (List[str], optional): sublist of sectors. Defaults to None.
+        notallsectors (bool): True to set the sectors as ['Agriculture','Energy','Industry','Composite']
         display (bool, optional): True to display the figures. Defaults to True.
     """
     counterfactual = compute_counterfactual(reference, scenario_parameters)
-    if sectors is None:
+    if notallsectors:
+        sectors = ["Agriculture", "Energy", "Industry", "Composite"]
+    elif sectors is None:
         sectors = list(reference.get_sectors())
 
     reference_trade = reference.Y["FR"].sum(axis=1) + reference.Z["FR"].sum(axis=1)
@@ -939,6 +943,7 @@ def plot_co2eq_synthesis(
     scenario_parameters: Dict,
     scenario_name: str,
     sectors: List[str] = None,
+    notallsectors: bool = False,
     display: bool = True,
 ) -> None:
     """Plot the french emissions per sector for a given scenario
@@ -950,7 +955,9 @@ def plot_co2eq_synthesis(
         display (bool, optional): True to display the figures. Defaults to True.
     """
     counterfactual = compute_counterfactual(reference, scenario_parameters)
-    if sectors is None:
+    if notallsectors:
+        sectors = ["Agriculture", "Energy", "Industry", "Composite"]
+    elif sectors is None:
         sectors = list(reference.get_sectors())
 
     emissions_types = {
@@ -1021,6 +1028,7 @@ def plot_ghg_synthesis(
             sectors,
             display,
         )
+
 
 def heat_S(activity, notallsectors=False):
     regions = list(reference.get_regions())
