@@ -712,7 +712,6 @@ def plot_df_synthesis(
     account_name: str,
     account_unit: str,
     scenario_name: str,
-    sectors: List[str] = None,
     display: bool = True,
 ) -> None:
     """Plot some figures for a given scenario
@@ -723,15 +722,15 @@ def plot_df_synthesis(
         account_name (str): name of the account considered in french, for display purpose (eg: "importations françaises", "empreinte carbone française")
         account_unit (str): account unit for display purpose (must be the same in both dataframes)
         scenario_name(str): name of the scenario (used to save the figures)
-        sectors (List[str], optional): sublist of sectors. Defaults to None.
         display (bool, optional): True to display the figures. Defaults to True.
     """
 
-    regions = list(reference_df.index.get_level_values(level=0).drop_duplicates())
+    regions = list(reference_df.index.get_level_values(level=0).drop_duplicates()) # doesn't use .get_regions() to deal with partial reaggregation
+    sectors = list(reference_df.index.get_level_values(level=1).drop_duplicates()) # same with .get_sectors()
 
     account_name = (
         account_name[0].upper() + account_name[1:]
-    )  # didn't use .capitalize() in order to preserve capital letters in the middle
+    )  # doesn't use .capitalize() in order to preserve capital letters in the middle
     account_name_file = unidecode(account_name.lower().replace(" ", "_"))
     current_dir = figures_dir / (scenario_name + "__" + account_name_file)
 
@@ -904,8 +903,6 @@ def plot_df_synthesis(
 def plot_trade_synthesis(
     scenario_parameters: Dict,
     scenario_name: str,
-    sectors: List[str] = None,
-    notallsectors: bool = False,
     display: bool = True,
 ) -> None:
     """Plot the french importations for a given scenario
@@ -913,15 +910,10 @@ def plot_trade_synthesis(
     Args:
         scenario_parameters (Dict): contains the changes for each sector ('sector_moves') and the shock function to apply ('shock_function')
         scenario_name(str): name of the scenario (used to save the figures)
-        sectors (List[str], optional): sublist of sectors. Defaults to None.
-        notallsectors (bool): True to set the sectors as ['Agriculture','Energy','Industry','Composite']
         display (bool, optional): True to display the figures. Defaults to True.
     """
     counterfactual = compute_counterfactual(reference, scenario_parameters)
-    if notallsectors:
-        sectors = ["Agriculture", "Energy", "Industry", "Composite"]
-    elif sectors is None:
-        sectors = list(reference.get_sectors())
+    sectors = list(reference.get_sectors())
 
     reference_trade = reference.Y["FR"].sum(axis=1) + reference.Z["FR"].sum(axis=1)
     counterfactual_trade = counterfactual.Y["FR"].sum(axis=1) + counterfactual.Z[
@@ -942,8 +934,6 @@ def plot_trade_synthesis(
 def plot_co2eq_synthesis(
     scenario_parameters: Dict,
     scenario_name: str,
-    sectors: List[str] = None,
-    notallsectors: bool = False,
     display: bool = True,
 ) -> None:
     """Plot the french emissions per sector for a given scenario
@@ -951,14 +941,10 @@ def plot_co2eq_synthesis(
     Args:
         scenario_parameters (Dict): contains the changes for each sector ('sector_moves') and the shock function to apply ('shock_function')
         scenario_name(str): name of the scenario (used to save the figures)
-        sectors (List[str], optional): sublist of sectors. Defaults to None.
         display (bool, optional): True to display the figures. Defaults to True.
     """
     counterfactual = compute_counterfactual(reference, scenario_parameters)
-    if notallsectors:
-        sectors = ["Agriculture", "Energy", "Industry", "Composite"]
-    elif sectors is None:
-        sectors = list(reference.get_sectors())
+    sectors = list(counterfactual.get_sectors())
 
     emissions_types = {
         "D_cba": "empreinte carbone de la France",
@@ -990,7 +976,6 @@ def plot_co2eq_synthesis(
 def plot_ghg_synthesis(
     scenario_parameters: Dict,
     scenario_name: str,
-    sectors: List[str] = None,
     display: bool = True,
 ) -> None:
     """Plot the french emissions per GHG for a given scenario
@@ -998,12 +983,10 @@ def plot_ghg_synthesis(
     Args:
         scenario_parameters (Dict): contains the changes for each sector ('sector_moves') and the shock function to apply ('shock_function')
         scenario_name(str): name of the scenario (used to save the figures)
-        sectors (List[str], optional): sublist of sectors. Defaults to None.
         display (bool, optional): True to display the figures. Defaults to True.
     """
     counterfactual = compute_counterfactual(reference, scenario_parameters)
-    if sectors is None:
-        sectors = list(reference.ghg_emissions_desag.get_index())
+    sectors = list(counterfactual.ghg_emissions_desag.get_index())
 
     emissions_types = {
         "D_cba": "empreinte en GES de la France",
@@ -1033,7 +1016,6 @@ def plot_ghg_synthesis(
 def ghg_content_heatmap(
     reference: pymrio.IOSystem,
     prod: bool = False,
-    sectors: List[str] = None,
     display: bool = True,
 ) -> None:
     """Plot the GHG contents each sector for each region in a heatmap
@@ -1041,11 +1023,9 @@ def ghg_content_heatmap(
     Args:
         reference (pymrio.IOSystem): MRIO model
         prod (bool, optional): True to focus on production values, otherwise focus on consumption values. Defaults to False.
-        sectors (List[str], optional): sublist of sectors. Defaults to None.
         display (bool, optional): True to display the figures. Defaults to True.
     """
-    if sectors is None:
-        sectors = list(reference.get_sectors())
+    sectors = list(reference.get_sectors())
     regions = reference.get_regions()
     if prod:
         title = "Intensité carbone de la production"

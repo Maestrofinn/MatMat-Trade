@@ -338,7 +338,7 @@ def reag_D_regions(
     type_emissions: str = "D_cba",
     inplace: bool = False,
 ) -> Optional[pd.DataFrame]:
-    """Reaggregate any account matrix with a new set of regions
+    """Reaggregate any extensive account matrix with a new set of regions. WARNING : doesn't work with intensive values (means, intensities...).
 
     Args:
         scenario (pymrio.IOSystem): pymrio MRIO object
