@@ -707,15 +707,15 @@ def compare_scenarios(
 
 
 def plot_df_synthesis(
-    reference_matrix: pd.Series,
-    counterfactual_matrix: pd.Series,
+    reference_df: pd.Series,
+    counterfactual_df: pd.Series,
     account_name: str,
     account_unit: str,
     scenario_name: str,
     sectors: List[str] = None,
     display: bool = True,
 ) -> None:
-    """Plot the french importations for a given scenario
+    """Plot some figures for a given scenario
 
     Args:
         reference_matrix (pd.DataFrame): series with rows multiindexed by (region, sector) associated to the reference
@@ -727,7 +727,7 @@ def plot_df_synthesis(
         display (bool, optional): True to display the figures. Defaults to True.
     """
 
-    regions = list(reference_matrix.index.get_level_values(level=0).drop_duplicates())
+    regions = list(reference_df.index.get_level_values(level=0).drop_duplicates())
 
     account_name = (
         account_name[0].upper() + account_name[1:]
@@ -739,7 +739,7 @@ def plot_df_synthesis(
         os.mkdir(current_dir)  # can overwrite existing files
 
     # plot reference importations
-    ref_conso_by_sector_FR = reference_matrix
+    ref_conso_by_sector_FR = reference_df
     ref_imports_by_region_FR = ref_conso_by_sector_FR.drop("FR").sum(level=0)
 
     ref_imports_by_region_FR.T.plot.barh(
@@ -754,7 +754,7 @@ def plot_df_synthesis(
         plt.show()
 
     # plot counterfactual importations
-    scen_conso_by_sector_FR = counterfactual_matrix
+    scen_conso_by_sector_FR = counterfactual_df
     scen_imports_by_region_FR = scen_conso_by_sector_FR.drop("FR").sum(level=0)
 
     scen_imports_by_region_FR.T.plot.barh(
@@ -1030,39 +1030,52 @@ def plot_ghg_synthesis(
         )
 
 
-def heat_S(activity, notallsectors=False):
-    regions = list(reference.get_regions())
-    if notallsectors:
-        sectors_list = ["Agriculture", "Energy", "Industry", "Composite"]
-    else:
-        sectors_list = list(reference.get_sectors())
-    S = reference.ghg_emissions_desag.S.sum()
-    M = reference.ghg_emissions_desag.M.sum()
-    sec_reg = []
-    for reg in regions:
-        in_reg = []
-        for sector in sectors_list:
-            if activity == "consommation":
-                in_reg.append(M[reg, sector])
-            if activity == "production":
-                in_reg.append(S[reg, sector])
-        sec_reg.append(in_reg)
-    df = pd.DataFrame(data=sec_reg, columns=sectors_list, index=regions).T
-    df_n = df.div(df.max(axis=1), axis=0) * 100
-    if activity == "consommation":
-        title = "Contenu carbone du bien importé"
-    if activity == "production":
+def ghg_content_heatmap(
+    reference: pymrio.IOSystem,
+    prod: bool = False,
+    sectors: List[str] = None,
+    display: bool = True,
+) -> None:
+    """Plot the GHG contents each sector for each region in a heatmap
+
+    Args:
+        reference (pymrio.IOSystem): MRIO model
+        prod (bool, optional): True to focus on production values, otherwise focus on consumption values. Defaults to False.
+        sectors (List[str], optional): sublist of sectors. Defaults to None.
+        display (bool, optional): True to display the figures. Defaults to True.
+    """
+    if sectors is None:
+        sectors = list(reference.get_sectors())
+    regions = reference.get_regions()
+    if prod:
         title = "Intensité carbone de la production"
-    fig, ax = plt.subplots()
+        activity = "production"
+        to_display = reference.ghg_emissions_desag.S.sum().unstack().T
+    else:
+        title = "Contenu carbone du bien importé"
+        activity = "consumption"
+        to_display = reference.ghg_emissions_desag.M.sum().unstack().T
+    to_display = to_display.reindex(sectors)[regions]  # sort rows and columns
+    to_display = 100 * to_display.div(
+        to_display.max(axis=1), axis=0
+    )  # compute relative values
+    fig, ax = plt.subplots(figsize=(8, 8))
     sns.heatmap(
-        df_n, cmap="coolwarm", ax=ax, linewidths=1, linecolor="black"
+        to_display,
+        cmap="coolwarm",
+        ax=ax,
+        linewidths=1,
+        linecolor="black",
+        cbar_kws={"format": "%.0f%%"},
     ).set_title(title, size=13)
     plt.yticks(size=11)
     plt.xticks(size=11)
+    ax.set_xlabel(None)
+    ax.set_ylabel(None)
     fig.tight_layout()
-    plt.savefig(figures_dir / ("heatmap_intensite_" + activity))
-    # plt.show()
-    return
+    plt.savefig(figures_dir / ("ghg_content_heatmap_" + activity))
+    if display:
+        plt.plot()
 
 
 '''
