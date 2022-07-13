@@ -31,7 +31,7 @@ import seaborn as sns
 sns.set_theme()
 
 # local folder
-from local_paths import data_dir
+from settings import DATA_DIR
 
 # local library
 from utils import Tools
@@ -63,7 +63,7 @@ calib = True  # Obligé.e.s de refaire le calib à chaque fois pour ne pas écra
 ###########################
 
 # build calibrated data
-reference = Tools.build_reference(calib, data_dir, base_year, system, agg_name)
+reference = Tools.build_reference(calib, DATA_DIR, base_year, system, agg_name)
 
 
 #%%Initialize data
@@ -103,8 +103,8 @@ Carbon_content_sec = pd.DataFrame(
 for reg in reg_list:
     Carbon_content_sec[reg] = A.loc[reg]
 
-imports = (reference.Z["FR"].drop(["FR"]).sum(level=0)).sum(axis=1) + (
-    reference.Y["FR"].drop(["FR"]).sum(level=0)
+imports = (reference.Z["FR"].drop(["FR"], level=0).sum(level=0)).sum(axis=1) + (
+    reference.Y["FR"].drop(["FR"], level=0).sum(level=0)
 ).sum(axis=1)
 sum_imports = imports.sum()
 
