@@ -13,8 +13,8 @@ class Model:
         system: str,
         aggregation_name: str,
         calib: bool = False,
-        regions_mapper: Dict = REGIONS_AGG,
-        sectors_mapper: Dict = SECTORS_AGG,
+        regions_mapper: Dict = None,
+        sectors_mapper: Dict = None,
     ):
         """Inits Model class
 
@@ -23,8 +23,8 @@ class Model:
             system (str): product ('pxp') or industry ('ixi')
             aggregation_name (str): name of the aggregation matrix used
             calib (bool, optional): True to recalibrate the model from downloaded data. Defaults to False.
-            regions_mapper (Dict, optional): regions aggregation for figures editing, no aggregation if is None. Defaults to REGIONS_AGG from settings.py.
-            sectors_mapper (Dict, optional): sectors aggregation for figures editing, no aggregation if is None. Defaults to SECTORS_AGG from settings.py.
+            regions_mapper (Dict, optional): regions aggregation for figures editing, no aggregation if is None. Defaults to None.
+            sectors_mapper (Dict, optional): sectors aggregation for figures editing, no aggregation if is None. Defaults to None.
         """
 
         self.base_year = base_year
@@ -192,11 +192,7 @@ class Model:
             counterfactual_name (str, optional): name of the counterfactual to plot, or None to plot the reference (self). Defaults to None.
             prod (bool, optional): True to focus on production values, otherwise focus on consumption values. Defaults to False.
         """
-        if counterfactual_name is None:
-            figures.ghg_content_heatmap(self, prod)
-        else:
-            counterfactual = self.counterfactuals[counterfactual_name]
-            figures.ghg_content_heatmap(counterfactual, prod)
+        figures.ghg_content_heatmap(self, counterfactual_name, prod)
 
     ## comparison plots
 

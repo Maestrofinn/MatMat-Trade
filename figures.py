@@ -76,40 +76,74 @@ def plot_carbon_footprint_FR(
 
 def ghg_content_heatmap(
     model,
+    counterfactual_name: str = None,
     prod: bool = False,
 ) -> None:
     """Plots the GHG contents each sector for each region in a heatmap
 
     Args:
         model (Union[Model, Counterfactual]): object Model or Counterfactual defined in model.py
+        counterfactual_name (str): name of the counterfactual in model.counterfactuals
         prod (bool, optional): True to focus on production values, otherwise focus on consumption values. Defaults to False.
     """
+    if counterfactual_name is None:
+        counterfactual = model
+    else:
+        counterfactual = model.counterfactuals[counterfactual_name]
     sectors = model.agg_sectors
     regions = model.agg_regions
     if prod:
         title = "Intensité carbone de la production"
         activity = "production"
-        S = aggregate_sum_axis(
-            model.database.ghg_emissions_desag.S,
-            1,
+        S = counterfactual.database.ghg_emissions_desag.S.sum()
+        x = counterfactual.database.x["indout"]
+        S_pond = S.multiply(x)
+        S_pond_agg = aggregate_sum_axis(
+            S_pond,
+            0,
             model.new_regions_index,
             model.new_sectors_index,
             model.rev_regions_mapper,
             model.rev_sectors_mapper,
         )
-        to_display = S.sum().unstack().T
+        x_agg = aggregate_sum_axis(
+            x,
+            0,
+            model.new_regions_index,
+            model.new_sectors_index,
+            model.rev_regions_mapper,
+            model.rev_sectors_mapper,
+        )
+        S_mean_pond_agg = (
+            S_pond_agg.div(x_agg).replace([-np.inf, np.inf], np.NaN).fillna(0)
+        )
+        to_display = S_mean_pond_agg.unstack().T
     else:
         title = "Contenu carbone du bien importé"
         activity = "consumption"
-        M = aggregate_sum_axis(
-            model.database.ghg_emissions_desag.M,
-            1,
+        M = counterfactual.database.ghg_emissions_desag.M.sum()
+        y = counterfactual.database.Y.sum(axis=1)
+        M_pond = M.multiply(y)
+        M_pond_agg = aggregate_sum_axis(
+            M_pond,
+            0,
             model.new_regions_index,
             model.new_sectors_index,
             model.rev_regions_mapper,
             model.rev_sectors_mapper,
         )
-        to_display = M.sum().unstack().T
+        y_agg = aggregate_sum_axis(
+            y,
+            0,
+            model.new_regions_index,
+            model.new_sectors_index,
+            model.rev_regions_mapper,
+            model.rev_sectors_mapper,
+        )
+        M_mean_pond_agg = (
+            M_pond_agg.div(y_agg).replace([-np.inf, np.inf], np.NaN).fillna(0)
+        )
+        to_display = M_mean_pond_agg.unstack().T
     to_display = to_display.reindex(sectors)[regions]  # sort rows and columns
     to_display = 100 * to_display.div(
         to_display.max(axis=1), axis=0
@@ -418,7 +452,7 @@ def plot_df_synthesis(
             plt.xlabel(account_unit)
         plt.legend(ncol=3, loc="lower left", bbox_to_anchor=(-0.35, -4.5))
         plt.savefig(current_dir / plot_filename)
-        plt.close()
+        plt.show()
 
     df_ref_parts = (
         (
