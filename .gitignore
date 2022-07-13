@@ -129,10 +129,3 @@ dmypy.json
 .pyre/
 
 # additional gitignore from user
-data/reference*
-data/*.pickle
-data/*.zip
-data/metadata.json
-outputs/*
-outputs/*/*
-figures/*
