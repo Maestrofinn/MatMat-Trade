@@ -1,8 +1,8 @@
 import figures
 import os
 import pandas as pd
-from settings import DATA_DIR, FIGURES_DIR, REGIONS_AGG, SECTORS_AGG
-from typing import Dict, List
+from settings import DATA_DIR, FIGURES_DIR
+from typing import Callable, Dict, List, Tuple
 from utils import build_reference_data, build_counterfactual_data, reverse_mapper
 
 
@@ -40,10 +40,10 @@ class Model:
         if not os.path.isdir(self.local_figures_dir):
             os.mkdir(self.local_figures_dir)
 
-        self.database = build_reference_data(self)
-        self.regions = list(self.database.get_regions())
-        self.sectors = list(self.database.get_sectors())
-        self.y_categories = list(self.database.get_Y_categories())
+        self.iot = build_reference_data(self)
+        self.regions = list(self.iot.get_regions())
+        self.sectors = list(self.iot.get_sectors())
+        self.y_categories = list(self.iot.get_Y_categories())
 
         self._regions_mapper = regions_mapper
         self._sectors_mapper = sectors_mapper
@@ -67,18 +67,19 @@ class Model:
     ## counterfactuals
 
     def new_counterfactual(
-        self, name: str, scenario_parameters: Dict, reloc: bool = False
+        self,
+        name: str,
+        scenar_function: Callable[["Model", bool], Tuple[pd.DataFrame]],
+        reloc: bool = False,
     ) -> None:
         """Creates a new counterfactual from scenario_parameters in self.counterfactuals
 
         Args:
             name (str): counterfactual name
-            scenario_parameters (Dict): contains the scenario function ('scenario_fucntion') and the shock function ('shock_function')
+            scenar_function (Callable[[Model, bool], Tuple[pd.DataFrame]]): functions that builds the new Z and Y matrices
             reloc (bool, optional): True if relocation is allowed. Defaults to False.
         """
-        self.counterfactuals[name] = Counterfactual(
-            name, self, scenario_parameters, reloc
-        )
+        self.counterfactuals[name] = Counterfactual(name, self, scenar_function, reloc)
 
     def create_counterfactuals_from_dict(
         self,
@@ -257,19 +258,23 @@ class Model:
 
 class Counterfactual:
     def __init__(
-        self, name: str, model: Model, scenario_parameters: Dict, reloc: bool = False
+        self,
+        name: str,
+        model: Model,
+        scenar_function: Callable[[Model, bool], Tuple[pd.DataFrame]],
+        reloc: bool = False,
     ):
         """Inits Counterfactual class
 
         Args:
             name (str): name of the counterfactual
             model (Model): object Model defined in model.py
-            scenario_parameters (Dict): contains the scenario function ('scenario_fucntion') and the shock function ('shock_function')
+            scenar_function (Callable[[Model, bool], Tuple[pd.DataFrame]]): builds the new Z and Y matrices
             reloc (bool, optional): True if relocation is allowed. Defaults to False.
         """
 
         self.name = name
-        self.database = build_counterfactual_data(model, scenario_parameters, reloc)
+        self.iot = build_counterfactual_data(model, scenar_function, reloc)
         self.local_figures_dir = model.local_figures_dir / name
         if not os.path.isdir(self.local_figures_dir):
             os.mkdir(self.local_figures_dir)

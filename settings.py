@@ -4,6 +4,7 @@ import os
 import pathlib
 import sys
 
+
 ### LOCAL PATHS ###
 sys.path.append(os.sep.join(sys.path[0].split(os.sep)[:-1]))
 
@@ -33,6 +34,7 @@ GHG_LIST = list(GLOBAL_WARMING_POTENTIAL.keys())
 ### COLORS ###
 COLORS = list(plt.cm.tab10(np.arange(10))) + ["gold"]
 COLORS_NO_FR = COLORS[1:]
+
 
 ### AGGREGATIONS FOR THE FIGURES ###
 # These aggregations are only dedicated to make the figures more legible. They have no influence on the models nor on their results.

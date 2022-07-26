@@ -16,24 +16,24 @@ warnings.simplefilter(action="ignore", category=FutureWarning)
 
 
 def recal_extensions_per_region(
-    database: pymrio.IOSystem, extension_name: str
+    iot: pymrio.IOSystem, extension_name: str
 ) -> pymrio.core.mriosystem.Extension:
     """Computes the account matrices D_cba, D_pba, D_imp and D_exp
        Based on pymrio.tools.iomath's function 'calc_accounts', see https://github.com/konstantinstadler/pymrio
 
     Args:
-        database (pymrio.IOSystem): pymrio MRIO object
+        iot (pymrio.IOSystem): pymrio MRIO object
         extension_name (str): extension name
 
     Returns:
         pymrio.core.mriosystem.Extension: extension with account matrices completed
     """
-    extension = getattr(database, extension_name).copy()
+    extension = getattr(iot, extension_name).copy()
 
-    S = getattr(database, extension_name).S
-    L = database.L
-    Y_vect = database.Y.sum(level=0, axis=1)
-    nbsectors = len(database.get_sectors())
+    S = getattr(iot, extension_name).S
+    L = iot.L
+    Y_vect = iot.Y.sum(level=0, axis=1)
+    nbsectors = len(iot.get_sectors())
 
     Y_diag = ioutil.diagonalize_blocks(Y_vect.values, blocksize=nbsectors)
     Y_diag = pd.DataFrame(Y_diag, index=Y_vect.index, columns=Y_vect.index)
@@ -119,13 +119,13 @@ def build_reference_data(model) -> pymrio.IOSystem:
         # import exiobase data
         if os.path.isfile(model.model_dir / model.pickle_file_name):
             with open(model.model_dir / model.pickle_file_name, "rb") as f:
-                database = pkl.load(f)
+                iot = pkl.load(f)
         else:
-            database = pymrio.parse_exiobase3(  # may need RAM + SWAP ~ 15 Gb
+            iot = pymrio.parse_exiobase3(  # may need RAM + SWAP ~ 15 Gb
                 DATA_DIR / model.raw_file_name
             )
             with open(model.model_dir / model.pickle_file_name, "wb") as f:
-                pkl.dump(database, f)
+                pkl.dump(iot, f)
 
         # extract GHG emissions
         extension_list = list()
@@ -134,13 +134,13 @@ def build_reference_data(model) -> pymrio.IOSystem:
 
             ghg_name = ghg_emission.lower() + "_emissions"
             extension = pymrio.Extension(ghg_name)
-            ghg_index = database.satellite.F.reset_index().stressor.apply(
+            ghg_index = iot.satellite.F.reset_index().stressor.apply(
                 lambda x: x.split(" ")[0] in [ghg_emission]
             )
 
             for elt in ["F", "F_Y", "unit"]:
 
-                component = getattr(database.satellite, elt)
+                component = getattr(iot.satellite, elt)
 
                 if elt == "unit":
                     index_name = "index"
@@ -166,12 +166,12 @@ def build_reference_data(model) -> pymrio.IOSystem:
 
             extension_list.append(extension)
 
-        database.ghg_emissions = pymrio.concate_extension(
+        iot.ghg_emissions = pymrio.concate_extension(
             extension_list, name="ghg_emissions"
         )
 
         # del useless extensions
-        database.remove_extension(["satellite", "impacts"])
+        iot.remove_extension(["satellite", "impacts"])
 
         # import aggregation matrices
         agg_matrix = {
@@ -186,7 +186,7 @@ def build_reference_data(model) -> pymrio.IOSystem:
         agg_matrix["regions"].set_index(["Country name", "Country code"], inplace=True)
 
         # apply regional and sectorial agregations
-        database.aggregate(
+        iot.aggregate(
             region_agg=agg_matrix["regions"].T.values,
             sector_agg=agg_matrix["sectors"].T.values,
             region_names=agg_matrix["regions"].columns.tolist(),
@@ -194,63 +194,49 @@ def build_reference_data(model) -> pymrio.IOSystem:
         )
 
         # reset all to flows before saving
-        database = database.reset_to_flows()
-        database.ghg_emissions.reset_to_flows()
+        iot = iot.reset_to_flows()
+        iot.ghg_emissions.reset_to_flows()
 
         # compute missing matrices
-        database.calc_all()
+        iot.calc_all()
 
         # compute emission accounts by region
-        database.ghg_emissions_desag = recal_extensions_per_region(
-            database, "ghg_emissions"
-        )
+        iot.ghg_emissions_desag = recal_extensions_per_region(iot, "ghg_emissions")
 
         # save model
-        database.save_all(model.model_dir / ("reference" + "_" + model.concat_settings))
+        iot.save_all(model.model_dir / ("reference" + "_" + model.concat_settings))
 
         print("Data loaded successfully !")
 
     else:
 
         # import calibration data previously built with calib = True
-        database = pymrio.parse_exiobase3(
+        iot = pymrio.parse_exiobase3(
             model.model_dir / ("reference" + "_" + model.concat_settings)
         )
 
-    return database
+    return iot
 
 
 def build_counterfactual_data(
     model,
-    scenario_parameters: Dict,
+    scenar_function,
     reloc: bool = False,
 ) -> pymrio.IOSystem:
     """Builds the pymrio object given reference's settings and the scenario parameters
 
     Args:
         model (Model): object Model defined in model.py
-        scenario_parameters (Dict): contains the scenario function ('scenario_fucntion') and the shock function ('shock_function')
+        scenar_function (Callable[[Model, bool], Tuple[pd.DataFrame]]): builds the new Z and Y matrices
         reloc (bool, optional): True if relocation is allowed. Defaults to False.
     Returns:
         pymrio.IOSystem: modified pymrio model, with A, x and L set as None
     """
 
-    counterfactual = model.database.copy()
+    counterfactual = model.iot.copy()
     counterfactual.remove_extension("ghg_emissions_desag")
 
-    sectors = counterfactual.get_sectors()
-    moves = scenario_parameters["scenario_function"](model, reloc)
-
-    for sector in sectors:
-        counterfactual.Z, counterfactual.Y = scenario_parameters["shock_function"](
-            sectors,
-            counterfactual.get_Y_categories(),
-            counterfactual.get_regions(),
-            counterfactual.Z,
-            counterfactual.Y,
-            moves[sector],
-            sector,
-        )
+    counterfactual.Z, counterfactual.Y = scenar_function(model, reloc=reloc)
 
     counterfactual.A = None
     counterfactual.x = None
