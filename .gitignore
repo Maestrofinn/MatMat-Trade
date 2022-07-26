@@ -131,5 +131,3 @@ dmypy.json
 # additional gitignore from user
 data/20*
 data/IOT*
-figures/*
-outputs/*

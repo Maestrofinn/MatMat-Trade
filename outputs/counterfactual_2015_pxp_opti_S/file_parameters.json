@@ -1,0 +1,35 @@
+{
+    "files": {
+        "Z": {
+            "name": "Z.txt",
+            "nr_index_col": "2",
+            "nr_header": "2"
+        },
+        "Y": {
+            "name": "Y.txt",
+            "nr_index_col": "2",
+            "nr_header": "2"
+        },
+        "x": {
+            "name": "x.txt",
+            "nr_index_col": "2",
+            "nr_header": "1"
+        },
+        "A": {
+            "name": "A.txt",
+            "nr_index_col": "2",
+            "nr_header": "2"
+        },
+        "L": {
+            "name": "L.txt",
+            "nr_index_col": "2",
+            "nr_header": "2"
+        },
+        "unit": {
+            "name": "unit.txt",
+            "nr_index_col": "2",
+            "nr_header": "1"
+        }
+    },
+    "systemtype": "IOSystem"
+}
