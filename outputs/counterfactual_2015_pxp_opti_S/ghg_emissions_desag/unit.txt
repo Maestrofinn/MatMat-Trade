@@ -1,7 +1,0 @@
-	unit
-CO2	kg
-CH4	kg
-N2O	kg
-SF6	kg
-HFC	kg CO2-eq
-PFC	kg CO2-eq
