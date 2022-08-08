@@ -1,0 +1,32 @@
+*Diagnostic EC française :
+
+Ici on mesure l'empreinte carbone de la consommation française et on se penche surtout sur les importations de carbone de la France (D_imp).
+
+**Diagnostic tout secteur confondu:
+
+- Forte hiérarchie entre les gaz, surtoout CO2 puis CH4
+
+- Provenance varie avec le gaz : prépondérance des importations de CH4 du RoW -> lié à l'agriculture principalement.
+
+- Importation d'émissions >= 50% de l'EC française -> justfication projet sur le commerce
+
+- Part plus ou moins égale entre Europe, RoW, BRICS et autre OCDE. Mais intensité carbone différente en fonction des régions -> justification de l'idée de changer le sourçage. -> Confirmé par des chocs complets où on arrête le commerce avec une région entière et on mesure la variation d'EC, elle n'est pas la même en fonction de la région.
+
+- En modifiant Z et y dans le choc, on ne prend pas en compte la possibilité de production des biens en question dans les nouvelles régions de sourçage -> limite pratique de ces chocs et de leur interprétation.
+
+**Diagnostic par secteur:
+- Remarque : présence d'un secteur agrégateur composite qui écrase un peu la désagrégation des 16 autres secteurs (pe à revoir ?)
+
+- A part secteur composite, les secteurs contribuant le plus à l'EC totale sont Agriculture, Transport services, Construction et Biomass Industry
+
+- Cependant, hierarchie différente dans les importations : Biomass Industry, Construction Heavy industry, Fossile Fuels.
+
+- Imports les plus sales viennent du RoW, les secteurs de prépondérances du RoW sont clairement FF, Agriculture, Composite et Heavy industry.
+
+- Imports max des BRICS pour : Electronics, Machinery, Clothing
+
+- Imports max des Other_OCDE : Electricity and Heat
+
+- Pour Europe : Contruction, Biomass, Automobile, Oth transport equipment.
+
+- Remarque : pas d'import de Crude oil, Crude Coal, Extractive industry -> tous nos besoins sont délocalisés et la transformation de ces MP est faite ailleurs.
