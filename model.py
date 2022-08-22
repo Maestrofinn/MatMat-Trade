@@ -1,7 +1,7 @@
 import figures
 import os
 import pandas as pd
-from settings import DATA_DIR, FIGURES_DIR
+from settings import CAPITAL_CONS_DIR, EXIOBASE_DIR, FIGURES_DIR, MODELS_DIR
 from typing import Callable, Dict, List, Tuple
 from utils import build_reference_data, build_counterfactual_data, reverse_mapper
 
@@ -15,6 +15,7 @@ class Model:
         calib: bool = False,
         regions_mapper: Dict = None,
         sectors_mapper: Dict = None,
+        capital: bool = False,
     ):
         """Inits Model class
 
@@ -25,30 +26,36 @@ class Model:
             calib (bool, optional): True to recalibrate the model from downloaded data. Defaults to False.
             regions_mapper (Dict, optional): regions aggregation for figures editing, no aggregation if is None. Defaults to None.
             sectors_mapper (Dict, optional): sectors aggregation for figures editing, no aggregation if is None. Defaults to None.
+            capital (bool, optional): True to endogenize investments and capital. Defaults to False.
         """
 
         self.base_year = base_year
         self.system = system
         self.aggregation_name = aggregation_name
         self.calib = calib
+        self.capital = capital
 
-        self.concat_settings = str(base_year) + "_" + system + "_" + aggregation_name
-        self.model_dir = DATA_DIR / self.concat_settings
+        self.summary_short = str(base_year) + "__" + system + "__" + aggregation_name
+        self.summary_long = self.summary_short + capital * "__with_capital"
+        self.exiobase_dir = EXIOBASE_DIR / self.summary_short
+        self.model_dir = MODELS_DIR / self.summary_long
         self.raw_file_name = f"IOT_{base_year}_{system}.zip"
-        self.pickle_file_name = self.concat_settings + ".pickle"
-        self.local_figures_dir = FIGURES_DIR / self.concat_settings
-        if not os.path.isdir(self.local_figures_dir):
-            os.mkdir(self.local_figures_dir)
+        self.pickle_file_name = self.summary_short + ".pickle"
+        self.figures_dir = FIGURES_DIR / self.summary_long
+        if self.capital:
+            self.capital_consumption_path = (
+                CAPITAL_CONS_DIR / f"Kbar_exio_v3_6_{self.base_year}{self.system}.mat"
+            )
 
-        self.iot = build_reference_data(self)
+        self.iot = build_reference_data(model=self)
         self.regions = list(self.iot.get_regions())
         self.sectors = list(self.iot.get_sectors())
         self.y_categories = list(self.iot.get_Y_categories())
 
         self._regions_mapper = regions_mapper
         self._sectors_mapper = sectors_mapper
-        self.rev_regions_mapper = reverse_mapper(regions_mapper)
-        self.rev_sectors_mapper = reverse_mapper(sectors_mapper)
+        self.rev_regions_mapper = reverse_mapper(mapper=regions_mapper)
+        self.rev_sectors_mapper = reverse_mapper(mapper=sectors_mapper)
         if regions_mapper is None:
             self.new_regions_index = None
             self.agg_regions = self.regions
@@ -99,8 +106,10 @@ class Model:
             from scenarios import DICT_SCENARIOS
 
             parameters_dict = DICT_SCENARIOS
-        for name, scenario_parameters in parameters_dict.items():
-            self.new_counterfactual(name, scenario_parameters, reloc)
+        for name, scenar_function in parameters_dict.items():
+            self.new_counterfactual(
+                name=name, scenar_function=scenar_function, reloc=reloc
+            )
             if verbose:
                 print(f"New counterfactual created : {name}")
 
@@ -123,7 +132,7 @@ class Model:
     @regions_mapper.setter
     def regions_mapper(self, mapper):
         self._regions_mapper = mapper
-        self.rev_regions_mapper = reverse_mapper(mapper)
+        self.rev_regions_mapper = reverse_mapper(mapper=mapper)
         if mapper is None:
             self.new_regions_index = None
             self.agg_regions = self.regions
@@ -138,7 +147,7 @@ class Model:
     @sectors_mapper.setter
     def sectors_mapper(self, mapper):
         self._sectors_mapper = mapper
-        self.rev_sectors_mapper = reverse_mapper(mapper)
+        self.rev_sectors_mapper = reverse_mapper(mapper=mapper)
         if mapper is None:
             self.agg_sectors = self.sectors
             self.new_sectors_index = None
@@ -162,10 +171,12 @@ class Model:
             title (str, optional): title of the figure. Defaults to None.
         """
         if counterfactual_name is None:
-            figures.plot_carbon_footprint(self, region, title)
+            figures.plot_carbon_footprint(model=self, region=region, title=title)
         else:
             counterfactual = self.counterfactuals[counterfactual_name]
-            figures.plot_carbon_footprint(counterfactual, region, title)
+            figures.plot_carbon_footprint(
+                model=counterfactual, region=region, title=title
+            )
 
     def plot_carbon_footprint_FR(
         self, counterfactual_name: str = None, title: str = None
@@ -177,10 +188,10 @@ class Model:
             title (str, optional): title of the figure. Defaults to None.
         """
         if counterfactual_name is None:
-            figures.plot_carbon_footprint_FR(self, title)
+            figures.plot_carbon_footprint_FR(model=self)
         else:
             counterfactual = self.counterfactuals[counterfactual_name]
-            figures.plot_carbon_footprint_FR(counterfactual, title)
+            figures.plot_carbon_footprint_FR(model=counterfactual)
 
     def ghg_content_heatmap(
         self,
@@ -193,7 +204,9 @@ class Model:
             counterfactual_name (str, optional): name of the counterfactual to plot, or None to plot the reference (self). Defaults to None.
             prod (bool, optional): True to focus on production values, otherwise focus on consumption values. Defaults to False.
         """
-        figures.ghg_content_heatmap(self, counterfactual_name, prod)
+        figures.ghg_content_heatmap(
+            model=self, counterfactual_name=counterfactual_name, prod=prod
+        )
 
     ## comparison plots
 
@@ -203,7 +216,9 @@ class Model:
         Args:
             counterfactual_name (str): name of the counterfactual in model.counterfactuals
         """
-        figures.plot_trade_synthesis(self, counterfactual_name)
+        figures.plot_trade_synthesis(
+            model=self, counterfactual_name=counterfactual_name
+        )
 
     def plot_co2eq_synthesis(self, counterfactual_name: str) -> None:
         """Plots the french emissions per sector for a given counterfactual
@@ -211,7 +226,9 @@ class Model:
         Args:
             counterfactual_name (str): name of the counterfactual in model.counterfactuals
         """
-        figures.plot_co2eq_synthesis(self, counterfactual_name)
+        figures.plot_co2eq_synthesis(
+            model=self, counterfactual_name=counterfactual_name
+        )
 
     def plot_ghg_synthesis(self, counterfactual_name: str) -> None:
         """Plots the french emissions per GHG for a given counterfactual
@@ -219,7 +236,7 @@ class Model:
         Args:
             counterfactual_name (str): name of the counterfactual in model.counterfactuals
         """
-        figures.plot_ghg_synthesis(self, counterfactual_name)
+        figures.plot_ghg_synthesis(model=self, counterfactual_name=counterfactual_name)
 
     ## plots for all scenarios
 
@@ -229,7 +246,7 @@ class Model:
         Args:
             verbose (bool, optional): True to print infos. Defaults to True.
         """
-        figures.compare_scenarios(self, verbose)
+        figures.compare_scenarios(model=self, verbose=verbose)
 
     def ghg_content_heatmap_all(self, prod: bool = False) -> None:
         """Plots the GHG contents each sector for each region in a heatmap for each counterfactual
@@ -238,22 +255,22 @@ class Model:
             prod (bool, optional): True to focus on production values, otherwise focus on consumption values. Defaults to False.
         """
         for counterfactual_name in self.get_counterfactuals_list():
-            self.ghg_content_heatmap(counterfactual_name, prod)
+            self.ghg_content_heatmap(counterfactual_name=counterfactual_name, prod=prod)
 
     def plot_trade_synthesis_all(self) -> None:
         """Plots the french importations for each counterfactual"""
         for counterfactual_name in self.get_counterfactuals_list():
-            self.plot_trade_synthesis(counterfactual_name)
+            self.plot_trade_synthesis(counterfactual_name=counterfactual_name)
 
     def plot_co2eq_synthesis_all(self) -> None:
         """Plots the french emissions by sector for each counterfactual"""
         for counterfactual_name in self.get_counterfactuals_list():
-            self.plot_co2eq_synthesis(counterfactual_name)
+            self.plot_co2eq_synthesis(counterfactual_name=counterfactual_name)
 
     def plot_ghg_synthesis_all(self) -> None:
         """Plot the french emissions per GHG for each counterfactual"""
         for counterfactual_name in self.get_counterfactuals_list():
-            self.plot_ghg_synthesis(counterfactual_name)
+            self.plot_ghg_synthesis(counterfactual_name=counterfactual_name)
 
 
 class Counterfactual:
@@ -274,10 +291,12 @@ class Counterfactual:
         """
 
         self.name = name
-        self.iot = build_counterfactual_data(model, scenar_function, reloc)
-        self.local_figures_dir = model.local_figures_dir / name
-        if not os.path.isdir(self.local_figures_dir):
-            os.mkdir(self.local_figures_dir)
+        self.iot = build_counterfactual_data(
+            model=model, scenar_function=scenar_function, reloc=reloc
+        )
+        self.figures_dir = model.figures_dir / name
+        if not os.path.isdir(self.figures_dir):
+            os.mkdir(self.figures_dir)
 
         self.regions = model.regions
         self.sectors = model.sectors

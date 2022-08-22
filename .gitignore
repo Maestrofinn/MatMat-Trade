@@ -134,5 +134,3 @@ data/IOT*
 data/*.json
 figures/
 figures/*
-outputs/
-outputs/*
