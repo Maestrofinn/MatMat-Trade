@@ -5,14 +5,18 @@ import os
 import pandas as pd
 import pathlib
 import seaborn as sns
-from settings import COLORS, COLORS_NO_FR, REGIONS_AGG
 from unidecode import unidecode
-from utils import (
+
+from src.settings import COLORS, COLORS_NO_FR
+from src.utils import (
     aggregate_sum,
     aggregate_sum_2levels_2axes,
     aggregate_sum_2levels_on_axis1_level0_on_axis0,
     aggregate_sum_axis,
     aggregate_sum_level0_on_axis1_2levels_on_axis0,
+    aggregate_avg_simple_index,
+    build_description,
+    carbon_footprint_extractor,
 )
 
 
@@ -22,53 +26,60 @@ from utils import (
 def plot_carbon_footprint(
     model,
     region: str = "FR",
+    counterfactual_name: str = None,
     title: str = None,
 ) -> None:
     """Plots region's carbon footprint (D_pba-D_exp+D_imp+F_Y)
 
     Args:
-        model (Union[Model, Counterfactual]): object Model or Counterfactual defined in model.py
+        model (Model): object Model defined in model.py
         region (str, optional): region name. Defaults to "FR".
+        counterfactual_name (str, optional): name of the counterfactual in model.counterfactuals. None for the reference. Defaults to None.
         title (Optional[str], optional): title of the figure. Defaults to None.
     """
-
-    ghg_emissions_desag = model.iot.ghg_emissions_desag
-
-    D_exp = ghg_emissions_desag.D_exp
-    D_pba = ghg_emissions_desag.D_pba
-    D_imp = ghg_emissions_desag.D_imp
-    F_Y = ghg_emissions_desag.F_Y
+    if counterfactual_name is None:
+        counterfactual = model
+    else:
+        counterfactual = model.counterfactuals[counterfactual_name]
 
     carbon_footprint = pd.DataFrame(
-        {
-            "Exportées": [-D_exp[region].sum().sum()],
-            "Production": [D_pba[region].sum().sum()],
-            "Importées": [D_imp[region].sum().sum()],
-            "Conso finale": [F_Y[region].sum().sum()],
-        }
+        carbon_footprint_extractor(model=counterfactual, region=region), index=[""]
     )
+
     carbon_footprint.plot.barh(stacked=True, fontsize=17, figsize=(10, 5), rot=0)
 
     if title is None:
         title = f"Empreinte carbone de la région {region}"
-    plt.title(title, size=17)
+    plt.title(title, size=17, fontweight="bold")
     plt.xlabel("MtCO2eq", size=15)
-    plt.tight_layout()
     plt.grid(visible=True)
-    plt.legend(prop={"size": 17})
+    plt.legend(prop={"size": 15})
+    plt.text(
+        0.13,
+        -0.2,
+        build_description(model=model, counterfactual_name=counterfactual_name),
+        transform=plt.gcf().transFigure,
+    )
 
-    plt.savefig(model.local_figures_dir / f"empreinte_carbone_{region}.png")
+    plt.savefig(counterfactual.figures_dir / f"empreinte_carbone_{region}.png")
 
 
 def plot_carbon_footprint_FR(
     model,
+    counterfactual_name: str = None,
 ) -> None:
     """Plots french carbon footprint (D_pba-D_exp+D_imp+F_Y)
 
     Args:
-        model (Union[Model, Counterfactual]): object Model or Counterfactual defined in model.py
+        model (Model): object Model defined in model.py
+        counterfactual_name (str, optional): name of the counterfactual in model.counterfactuals. None for the reference. Defaults to None.
     """
-    plot_carbon_footprint(model, "FR", "Empreinte carbone de la France")
+    plot_carbon_footprint(
+        model=model,
+        region="FR",
+        counterfactual_name=counterfactual_name,
+        title="Empreinte carbone de la France",
+    )
 
 
 ### GHG CONTENT DESCRIPTION ###
@@ -82,8 +93,8 @@ def ghg_content_heatmap(
     """Plots the GHG contents each sector for each region in a heatmap
 
     Args:
-        model (Union[Model, Counterfactual]): object Model or Counterfactual defined in model.py
-        counterfactual_name (str): name of the counterfactual in model.counterfactuals
+        model (Model): object Model defined in model.py
+        counterfactual_name (str, optional): name of the counterfactual in model.counterfactuals. None for the reference. Defaults to None.
         prod (bool, optional): True to focus on production values, otherwise focus on consumption values. Defaults to False.
     """
     if counterfactual_name is None:
@@ -99,20 +110,20 @@ def ghg_content_heatmap(
         x = counterfactual.iot.x["indout"]
         S_pond = S.multiply(x)
         S_pond_agg = aggregate_sum_axis(
-            S_pond,
-            0,
-            model.new_regions_index,
-            model.new_sectors_index,
-            model.rev_regions_mapper,
-            model.rev_sectors_mapper,
+            df=S_pond,
+            axis=0,
+            new_index_0=model.new_regions_index,
+            new_index_1=model.new_sectors_index,
+            reverse_mapper_0=model.rev_regions_mapper,
+            reverse_mapper_1=model.rev_sectors_mapper,
         )
         x_agg = aggregate_sum_axis(
-            x,
-            0,
-            model.new_regions_index,
-            model.new_sectors_index,
-            model.rev_regions_mapper,
-            model.rev_sectors_mapper,
+            df=x,
+            axis=0,
+            new_index_0=model.new_regions_index,
+            new_index_1=model.new_sectors_index,
+            reverse_mapper_0=model.rev_regions_mapper,
+            reverse_mapper_1=model.rev_sectors_mapper,
         )
         S_mean_pond_agg = (
             S_pond_agg.div(x_agg).replace([-np.inf, np.inf], np.NaN).fillna(0)
@@ -125,20 +136,20 @@ def ghg_content_heatmap(
         y = counterfactual.iot.Y.sum(axis=1)
         M_pond = M.multiply(y)
         M_pond_agg = aggregate_sum_axis(
-            M_pond,
-            0,
-            model.new_regions_index,
-            model.new_sectors_index,
-            model.rev_regions_mapper,
-            model.rev_sectors_mapper,
+            df=M_pond,
+            axis=0,
+            new_index_0=model.new_regions_index,
+            new_index_1=model.new_sectors_index,
+            reverse_mapper_0=model.rev_regions_mapper,
+            reverse_mapper_1=model.rev_sectors_mapper,
         )
         y_agg = aggregate_sum_axis(
-            y,
-            0,
-            model.new_regions_index,
-            model.new_sectors_index,
-            model.rev_regions_mapper,
-            model.rev_sectors_mapper,
+            df=y,
+            axis=0,
+            new_index_0=model.new_regions_index,
+            new_index_1=model.new_sectors_index,
+            reverse_mapper_0=model.rev_regions_mapper,
+            reverse_mapper_1=model.rev_sectors_mapper,
         )
         M_mean_pond_agg = (
             M_pond_agg.div(y_agg).replace([-np.inf, np.inf], np.NaN).fillna(0)
@@ -156,13 +167,61 @@ def ghg_content_heatmap(
         linewidths=1,
         linecolor="black",
         cbar_kws={"format": "%.0f%%"},
-    ).set_title(title, size=13)
+    ).set_title(title, size=13, fontweight="bold")
     plt.yticks(size=11)
     plt.xticks(size=11)
     ax.set_xlabel(None)
     ax.set_ylabel(None)
     fig.tight_layout()
-    plt.savefig(model.local_figures_dir / ("ghg_content_heatmap_" + activity))
+    plt.text(
+        0.13,
+        -0.2,
+        build_description(model=model, counterfactual_name=counterfactual_name),
+        transform=plt.gcf().transFigure,
+    )
+    plt.savefig(model.figures_dir / ("ghg_content_heatmap_" + activity))
+
+
+def ghg_content_production(model, counterfactual_name: str = None) -> None:
+    """Compares the GHG content of each region for each sector
+
+    Args:
+        model (Model): object Model defined in model.py
+        counterfactual_name (str, optional): name of the counterfactual in model.counterfactuals. None for the reference. Defaults to None.
+    """
+    if counterfactual_name is None:
+        counterfactual = model
+    else:
+        counterfactual = model.counterfactuals[counterfactual_name]
+
+    S_unstacked = (counterfactual.iot.ghg_emissions_desag.S * 1000).sum().unstack().T
+
+    S_unstacked = aggregate_avg_simple_index(
+        df=S_unstacked,
+        axis=0,
+        new_index=model.agg_sectors,
+        reverse_mapper=model.rev_sectors_mapper,
+    )
+    S_unstacked = aggregate_avg_simple_index(
+        df=S_unstacked,
+        axis=1,
+        new_index=model.agg_regions,
+        reverse_mapper=model.rev_regions_mapper,
+    )
+
+    S_unstacked.plot.barh(fontsize=17, figsize=(12, 8), color=COLORS)
+    plt.title("Contenu carbone de la production", size=17, fontweight="bold")
+    plt.xlabel("kgCO2eq / €", size=15)
+    plt.tight_layout()
+    plt.grid(visible=True)
+    plt.legend(prop={"size": 15})
+    plt.text(
+        0.13,
+        -0.2,
+        build_description(model=model, counterfactual_name=counterfactual_name),
+        transform=plt.gcf().transFigure,
+    )
+    plt.savefig(model.figures_dir / "ghg_content_hbar_production.png")
 
 
 ### SCENARIO COMPARISON ###
@@ -205,32 +264,32 @@ def compare_scenarios(
             print(f"Processing {name}")
 
         D_cba = aggregate_sum_2levels_on_axis1_level0_on_axis0(
-            situation.iot.ghg_emissions_desag.D_cba,
-            model.new_regions_index,
-            model.new_sectors_index,
-            model.rev_regions_mapper,
-            model.rev_sectors_mapper,
+            df=situation.iot.ghg_emissions_desag.D_cba,
+            new_index_0=model.new_regions_index,
+            new_index_1=model.new_sectors_index,
+            reverse_mapper_0=model.rev_regions_mapper,
+            reverse_mapper_1=model.rev_sectors_mapper,
         )
         F_Y = aggregate_sum(
-            situation.iot.ghg_emissions_desag.F_Y,
-            0,
-            1,
-            model.new_regions_index,
-            model.rev_regions_mapper,
+            df=situation.iot.ghg_emissions_desag.F_Y,
+            level=0,
+            axis=1,
+            new_index=model.new_regions_index,
+            reverse_mapper=model.rev_regions_mapper,
         )
         Y = aggregate_sum_level0_on_axis1_2levels_on_axis0(
-            situation.iot.Y,
-            model.new_regions_index,
-            model.new_sectors_index,
-            model.rev_regions_mapper,
-            model.rev_sectors_mapper,
+            df=situation.iot.Y,
+            new_index_0=model.new_regions_index,
+            new_index_1=model.new_sectors_index,
+            reverse_mapper_0=model.rev_regions_mapper,
+            reverse_mapper_1=model.rev_sectors_mapper,
         )
         Z = aggregate_sum_2levels_2axes(
-            situation.iot.Z,
-            model.new_regions_index,
-            model.new_sectors_index,
-            model.rev_regions_mapper,
-            model.rev_sectors_mapper,
+            df=situation.iot.Z,
+            new_index_0=model.new_regions_index,
+            new_index_1=model.new_sectors_index,
+            reverse_mapper_0=model.rev_regions_mapper,
+            reverse_mapper_1=model.rev_sectors_mapper,
         )
 
         for reg in regions:
@@ -240,14 +299,14 @@ def compare_scenarios(
             trade_all_scen.loc[reg, name] = (
                 Y["FR"].sum(axis=1) + Z["FR"].sum(axis=1)
             ).sum(level=0)[reg]
-    
+
     if verbose:
         print("\n\n\nFrench GHG imports\n")
         print(ghg_all_scen)
         print("\n\n\nFrench imports\n")
         print(trade_all_scen)
         print("\n")
-    
+
     ghg_all_scen.T.plot.bar(
         stacked=True,
         fontsize=17,
@@ -255,13 +314,19 @@ def compare_scenarios(
         rot=0,
         color=COLORS[: len(regions)],
     )
-    plt.title("Empreinte carbone de la France", size=17)
+    plt.title("Empreinte carbone de la France", size=17, fontweight="bold")
     plt.ylabel("MtCO2eq", size=15)
     plt.tight_layout()
     plt.grid(visible=True)
     plt.legend(prop={"size": 15})
-    plt.savefig(model.local_figures_dir / "compare_scenarios_ghg.png")
-    
+    plt.text(
+        0.13,
+        -0.2,
+        build_description(model=model, counterfactual_name=False),
+        transform=plt.gcf().transFigure,
+    )
+    plt.savefig(model.figures_dir / "compare_scenarios_ghg.png")
+
     trade_all_scen.T.plot.bar(
         stacked=True,
         fontsize=17,
@@ -269,13 +334,19 @@ def compare_scenarios(
         rot=0,
         color=COLORS[: len(regions)],
     )
-    plt.title("Provenance de la consommation de la France", size=17)
+    plt.title("Provenance de la consommation de la France", size=17, fontweight="bold")
     plt.ylabel("x 1000 milliards d'€", size=15)
     plt.tight_layout()
     plt.grid(visible=True)
     plt.legend(prop={"size": 15})
-    plt.savefig(model.local_figures_dir / "compare_scenarios_trade.png")
-    
+    plt.text(
+        0.13,
+        -0.2,
+        build_description(model=model, counterfactual_name=False),
+        transform=plt.gcf().transFigure,
+    )
+    plt.savefig(model.figures_dir / "compare_scenarios_trade.png")
+
     _, axes = plt.subplots(nrows=1, ncols=2)
     ghg_all_scen.drop("FR").T.plot.bar(
         ax=axes[0],
@@ -285,7 +356,9 @@ def compare_scenarios(
         rot=0,
         color=COLORS_NO_FR[: len(regions)],
     )
-    axes[0].set_title("Emissions de GES importées par la France", size=17)
+    axes[0].set_title(
+        "Emissions de GES importées par la France", size=17, fontweight="bold"
+    )
     axes[0].legend(prop={"size": 15})
     axes[0].tick_params(axis="x", rotation=45)
     axes[0].set_ylabel("MtCO2eq", size=15)
@@ -302,8 +375,14 @@ def compare_scenarios(
     axes[1].tick_params(axis="x", rotation=45)
     axes[1].set_ylabel("M€", size=15)
     axes[1].legend(prop={"size": 15})
+    plt.text(
+        0.13,
+        -0.2,
+        build_description(model=model, counterfactual_name=False),
+        transform=plt.gcf().transFigure,
+    )
     plt.tight_layout()
-    plt.savefig(model.local_figures_dir / "compare_scenarios_imports.png")
+    plt.savefig(model.figures_dir / "compare_scenarios_imports.png")
 
 
 ### SPECIFIC SYNTHESES ###
@@ -316,6 +395,7 @@ def plot_df_synthesis(
     account_unit: str,
     scenario_name: str,
     output_dir: pathlib.PosixPath,
+    description: str,
 ) -> None:
     """Plots some figures for a given counterfactual
 
@@ -325,6 +405,8 @@ def plot_df_synthesis(
         account_name (str): name of the account considered in french, for display purpose (eg: "importations françaises", "empreinte carbone française")
         account_unit (str): account unit for display purpose (must be the same in both dataframes)
         scenario_name(str): name of the scenario (used to save the figures)
+        output_dir (pathlib.PosixPath): where to save the figure
+        description (str): general settings description to display at the bottom
     """
 
     regions = list(
@@ -350,10 +432,16 @@ def plot_df_synthesis(
     ref_imports_by_region_FR.T.plot.barh(
         stacked=True, fontsize=17, color=COLORS_NO_FR, figsize=(12, 5)
     )
-    plt.title(f"{account_name} par région (référence)", size=17)
-    plt.xlabel(account_unit)
+    plt.title(f"{account_name} par région (référence)", size=17, fontweight="bold")
+    plt.xlabel(account_unit, size=15)
     plt.tight_layout()
     plt.grid(visible=True)
+    plt.text(
+        0.13,
+        -0.2,
+        description,
+        transform=plt.gcf().transFigure,
+    )
     plt.savefig(current_dir / "reference.png")
 
     # plot counterfactual importations
@@ -363,10 +451,20 @@ def plot_df_synthesis(
     scen_imports_by_region_FR.T.plot.barh(
         stacked=True, fontsize=17, color=COLORS_NO_FR, figsize=(12, 5)
     )
-    plt.title(f"{account_name} par région (scénario {scenario_name})", size=17)
-    plt.xlabel(account_unit)
+    plt.title(
+        f"{account_name} par région (scénario {scenario_name})",
+        size=17,
+        fontweight="bold",
+    )
+    plt.xlabel(account_unit, size=15)
     plt.tight_layout()
     plt.grid(visible=True)
+    plt.text(
+        0.13,
+        -0.2,
+        description,
+        transform=plt.gcf().transFigure,
+    )
     plt.savefig(current_dir / f"{scenario_name}.png")
 
     # compare counterfactual and reference importations
@@ -379,11 +477,17 @@ def plot_df_synthesis(
     compare_imports_by_region_FR.T.plot.barh(
         stacked=True, fontsize=17, figsize=(12, 8), color=COLORS_NO_FR
     )
-    plt.title(f"{account_name} (comparaison)", size=17)
-    plt.xlabel(account_unit)
+    plt.title(f"{account_name} (comparaison)", size=17, fontweight="bold")
+    plt.xlabel(account_unit, size=15)
     plt.tight_layout()
     plt.grid(visible=True)
     plt.legend(prop={"size": 12})
+    plt.text(
+        0.13,
+        -0.2,
+        description,
+        transform=plt.gcf().transFigure,
+    )
     plt.savefig(current_dir / f"comparison_by_region.png")
 
     # compare each region for each importation sector for the reference and the counterfactual
@@ -449,14 +553,17 @@ def plot_df_synthesis(
             )
         )
         fig.subplots_adjust(wspace=0)
-        fig.suptitle(
-            plot_title,
-            size=17,
-        )
+        fig.suptitle(plot_title, size=17, fontweight="bold")
         plt.tight_layout()
         if not percent_x_scale:
-            plt.xlabel(account_unit)
+            plt.xlabel(account_unit, size=15)
         plt.legend(ncol=3, loc="lower left", bbox_to_anchor=(-0.35, -4.5))
+        plt.text(
+            0.13,
+            -0.2,
+            description,
+            transform=plt.gcf().transFigure,
+        )
         plt.savefig(current_dir / plot_filename)
         plt.show()
 
@@ -516,44 +623,47 @@ def plot_trade_synthesis(
     counterfactual = model.counterfactuals[counterfactual_name]
 
     ref_Y = aggregate_sum_level0_on_axis1_2levels_on_axis0(
-        model.iot.Y,
-        model.new_regions_index,
-        model.new_sectors_index,
-        model.rev_regions_mapper,
-        model.rev_sectors_mapper,
+        df=model.iot.Y,
+        new_index_0=model.new_regions_index,
+        new_index_1=model.new_sectors_index,
+        reverse_mapper_0=model.rev_regions_mapper,
+        reverse_mapper_1=model.rev_sectors_mapper,
     )
     ref_Z = aggregate_sum_2levels_2axes(
-        model.iot.Z,
-        model.new_regions_index,
-        model.new_sectors_index,
-        model.rev_regions_mapper,
-        model.rev_sectors_mapper,
+        df=model.iot.Z,
+        new_index_0=model.new_regions_index,
+        new_index_1=model.new_sectors_index,
+        reverse_mapper_0=model.rev_regions_mapper,
+        reverse_mapper_1=model.rev_sectors_mapper,
     )
     count_Y = aggregate_sum_level0_on_axis1_2levels_on_axis0(
-        counterfactual.iot.Y,
-        model.new_regions_index,
-        model.new_sectors_index,
-        model.rev_regions_mapper,
-        model.rev_sectors_mapper,
+        df=counterfactual.iot.Y,
+        new_index_0=model.new_regions_index,
+        new_index_1=model.new_sectors_index,
+        reverse_mapper_0=model.rev_regions_mapper,
+        reverse_mapper_1=model.rev_sectors_mapper,
     )
     count_Z = aggregate_sum_2levels_2axes(
-        counterfactual.iot.Z,
-        model.new_regions_index,
-        model.new_sectors_index,
-        model.rev_regions_mapper,
-        model.rev_sectors_mapper,
+        df=counterfactual.iot.Z,
+        new_index_0=model.new_regions_index,
+        new_index_1=model.new_sectors_index,
+        reverse_mapper_0=model.rev_regions_mapper,
+        reverse_mapper_1=model.rev_sectors_mapper,
     )
 
     reference_trade = ref_Y["FR"].sum(axis=1) + ref_Z["FR"].sum(axis=1)
     counterfactual_trade = count_Y["FR"].sum(axis=1) + count_Z["FR"].sum(axis=1)
 
     plot_df_synthesis(
-        reference_trade,
-        counterfactual_trade,
-        "importations françaises",
-        "M€",
-        counterfactual_name,
-        counterfactual.local_figures_dir,
+        reference_df=reference_trade,
+        counterfactual_df=counterfactual_trade,
+        account_name="importations françaises",
+        account_unit="M€",
+        scenario_name=counterfactual_name,
+        output_dir=counterfactual.figures_dir,
+        description=build_description(
+            model=model, counterfactual_name=counterfactual_name
+        ),
     )
 
 
@@ -579,30 +689,33 @@ def plot_co2eq_synthesis(
     for name, description in emissions_types.items():
 
         ref_df = aggregate_sum_2levels_on_axis1_level0_on_axis0(
-            getattr(model.iot.ghg_emissions_desag, name),
-            model.new_regions_index,
-            model.new_sectors_index,
-            model.rev_regions_mapper,
-            model.rev_sectors_mapper,
+            df=getattr(model.iot.ghg_emissions_desag, name),
+            new_index_0=model.new_regions_index,
+            new_index_1=model.new_sectors_index,
+            reverse_mapper_0=model.rev_regions_mapper,
+            reverse_mapper_1=model.rev_sectors_mapper,
         )
         count_df = aggregate_sum_2levels_on_axis1_level0_on_axis0(
-            getattr(counterfactual.iot.ghg_emissions_desag, name),
-            model.new_regions_index,
-            model.new_sectors_index,
-            model.rev_regions_mapper,
-            model.rev_sectors_mapper,
+            df=getattr(counterfactual.iot.ghg_emissions_desag, name),
+            new_index_0=model.new_regions_index,
+            new_index_1=model.new_sectors_index,
+            reverse_mapper_0=model.rev_regions_mapper,
+            reverse_mapper_1=model.rev_sectors_mapper,
         )
 
         reference_trade = ref_df["FR"].sum(level=0).stack()
         counterfactual_trade = count_df["FR"].sum(level=0).stack()
 
         plot_df_synthesis(
-            reference_trade,
-            counterfactual_trade,
-            description,
-            "MtCO2eq",
-            counterfactual_name,
-            counterfactual.local_figures_dir,
+            reference_df=reference_trade,
+            counterfactual_df=counterfactual_trade,
+            account_name=description,
+            account_unit="MtCO2eq",
+            scenario_name=counterfactual_name,
+            output_dir=counterfactual.figures_dir,
+            description=build_description(
+                model=model, counterfactual_name=counterfactual_name
+            ),
         )
 
 
@@ -628,28 +741,31 @@ def plot_ghg_synthesis(
     for name, description in emissions_types.items():
 
         ref_df = aggregate_sum_2levels_on_axis1_level0_on_axis0(
-            getattr(model.iot.ghg_emissions_desag, name),
-            model.new_regions_index,
-            model.new_sectors_index,
-            model.rev_regions_mapper,
-            model.rev_sectors_mapper,
+            df=getattr(model.iot.ghg_emissions_desag, name),
+            new_index_0=model.new_regions_index,
+            new_index_1=model.new_sectors_index,
+            reverse_mapper_0=model.rev_regions_mapper,
+            reverse_mapper_1=model.rev_sectors_mapper,
         )
         count_df = aggregate_sum_2levels_on_axis1_level0_on_axis0(
-            getattr(counterfactual.iot.ghg_emissions_desag, name),
-            model.new_regions_index,
-            model.new_sectors_index,
-            model.rev_regions_mapper,
-            model.rev_sectors_mapper,
+            df=getattr(counterfactual.iot.ghg_emissions_desag, name),
+            new_index_0=model.new_regions_index,
+            new_index_1=model.new_sectors_index,
+            reverse_mapper_0=model.rev_regions_mapper,
+            reverse_mapper_1=model.rev_sectors_mapper,
         )
 
         reference_ghg = ref_df["FR"].sum(axis=1)
         counterfactual_ghg = count_df["FR"].sum(axis=1)
 
         plot_df_synthesis(
-            reference_ghg,
-            counterfactual_ghg,
-            description,
-            "MtCO2eq",
-            counterfactual_name,
-            counterfactual.local_figures_dir,
+            reference_df=reference_ghg,
+            counterfactual_df=counterfactual_ghg,
+            account_name=description,
+            account_unit="MtCO2eq",
+            scenario_name=counterfactual_name,
+            output_dir=counterfactual.figures_dir,
+            description=build_description(
+                model=model, counterfactual_name=counterfactual_name
+            ),
         )

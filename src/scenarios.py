@@ -1,7 +1,9 @@
-from model import Model
 import numpy as np
 import pandas as pd
 from typing import Callable, Dict, List, Tuple
+
+from src.model import Model
+
 
 ### AUXILIARY FUNCTIONS FOR SCENARIOS ###
 
@@ -101,7 +103,7 @@ def moves_from_sort_rule(
     for sector in sectors_list:
         regions_index = sorting_rule_by_sector(model, sector, reloc)
         new_inter_imports, new_final_imports = moves_from_sorted_index_by_sector(
-            model, sector, regions_index, reloc
+            model=model, sector=sector, regions_index=regions_index, reloc=reloc
         )
         new_Z.loc[(slice(None), sector), ("FR", slice(None))] = new_inter_imports.values
         new_Y.loc[(slice(None), sector), ("FR", slice(None))] = new_final_imports.values
@@ -143,7 +145,9 @@ def scenar_best(model: Model, reloc: bool = False) -> Dict:
             - reallocated Y matrix
     """
 
-    return moves_from_sort_rule(model, sort_by_content, reloc)
+    return moves_from_sort_rule(
+        model=model, sorting_rule_by_sector=sort_by_content, reloc=reloc
+    )
 
 
 def scenar_worst(model: Model, reloc: bool = False) -> Dict:
@@ -161,7 +165,9 @@ def scenar_worst(model: Model, reloc: bool = False) -> Dict:
     """
 
     return moves_from_sort_rule(
-        model, lambda *args: sort_by_content(*args)[::-1], reloc
+        model=model,
+        sorting_rule_by_sector=lambda *args: sort_by_content(*args)[::-1],
+        reloc=reloc,
     )
 
 
@@ -296,10 +302,14 @@ def scenar_pref(model, allies: List[str], reloc: bool = False) -> Dict:
                     new_Y.loc[(reg, sector), ("FR", slice(None))] = (
                         coef_allies_Y.loc[reg] * sector_imports_FR_Y.loc[reg]
                     ).values
-    
+
     ## process autoproduction
-    new_Z.loc[("FR", slice(None)), ("FR", slice(None))] += model.iot.Z.loc[("FR", slice(None)), ("FR", slice(None))].values
-    new_Y.loc[("FR", slice(None)), ("FR", slice(None))] += model.iot.Y.loc[("FR", slice(None)), ("FR", slice(None))].values
+    new_Z.loc[("FR", slice(None)), ("FR", slice(None))] += model.iot.Z.loc[
+        ("FR", slice(None)), ("FR", slice(None))
+    ].values
+    new_Y.loc[("FR", slice(None)), ("FR", slice(None))] += model.iot.Y.loc[
+        ("FR", slice(None)), ("FR", slice(None))
+    ].values
 
     return new_Z, new_Y
 
@@ -317,7 +327,7 @@ def scenar_pref_eu(model: Model, reloc: bool = False) -> Dict:
             - reallocated Y matrix
     """
 
-    return scenar_pref(model, ["EU"], reloc)
+    return scenar_pref(model=model, allies=["EU"], reloc=reloc)
 
 
 ### TRADE WAR SCENARIOS ###
@@ -340,7 +350,7 @@ def scenar_tradewar(model: Model, opponents: List[str], reloc: bool = False) -> 
     allies = list(set(model.regions) - set(opponents))
     if not reloc:
         allies.remove("FR")
-    return scenar_pref(model, allies, reloc)
+    return scenar_pref(model=model, allies=allies, reloc=reloc)
 
 
 def scenar_tradewar_china(model: Model, reloc: bool = False) -> Dict:
@@ -357,7 +367,9 @@ def scenar_tradewar_china(model: Model, reloc: bool = False) -> Dict:
             - reallocated Y matrix
     """
 
-    return scenar_tradewar(model, ["China, RoW Asia and Pacific"], reloc)
+    return scenar_tradewar(
+        model=model, opponents=["China, RoW Asia and Pacific"], reloc=reloc
+    )
 
 
 ### AVAILABLE SCENARIOS ###

@@ -8,13 +8,23 @@ import sys
 ### LOCAL PATHS ###
 sys.path.append(os.sep.join(sys.path[0].split(os.sep)[:-1]))
 
-BASE_DIR = pathlib.Path(__file__).parents[0]
+BASE_DIR = pathlib.Path(__file__).parents[1]
 DATA_DIR = BASE_DIR / "data"
 AGGREGATION_DIR = DATA_DIR / "aggregation"
-OUTPUT_DIR = BASE_DIR / "outputs"
+CAPITAL_CONS_DIR = DATA_DIR / "capital_consumption"
+EXIOBASE_DIR = DATA_DIR / "exiobase"
+MODELS_DIR = DATA_DIR / "models"
 FIGURES_DIR = BASE_DIR / "figures"
+FIGURES_MULTIMODEL_DIR = FIGURES_DIR / "multimodel"
 
-for path in [DATA_DIR, OUTPUT_DIR, FIGURES_DIR]:
+for path in [
+    DATA_DIR,
+    CAPITAL_CONS_DIR,
+    EXIOBASE_DIR,
+    MODELS_DIR,
+    FIGURES_DIR,
+    FIGURES_MULTIMODEL_DIR,
+]:
     if not os.path.isdir(path):
         os.mkdir(path)
 

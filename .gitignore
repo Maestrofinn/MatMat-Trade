@@ -129,10 +129,8 @@ dmypy.json
 .pyre/
 
 # additional gitignore from user
-data/20*
-data/IOT*
-data/*.json
+data/capital_consumption/*
+data/exiobase/*
+data/models/*
 figures/
 figures/*
-outputs/
-outputs/*

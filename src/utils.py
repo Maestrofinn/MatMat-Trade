@@ -1,12 +1,18 @@
 import os
 import numpy as np
 import pandas as pd
+import pathlib
 import pickle as pkl
+import pycountry
 import pymrio
 from pymrio.tools import ioutil
-from settings import AGGREGATION_DIR, DATA_DIR, GLOBAL_WARMING_POTENTIAL, OUTPUT_DIR
-from typing import Dict
+from scipy.io import loadmat
+from typing import Dict, List
 import warnings
+import wget
+
+from src.settings import AGGREGATION_DIR, GLOBAL_WARMING_POTENTIAL
+
 
 # remove pandas warning related to pymrio future deprecations
 warnings.simplefilter(action="ignore", category=FutureWarning)
@@ -83,6 +89,58 @@ def recal_extensions_per_region(
     return extension
 
 
+def convert_region_from_capital_matrix(reg: str) -> str:
+    """Converts a capital matrix-formatted region code into an Exiobase-formatted region code
+
+    Args:
+        reg (str): capital matrix-formatted region code
+
+    Returns:
+        str: Exiobase v3-formatted region code
+    """
+
+    try:
+        return pycountry.countries.get(alpha_3=reg).alpha_2
+    except AttributeError:
+        if reg == "ROM":
+            return "RO"  # for Roumania, UNDP country code differs from alpha_3
+        elif reg in ["WWA", "WWL", "WWE", "WWF", "WWM"]:
+            return reg[1:]
+        else:
+            raise (ValueError, f"the country code {reg} is unkown.")
+
+
+def load_Kbar(year: int, system: str, path: pathlib.PosixPath) -> pd.DataFrame:
+    """Loads capital consumption matrix as a Pandas dataframe (including downloading if necessary)
+
+    Args:
+        year (int): year in 4 digits
+        system (str): system ('pxp', 'pxi')
+        path (pathlib.PosixPath): where to save the .mat file
+
+    Returns:
+        pd.DataFrame: same formatting than pymrio's Z matrix
+    """
+    if not os.path.isfile(path):
+        wget.download(
+            f"https://zenodo.org/record/3874309/files/Kbar_exio_v3_6_{year}{system}.mat",
+            str(path),
+        )
+    data_dict = loadmat(path)
+    data_array = data_dict["KbarCfc"]
+    capital_regions = [
+        convert_region_from_capital_matrix(reg[0][0]) for reg in data_dict["countries"]
+    ]
+    capital_sectors = [sec[0][0] for sec in data_dict["prodLabels"]]
+    capital_multiindex = pd.MultiIndex.from_tuples(
+        [(reg, sec) for reg in capital_regions for sec in capital_sectors],
+        names=["region", "sector"],
+    )
+    return pd.DataFrame.sparse.from_spmatrix(
+        data_array, index=capital_multiindex, columns=capital_multiindex
+    )
+
+
 ### DATA BUILDERS ###
 
 
@@ -96,36 +154,47 @@ def build_reference_data(model) -> pymrio.IOSystem:
         pymrio.IOSystem: pymrio object
     """
 
-    # create model directory if necessary
-    if not os.path.isdir(model.model_dir):
-        os.mkdir(model.model_dir)
+    # checks if calibration is necessary
+    force_calib = not os.path.isfile(model.model_dir / "file_parameters.json")
+
+    # create directories if necessary
+    for path in [model.exiobase_dir, model.model_dir, model.figures_dir]:
+        if not os.path.isdir(path):
+            os.mkdir(path)
 
     # downloading data if necessary
-    if not os.path.isfile(DATA_DIR / model.raw_file_name):
+    if not os.path.isfile(model.exiobase_dir / model.raw_file_name):
         print("Downloading data... (may take a few minutes)")
         pymrio.download_exiobase3(
-            storage_folder=DATA_DIR, system=model.system, years=model.base_year
+            storage_folder=model.exiobase_dir,
+            system=model.system,
+            years=model.base_year,
         )
         print("Data downloaded successfully !")
-
-    force_calib = not os.path.isdir(
-        model.model_dir / ("reference" + "_" + model.concat_settings)
-    )
 
     if model.calib or force_calib:
 
         print("Loading data... (may take a few minutes)")
 
         # import exiobase data
-        if os.path.isfile(model.model_dir / model.pickle_file_name):
-            with open(model.model_dir / model.pickle_file_name, "rb") as f:
+        if os.path.isfile(model.exiobase_dir / model.exiobase_pickle_file_name):
+            with open(model.exiobase_dir / model.exiobase_pickle_file_name, "rb") as f:
                 iot = pkl.load(f)
         else:
             iot = pymrio.parse_exiobase3(  # may need RAM + SWAP ~ 15 Gb
-                DATA_DIR / model.raw_file_name
+                model.exiobase_dir / model.raw_file_name
             )
-            with open(model.model_dir / model.pickle_file_name, "wb") as f:
+            with open(model.exiobase_dir / model.exiobase_pickle_file_name, "wb") as f:
                 pkl.dump(iot, f)
+
+        # endogenize capital
+        if model.capital:
+            Kbar = load_Kbar(
+                year=model.base_year,
+                system=model.system,
+                path=model.capital_consumption_path,
+            )
+            iot.Z += Kbar
 
         # extract GHG emissions
         extension_list = list()
@@ -204,16 +273,14 @@ def build_reference_data(model) -> pymrio.IOSystem:
         iot.ghg_emissions_desag = recal_extensions_per_region(iot, "ghg_emissions")
 
         # save model
-        iot.save_all(model.model_dir / ("reference" + "_" + model.concat_settings))
+        iot.save_all(model.model_dir)
 
         print("Data loaded successfully !")
 
     else:
 
         # import calibration data previously built with calib = True
-        iot = pymrio.parse_exiobase3(
-            model.model_dir / ("reference" + "_" + model.concat_settings)
-        )
+        iot = pymrio.parse_exiobase3(model.model_dir)
 
     return iot
 
@@ -245,12 +312,8 @@ def build_counterfactual_data(
     counterfactual.calc_all()
 
     counterfactual.ghg_emissions_desag = recal_extensions_per_region(
-        counterfactual,
-        "ghg_emissions",
-    )
-
-    counterfactual.save_all(
-        OUTPUT_DIR / ("counterfactual" + "_" + model.concat_settings)
+        iot=counterfactual,
+        extension_name="ghg_emissions",
     )
 
     return counterfactual
@@ -278,6 +341,33 @@ def reverse_mapper(mapper: Dict) -> Dict:
             new_mapper[elt] = key
 
     return new_mapper
+
+
+def aggregate_avg_simple_index(
+    df: pd.DataFrame,
+    axis: int,
+    new_index: pd.Index,
+    reverse_mapper: Dict = None,
+) -> pd.DataFrame:
+    """Aggregates data along given axis according to mapper.
+    WARNING: the aggregation is based on means, so it works only with intensive data.
+
+    Args:
+        df (pd.DataFrame): multiindexed DataFrame
+        axis (int): axis of aggregation (0 or 1)
+        new_index (pd.Index): aggregated index (useful to set the right order)
+        reverse_mapper (Dict, optional): dictionnary with old categories as keys and new ones as values, no aggregation if is None. Defaults to None.
+    Returns:
+        pd.DataFrame: aggregated DataFrame
+    """
+    if reverse_mapper is None:
+        return df
+    if axis == 1:
+        df = df.T
+    df = df.groupby(df.index.map(lambda x: reverse_mapper[x])).mean().reindex(new_index)
+    if axis == 1:
+        df = df.T
+    return df
 
 
 def aggregate_sum(
@@ -358,11 +448,17 @@ def aggregate_sum_axis(
     """
 
     return aggregate_sum(
-        aggregate_sum(df, 0, axis, new_index_0, reverse_mapper_0),
-        1,
-        axis,
-        new_index_1,
-        reverse_mapper_1,
+        df=aggregate_sum(
+            df=df,
+            level=0,
+            axis=axis,
+            new_index=new_index_0,
+            reverse_mapper=reverse_mapper_0,
+        ),
+        level=1,
+        axis=axis,
+        new_index=new_index_1,
+        reverse_mapper=reverse_mapper_1,
     )
 
 
@@ -388,14 +484,19 @@ def aggregate_sum_2levels_2axes(
     """
 
     return aggregate_sum_axis(
-        aggregate_sum_axis(
-            df, 0, new_index_0, new_index_1, reverse_mapper_0, reverse_mapper_1
+        df=aggregate_sum_axis(
+            df=df,
+            axis=0,
+            new_index_0=new_index_0,
+            new_index_1=new_index_1,
+            reverse_mapper_0=reverse_mapper_0,
+            reverse_mapper_1=reverse_mapper_1,
         ),
-        1,
-        new_index_0,
-        new_index_1,
-        reverse_mapper_0,
-        reverse_mapper_1,
+        axis=1,
+        new_index_0=new_index_0,
+        new_index_1=new_index_1,
+        reverse_mapper_0=reverse_mapper_0,
+        reverse_mapper_1=reverse_mapper_1,
     )
 
 
@@ -421,11 +522,17 @@ def aggregate_sum_2levels_on_axis1_level0_on_axis0(
     """
 
     return aggregate_sum(
-        aggregate_sum_2levels_2axes(df, new_index_0, None, reverse_mapper_0, None),
-        1,
-        1,
-        new_index_1,
-        reverse_mapper_1,
+        df=aggregate_sum_2levels_2axes(
+            df=df,
+            new_index_0=new_index_0,
+            new_index_1=None,
+            reverse_mapper_0=reverse_mapper_0,
+            reverse_mapper_1=None,
+        ),
+        level=1,
+        axis=1,
+        new_index=new_index_1,
+        reverse_mapper=reverse_mapper_1,
     )
 
 
@@ -451,9 +558,71 @@ def aggregate_sum_level0_on_axis1_2levels_on_axis0(
     """
 
     return aggregate_sum(
-        aggregate_sum_2levels_2axes(df, new_index_0, None, reverse_mapper_0, None),
-        1,
-        0,
-        new_index_1,
-        reverse_mapper_1,
+        df=aggregate_sum_2levels_2axes(
+            df=df,
+            new_index_0=new_index_0,
+            new_index_1=None,
+            reverse_mapper_0=reverse_mapper_0,
+            reverse_mapper_1=None,
+        ),
+        level=1,
+        axis=0,
+        new_index=new_index_1,
+        reverse_mapper=reverse_mapper_1,
     )
+
+
+### FEATURE EXTRACTORS ###
+
+
+def carbon_footprint_extractor(model, region: str = "FR") -> Dict:
+    """Computes region's carbon footprint (D_pba-D_exp+D_imp+F_Y)
+
+    Args:
+        model (Union[Model, Counterfactual]): object Model or Counterfactual defined in model.py
+        region (str, optional): region name. Defaults to "FR".
+
+    Returns:
+        Dict: values of -D_exp, D_pba, D_imp and F_Y
+    """
+    ghg_emissions_desag = model.iot.ghg_emissions_desag
+    return {
+        "Émissions exportées": -ghg_emissions_desag.D_exp[region].sum().sum(),
+        "Production": ghg_emissions_desag.D_pba[region].sum().sum(),
+        "Émissions importées": ghg_emissions_desag.D_imp[region].sum().sum(),
+        "Consommation": ghg_emissions_desag.F_Y[region].sum().sum(),
+    }
+
+
+### AUXILIARY FUNCTIONS FOR FIGURES EDITING ###
+
+
+def build_description(model, counterfactual_name: str = None) -> str:
+    """Builds a descriptions of the parameters used to edit a figure
+
+    Args:
+        model (Model): object Model defined in model.py
+        counterfactual_name (str, optional): name of the counterfactual in model.counterfactuals. None for the reference, False for multiscenario figures. Defaults to None.
+
+    Returns:
+        str: description
+    """
+    if counterfactual_name is None:
+        output = "Scénario de référence\n"
+    elif not counterfactual_name:
+        pass
+    else:
+        output = f"Scénario : {counterfactual_name}\n"
+    output += f"Année : {model.base_year}\n"
+    output += f"Système : {model.system}\n"
+    output += f"Base de données : Exiobase {model.iot.meta.version}\n"
+    if model.capital:
+        output += "Modèle à capital endogène"
+    else:
+        output += "Modèle sans capital endogène"
+    if counterfactual_name:
+        if model.counterfactuals[counterfactual_name].reloc:
+            output += "\nScénario avec relocalisation"
+        else:
+            output += "\nScénario sans relocalisation"
+    return output
