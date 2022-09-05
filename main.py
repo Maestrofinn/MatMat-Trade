@@ -13,7 +13,8 @@ from src.settings import (
     REGIONS_AGG,
     SECTORS_AGG,
 )
-from src.utils import carbon_footprint_extractor
+from src.stressors import GHG_PARAMS, MATERIAL_PARAMS, COPPER_PARAMS, LANDUSE_PARAMS
+from src.utils import footprint_extractor
 
 
 def load_model(
@@ -21,6 +22,7 @@ def load_model(
     system: str = "pxp",
     aggregation_name: str = "opti_S",
     capital: bool = False,
+    stressor_name: str = "ghg",
     verbose: bool = True,
 ) -> Model:
     """Loads an existing model
@@ -30,7 +32,8 @@ def load_model(
         system (str): product ('pxp') or industry ('ixi'). Defaults to 'pxp'.
         aggregation_name (str): name of the aggregation matrix used. Defaults to "opti_S".
         capital (bool, optional): True to endogenize investments and capital. Defaults to False.
-        True to print infos. Defaults to True.
+        stressor_name (str, optional): stressors' type (in english, for file names). Defaults to "ghg".
+        verbose (bool, optional): True to print infos. Defaults to True.
 
     Returns:
         Model: object Model defined in model.py
@@ -41,6 +44,8 @@ def load_model(
         + system
         + "__"
         + aggregation_name
+        + "__"
+        + stressor_name
         + capital * "__with_capital"
         + "/backup.pickle"
     )
@@ -61,10 +66,11 @@ def endogenous_capital_comparison(
     end_year: int,
     system: str = "pxp",
     aggregation_name: str = "opti_S",
+    stressor_params: Dict = GHG_PARAMS,
     scenario_function: Callable[[Model, bool], Tuple[pd.DataFrame]] = None,
     scenario_name: str = None,
     reloc: bool = False,
-    feature_extractor: Callable[[Model], Dict] = carbon_footprint_extractor,
+    feature_extractor: Callable[[Model], Dict] = footprint_extractor,
     feature_name: str = "Composantes de l'empreinte carbone de la France",
     feature_name_short: str = "composantes_empreinte_carbone_FR",
 ) -> Dict:
@@ -75,6 +81,7 @@ def endogenous_capital_comparison(
         end_year (int): when to stop (4 digits).
         system (str): product ('pxp') or industry ('ixi'). Defaults to 'pxp'.
         aggregation_name (str): name of the aggregation matrix used. Defaults to "opti_S".
+        stressor_params (Dict, optional): dictionnary with the stressors' french name, english name, unit and a proxy as a dictionnary of comparable stressors (name as key, dictionnary as value with the list of corresponding Exiobase stressors and their weight). Defaults to a dictionnary with the GHGs.
         scenario_function (Callable[[Model, bool], Tuple[pd.DataFrame]], optional): builds the new Z and Y matrices from the model in a given scenario, is None to work with reference data. Defaults to None.
         scenario_name (str, optional): scenario name, in order to build the Model object, is None to work with reference data. Defaults to None.
         feature_extractor (Callable[[Model], Dict], optional): extracts one or several value(s) from a Model in a Dict. Defaults to carbon_footprint_extractor.
@@ -85,6 +92,8 @@ def endogenous_capital_comparison(
     Returns:
         Dict: contains all the models
     """
+    stressor_name = stressor_params["name_EN"]
+    stressor_unit = stressor_params["unit"]
 
     models = {}
     years_range = range(start_year, end_year + 1)
@@ -105,6 +114,7 @@ def endogenous_capital_comparison(
             system=system,
             aggregation_name=aggregation_name,
             capital=capital,
+            stressor_name=stressor_name,
             verbose=False,
         )
         if mod is None:
@@ -113,6 +123,7 @@ def endogenous_capital_comparison(
                 system=system,
                 aggregation_name=aggregation_name,
                 capital=capital,
+                stressor_params=stressor_params,
             )
         models[mod.summary_long] = mod
         if scenario_name is not None:
@@ -153,7 +164,7 @@ def endogenous_capital_comparison(
     )
     plt.title("Évolutions avec et sans endogénéisation du capital", size=17)
     plt.xlabel("Années", size=15)
-    plt.ylabel("MtCO2eq")
+    plt.ylabel(stressor_unit)
     plt.tight_layout()
     plt.grid(visible=True)
     plt.legend(prop={"size": 12}, loc="center left", bbox_to_anchor=(1.0, 0.5))
@@ -163,7 +174,7 @@ def endogenous_capital_comparison(
     reloc_suffix = reloc * "__with_reloc"
     plt.savefig(
         FIGURES_MULTIMODEL_DIR
-        / f"endogenous_capital_comparison__{start_year}_{end_year}__{feature_name_short}__{system}__{aggregation_name}__{scenario_name}{reloc_suffix}.png",
+        / f"endogenous_capital_comparison__{start_year}_{end_year}__{feature_name_short}__{system}__{aggregation_name}__{stressor_name}__{scenario_name}{reloc_suffix}.png",
         bbox_inches="tight",
     )
 

@@ -7,11 +7,11 @@ import pycountry
 import pymrio
 from pymrio.tools import ioutil
 from scipy.io import loadmat
-from typing import Dict, List
+from typing import Dict
 import warnings
 import wget
 
-from src.settings import AGGREGATION_DIR, GLOBAL_WARMING_POTENTIAL
+from src.settings import AGGREGATION_DIR
 
 
 # remove pandas warning related to pymrio future deprecations
@@ -21,22 +21,21 @@ warnings.simplefilter(action="ignore", category=FutureWarning)
 ### AUXILIARY FUNCTION FOR DATA BUILDERS ###
 
 
-def recal_extensions_per_region(
-    iot: pymrio.IOSystem, extension_name: str
+def recal_stressor_per_region(
+    iot: pymrio.IOSystem,
 ) -> pymrio.core.mriosystem.Extension:
     """Computes the account matrices D_cba, D_pba, D_imp and D_exp
        Based on pymrio.tools.iomath's function 'calc_accounts', see https://github.com/konstantinstadler/pymrio
 
     Args:
         iot (pymrio.IOSystem): pymrio MRIO object
-        extension_name (str): extension name
 
     Returns:
         pymrio.core.mriosystem.Extension: extension with account matrices completed
     """
-    extension = getattr(iot, extension_name).copy()
+    extension = iot.stressor_extension.copy()
 
-    S = getattr(iot, extension_name).S
+    S = iot.stressor_extension.S
     L = iot.L
     Y_vect = iot.Y.sum(level=0, axis=1)
     nbsectors = len(iot.get_sectors())
@@ -47,7 +46,7 @@ def recal_extensions_per_region(
 
     regions = x_diag.index.get_level_values("region").unique()
 
-    # calc carbon footprint
+    # calc footprint
     extension.D_cba = pd.concat(
         [S[reg].dot(x_diag.loc[reg]) for reg in regions],
         axis=0,
@@ -196,47 +195,37 @@ def build_reference_data(model) -> pymrio.IOSystem:
             )
             iot.Z += Kbar
 
-        # extract GHG emissions
+        # extract emissions
         extension_list = list()
 
-        for ghg_emission in GLOBAL_WARMING_POTENTIAL.keys():
+        for stressor in model.stressor_dict.keys():
 
-            ghg_name = ghg_emission.lower() + "_emissions"
-            extension = pymrio.Extension(ghg_name)
-            ghg_index = iot.satellite.F.reset_index().stressor.apply(
-                lambda x: x.split(" ")[0] in [ghg_emission]
-            )
+            extension = pymrio.Extension(stressor)
 
             for elt in ["F", "F_Y", "unit"]:
 
-                component = getattr(iot.satellite, elt)
-
-                if elt == "unit":
-                    index_name = "index"
-                else:
-                    index_name = str(component.index.names[0])
-
-                component = component.reset_index().loc[ghg_index].set_index(index_name)
+                component = getattr(iot.satellite, elt).loc[
+                    model.stressor_dict[stressor]["exiobase_keys"]
+                ]
 
                 if elt == "unit":
                     component = pd.DataFrame(
                         component.values[0],
-                        index=pd.Index([ghg_emission]),
-                        columns=component.columns,
+                        index=pd.Index([stressor]),
+                        columns=["unit"],
                     )
                 else:
-                    component = component.sum(axis=0).to_frame(ghg_emission).T
-                    component.loc[ghg_emission] *= (
-                        GLOBAL_WARMING_POTENTIAL[ghg_emission] * 1e-9
+                    component = (
+                        component.sum(axis=0).to_frame(stressor).T
+                        * model.stressor_dict[stressor]["weight"]
                     )
-                    component.index.name = index_name
 
                 setattr(extension, elt, component)
 
             extension_list.append(extension)
 
-        iot.ghg_emissions = pymrio.concate_extension(
-            extension_list, name="ghg_emissions"
+        iot.stressor_extension = pymrio.concate_extension(
+            extension_list, name="stressors"
         )
 
         # del useless extensions
@@ -262,15 +251,15 @@ def build_reference_data(model) -> pymrio.IOSystem:
             sector_names=agg_matrix["sectors"].columns.tolist(),
         )
 
-        # reset all to flows before saving
+        # reset A, L, S, S_Y, M and all of the account matrices
         iot = iot.reset_to_flows()
-        iot.ghg_emissions.reset_to_flows()
+        iot.stressor_extension.reset_to_flows()
 
         # compute missing matrices
         iot.calc_all()
 
         # compute emission accounts by region
-        iot.ghg_emissions_desag = recal_extensions_per_region(iot, "ghg_emissions")
+        iot.stressor_extension = recal_stressor_per_region(iot=iot)
 
         # save model
         iot.save_all(model.model_dir)
@@ -297,26 +286,24 @@ def build_counterfactual_data(
         scenar_function (Callable[[Model, bool], Tuple[pd.DataFrame]]): builds the new Z and Y matrices
         reloc (bool, optional): True if relocation is allowed. Defaults to False.
     Returns:
-        pymrio.IOSystem: modified pymrio model, with A, x and L set as None
+        pymrio.IOSystem: modified pymrio model
     """
 
-    counterfactual = model.iot.copy()
-    counterfactual.remove_extension("ghg_emissions_desag")
+    iot = model.iot.copy()
 
-    counterfactual.Z, counterfactual.Y = scenar_function(model, reloc=reloc)
+    iot.Z, iot.Y = scenar_function(model=model, reloc=reloc)
 
-    counterfactual.A = None
-    counterfactual.x = None
-    counterfactual.L = None
+    iot.A = None
+    iot.x = None
+    iot.L = None
 
-    counterfactual.calc_all()
+    iot.calc_all()
 
-    counterfactual.ghg_emissions_desag = recal_extensions_per_region(
-        iot=counterfactual,
-        extension_name="ghg_emissions",
+    iot.stressor_extension = recal_stressor_per_region(
+        iot=iot,
     )
 
-    return counterfactual
+    return iot
 
 
 ### AGGREGATORS ###
@@ -575,8 +562,8 @@ def aggregate_sum_level0_on_axis1_2levels_on_axis0(
 ### FEATURE EXTRACTORS ###
 
 
-def carbon_footprint_extractor(model, region: str = "FR") -> Dict:
-    """Computes region's carbon footprint (D_pba-D_exp+D_imp+F_Y)
+def footprint_extractor(model, region: str = "FR") -> Dict:
+    """Computes region's footprint (D_pba-D_exp+D_imp+F_Y)
 
     Args:
         model (Union[Model, Counterfactual]): object Model or Counterfactual defined in model.py
@@ -585,12 +572,12 @@ def carbon_footprint_extractor(model, region: str = "FR") -> Dict:
     Returns:
         Dict: values of -D_exp, D_pba, D_imp and F_Y
     """
-    ghg_emissions_desag = model.iot.ghg_emissions_desag
+    stressor_extension = model.iot.stressor_extension
     return {
-        "Émissions exportées": -ghg_emissions_desag.D_exp[region].sum().sum(),
-        "Production": ghg_emissions_desag.D_pba[region].sum().sum(),
-        "Émissions importées": ghg_emissions_desag.D_imp[region].sum().sum(),
-        "Consommation": ghg_emissions_desag.F_Y[region].sum().sum(),
+        "Exportations": -stressor_extension.D_exp[region].sum().sum(),
+        "Production": stressor_extension.D_pba[region].sum().sum(),
+        "Importations": stressor_extension.D_imp[region].sum().sum(),
+        "Consommation": stressor_extension.F_Y[region].sum().sum(),
     }
 
 
@@ -610,11 +597,12 @@ def build_description(model, counterfactual_name: str = None) -> str:
     if counterfactual_name is None:
         output = "Scénario de référence\n"
     elif not counterfactual_name:
-        pass
+        output = ""
     else:
         output = f"Scénario : {counterfactual_name}\n"
     output += f"Année : {model.base_year}\n"
     output += f"Système : {model.system}\n"
+    output += f"Stressor : {model.stressor_name}\n"
     output += f"Base de données : Exiobase {model.iot.meta.version}\n"
     if model.capital:
         output += "Modèle à capital endogène"

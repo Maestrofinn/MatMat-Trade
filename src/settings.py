@@ -6,6 +6,8 @@ import sys
 
 
 ### LOCAL PATHS ###
+
+
 sys.path.append(os.sep.join(sys.path[0].split(os.sep)[:-1]))
 
 BASE_DIR = pathlib.Path(__file__).parents[1]
@@ -29,18 +31,6 @@ for path in [
         os.mkdir(path)
 
 
-### GHG PARAMETERS ###
-GLOBAL_WARMING_POTENTIAL = {
-    "CO2": 1,
-    "CH4": 28,
-    "N2O": 265,
-    "SF6": 23500,
-    "HFC": 1,
-    "PFC": 1,
-}
-GHG_LIST = list(GLOBAL_WARMING_POTENTIAL.keys())
-
-
 ### COLORS ###
 COLORS = list(plt.cm.tab10(np.arange(10))) + ["gold"]
 COLORS_NO_FR = COLORS[1:]
@@ -48,8 +38,9 @@ COLORS_NO_FR = COLORS[1:]
 
 ### AGGREGATIONS FOR THE FIGURES ###
 # These aggregations are only dedicated to make the figures more legible. They have no influence on the models nor on their results.
-# The aggregation used in the models is set through the matrices from data/aggregation as an argument of Model objects in model.py.
+# The aggregation used in the models is set through the matrices from data/aggregation as an argument of Model objects in model.py, but it's not the purpose of this section.
 # The default REGIONS_AGG and SECTORS_AGG fit the model aggregation "opti_S".
+
 REGIONS_AGG = {
     "FR": ["FR"],
     "UK, Norway, Switzerland": ["UK, Norway, Switzerland"],
