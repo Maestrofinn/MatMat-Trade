@@ -9,11 +9,11 @@ from src.scenarios import DICT_SCENARIOS
 from src.settings import (
     COLORS,
     FIGURES_MULTIMODEL_DIR,
-    GHG_PARAMS,
     MODELS_DIR,
     REGIONS_AGG,
     SECTORS_AGG,
 )
+from src.stressors import GHG_PARAMS
 from src.utils import footprint_extractor
 
 

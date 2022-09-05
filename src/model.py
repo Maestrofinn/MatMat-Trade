@@ -8,9 +8,9 @@ from src.settings import (
     CAPITAL_CONS_DIR,
     EXIOBASE_DIR,
     FIGURES_DIR,
-    GHG_PARAMS,
     MODELS_DIR,
 )
+from src.stressors import GHG_PARAMS
 from src.utils import build_reference_data, build_counterfactual_data, reverse_mapper
 
 
