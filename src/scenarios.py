@@ -111,7 +111,7 @@ def moves_from_sort_rule(
 
 
 def sort_by_content(model: Model, sector: str, reloc: bool = False) -> np.array:
-    """Ascendantly sorts all regions by carbon content of a sector
+    """Ascendantly sorts all regions by stressor content of a sector
 
     Args:
         model (Model): object Model defined in model.py
@@ -120,10 +120,10 @@ def sort_by_content(model: Model, sector: str, reloc: bool = False) -> np.array:
 
 
     Returns:
-        np.array: array of indices of regions sorted by carbon content
+        np.array: array of indices of regions sorted by stressor content
     """
 
-    M = model.iot.ghg_emissions_desag.M.sum(axis=0)
+    M = model.iot.stressor_extension.M.sum(axis=0)
     regions_index = np.argsort(M[:, sector].values[1 - reloc :])
     return regions_index
 
@@ -132,7 +132,7 @@ def sort_by_content(model: Model, sector: str, reloc: bool = False) -> np.array:
 
 
 def scenar_best(model: Model, reloc: bool = False) -> Dict:
-    """Finds the least carbon-intense imports reallocation for all sectors
+    """Finds the least stressor-intense imports reallocation for all sectors
 
 
     Args:
@@ -151,7 +151,7 @@ def scenar_best(model: Model, reloc: bool = False) -> Dict:
 
 
 def scenar_worst(model: Model, reloc: bool = False) -> Dict:
-    """Finds the most carbon-intense imports reallocation for all sectors
+    """Finds the most stressor-intense imports reallocation for all sectors
 
 
     Args:

@@ -4,7 +4,13 @@ import pickle as pkl
 from typing import Callable, Dict, List, Tuple
 
 import src.figures as figures
-from src.settings import CAPITAL_CONS_DIR, EXIOBASE_DIR, FIGURES_DIR, MODELS_DIR
+from src.settings import (
+    CAPITAL_CONS_DIR,
+    EXIOBASE_DIR,
+    FIGURES_DIR,
+    GHG_PARAMS,
+    MODELS_DIR,
+)
 from src.utils import build_reference_data, build_counterfactual_data, reverse_mapper
 
 
@@ -18,6 +24,7 @@ class Model:
         regions_mapper: Dict = None,
         sectors_mapper: Dict = None,
         capital: bool = False,
+        stressor_params: Dict = GHG_PARAMS,
     ):
         """Inits Model class
 
@@ -29,6 +36,7 @@ class Model:
             regions_mapper (Dict, optional): regions aggregation for figures editing, no aggregation if is None. Defaults to None.
             sectors_mapper (Dict, optional): sectors aggregation for figures editing, no aggregation if is None. Defaults to None.
             capital (bool, optional): True to endogenize investments and capital. Defaults to False.
+            stressor_params (Dict, optional): dictionnary with the stressors' french name, english name, unit and a proxy as a dictionnary of comparable stressors (name as key, dictionnary as value with the list of corresponding Exiobase stressors and their weight). Defaults to a dictionnary with the GHGs.
         """
 
         self.base_year = base_year
@@ -36,10 +44,18 @@ class Model:
         self.aggregation_name = aggregation_name
         self.calib = calib
         self.capital = capital
+        self.stressor_name = stressor_params["name_FR"]
+        self.stressor_shortname = "".join(
+            filter(str.isalnum, stressor_params["name_EN"].lower())
+        )  # format as file path
+        self.stressor_dict = stressor_params["proxy"]
+        self.stressor_unit = stressor_params["unit"]
 
         self.summary_shortest = str(base_year) + "__" + system
         self.summary_short = self.summary_shortest + "__" + aggregation_name
-        self.summary_long = self.summary_short + capital * "__with_capital"
+        self.summary_long = (
+            self.summary_short + "__" + self.stressor_name + capital * "__with_capital"
+        )
         self.exiobase_dir = EXIOBASE_DIR / self.summary_shortest
         self.model_dir = MODELS_DIR / self.summary_long
         self.raw_file_name = f"IOT_{base_year}_{system}.zip"
@@ -73,6 +89,7 @@ class Model:
             self.new_sectors_index = pd.Index(self.agg_sectors)
 
         self.counterfactuals = {}
+        self.reloc = None
         self.save()
 
     ## save model
@@ -168,64 +185,62 @@ class Model:
 
     ## description plots
 
-    def plot_carbon_footprint(
+    def plot_footprint(
         self,
         counterfactual_name: str = None,
         region: str = "FR",
         title: str = None,
     ) -> None:
-        """Plots region's carbon footprint (D_pba-D_exp+D_imp+F_Y)
+        """Plots region's footprint (D_pba-D_exp+D_imp+F_Y)
 
         Args:
             counterfactual_name (str, optional): name of the counterfactual to plot, or None to plot the reference (self). Defaults to None.
             region (str, optional): region name. Defaults to "FR".
             title (str, optional): title of the figure. Defaults to None.
         """
-        figures.plot_carbon_footprint(
+        figures.plot_footprint(
             model=self,
             region=region,
             counterfactual_name=counterfactual_name,
             title=title,
         )
 
-    def plot_carbon_footprint_FR(self, counterfactual_name: str = None) -> None:
-        """Plots french carbon footprint (D_pba-D_exp+D_imp+F_Y)
+    def plot_footprint_FR(self, counterfactual_name: str = None) -> None:
+        """Plots french footprint (D_pba-D_exp+D_imp+F_Y)
 
         Args:
             counterfactual_name (str, optional): name of the counterfactual to plot, or None to plot the reference (self). Defaults to None.
         """
-        figures.plot_carbon_footprint_FR(
+        figures.plot_footprint_FR(
             model=self,
             counterfactual_name=counterfactual_name,
         )
 
-    def ghg_content_heatmap(
+    def plot_stressor_content_heatmap(
         self,
         counterfactual_name: str = None,
         prod: bool = False,
     ) -> None:
-        """Plots the GHG contents each sector for each region in a heatmap
+        """Plots the content in stressors of each sector for each region in a heatmap
 
         Args:
             counterfactual_name (str, optional): name of the counterfactual to plot, or None to plot the reference (self). Defaults to None.
             prod (bool, optional): True to focus on production values, otherwise focus on consumption values. Defaults to False.
         """
-        figures.ghg_content_heatmap(
+        figures.plot_stressor_content_heatmap(
             model=self, counterfactual_name=counterfactual_name, prod=prod
         )
 
-    def ghg_content_production(
+    def plot_stressor_content_production(
         self,
         counterfactual_name: str = None,
-        prod: bool = False,
     ) -> None:
-        """Compares the GHG content of each region for each sector
+        """Plots the content in stressors of each region for each sector
 
         Args:
             counterfactual_name (str, optional): name of the counterfactual to plot, or None to plot the reference (self). Defaults to None.
-            prod (bool, optional): True to focus on production values, otherwise focus on consumption values. Defaults to False.
         """
-        figures.ghg_content_production(
+        figures.plot_stressor_content_production(
             model=self, counterfactual_name=counterfactual_name
         )
 
@@ -241,57 +256,73 @@ class Model:
             model=self, counterfactual_name=counterfactual_name
         )
 
-    def plot_co2eq_synthesis(self, counterfactual_name: str) -> None:
+    def plot_stressor_synthesis(self, counterfactual_name: str) -> None:
         """Plots the french emissions per sector for a given counterfactual
 
         Args:
             counterfactual_name (str): name of the counterfactual in model.counterfactuals
         """
-        figures.plot_co2eq_synthesis(
+        figures.plot_stressor_synthesis(
             model=self, counterfactual_name=counterfactual_name
         )
 
-    def plot_ghg_synthesis(self, counterfactual_name: str) -> None:
-        """Plots the french emissions per GHG for a given counterfactual
+    def plot_substressor_synthesis(self, counterfactual_name: str) -> None:
+        """Plots the french emissions per substressor for a given counterfactual
 
         Args:
             counterfactual_name (str): name of the counterfactual in model.counterfactuals
         """
-        figures.plot_ghg_synthesis(model=self, counterfactual_name=counterfactual_name)
+        figures.plot_substressor_synthesis(
+            model=self, counterfactual_name=counterfactual_name
+        )
 
     ## plots for all scenarios
 
     def compare_scenarios(self, verbose: bool = False) -> None:
-        """Plots the carbon footprints and the imports associated with the different counterfactuals
+        """Plots the footprints and the imports associated with the different counterfactuals
 
         Args:
             verbose (bool, optional): True to print infos. Defaults to True.
         """
         figures.compare_scenarios(model=self, verbose=verbose)
 
-    def ghg_content_heatmap_all(self, prod: bool = False) -> None:
-        """Plots the GHG contents each sector for each region in a heatmap for each counterfactual
+    def plot_stressor_content_heatmap_all(self, prod: bool = False) -> None:
+        """Plots the contents in stressors each sector for each region in a heatmap for each counterfactual
 
         Args:
             prod (bool, optional): True to focus on production values, otherwise focus on consumption values. Defaults to False.
         """
         for counterfactual_name in self.get_counterfactuals_list():
-            self.ghg_content_heatmap(counterfactual_name=counterfactual_name, prod=prod)
+            self.plot_stressor_content_heatmap(
+                counterfactual_name=counterfactual_name, prod=prod
+            )
 
     def plot_trade_synthesis_all(self) -> None:
         """Plots the french importations for each counterfactual"""
         for counterfactual_name in self.get_counterfactuals_list():
             self.plot_trade_synthesis(counterfactual_name=counterfactual_name)
 
-    def plot_co2eq_synthesis_all(self) -> None:
-        """Plots the french emissions by sector for each counterfactual"""
+    def plot_stressor_synthesis_all(self) -> None:
+        """Plots the french emissions of stressors by sector for each counterfactual"""
         for counterfactual_name in self.get_counterfactuals_list():
-            self.plot_co2eq_synthesis(counterfactual_name=counterfactual_name)
+            self.plot_stressor_synthesis(counterfactual_name=counterfactual_name)
 
-    def plot_ghg_synthesis_all(self) -> None:
-        """Plot the french emissions per GHG for each counterfactual"""
+    def plot_subtressors_synthesis_all(self) -> None:
+        """Plots the french emissions per substressor for a given counterfactual"""
         for counterfactual_name in self.get_counterfactuals_list():
-            self.plot_ghg_synthesis(counterfactual_name=counterfactual_name)
+            self.plot_substressor_synthesis(counterfactual_name=counterfactual_name)
+
+    ## plot all
+
+    def plot_all(self) -> None:
+        """Plots all possible plots"""
+        self.compare_scenarios()
+        self.plot_trade_synthesis_all()
+        self.plot_stressor_synthesis_all()
+        self.plot_subtressors_synthesis_all()
+        self.plot_footprint_FR()
+        self.plot_stressor_content_heatmap_all()
+        self.plot_stressor_content_production()
 
 
 class Counterfactual:
