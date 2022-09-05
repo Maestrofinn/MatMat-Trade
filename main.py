@@ -13,7 +13,7 @@ from src.settings import (
     REGIONS_AGG,
     SECTORS_AGG,
 )
-from src.stressors import GHG_PARAMS
+from src.stressors import GHG_PARAMS, MATERIAL_PARAMS, COPPER_PARAMS, LANDUSE_PARAMS
 from src.utils import footprint_extractor
 
 

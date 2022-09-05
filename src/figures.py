@@ -461,6 +461,7 @@ def plot_df_synthesis(
         transform=plt.gcf().transFigure,
     )
     plt.savefig(current_dir / "reference.png")
+    plt.close()
 
     # plot counterfactual importations
     scen_conso_by_sector_FR = counterfactual_df

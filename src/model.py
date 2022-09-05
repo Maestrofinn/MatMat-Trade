@@ -54,7 +54,10 @@ class Model:
         self.summary_shortest = str(base_year) + "__" + system
         self.summary_short = self.summary_shortest + "__" + aggregation_name
         self.summary_long = (
-            self.summary_short + "__" + self.stressor_name + capital * "__with_capital"
+            self.summary_short
+            + "__"
+            + self.stressor_shortname
+            + capital * "__with_capital"
         )
         self.exiobase_dir = EXIOBASE_DIR / self.summary_shortest
         self.model_dir = MODELS_DIR / self.summary_long

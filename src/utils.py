@@ -291,7 +291,7 @@ def build_counterfactual_data(
 
     iot = model.iot.copy()
 
-    iot.Z, iot.Y = scenar_function(model, reloc=reloc)
+    iot.Z, iot.Y = scenar_function(model=model, reloc=reloc)
 
     iot.A = None
     iot.x = None
