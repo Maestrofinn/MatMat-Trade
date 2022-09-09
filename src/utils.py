@@ -121,10 +121,16 @@ def load_Kbar(year: int, system: str, path: pathlib.PosixPath) -> pd.DataFrame:
         pd.DataFrame: same formatting than pymrio's Z matrix
     """
     if not os.path.isfile(path):
-        wget.download(
-            f"https://zenodo.org/record/3874309/files/Kbar_exio_v3_6_{year}{system}.mat",
-            str(path),
-        )
+
+        if (year >=2018) :
+            url = f"https://zenodo.org/record/5787624/files/Kbar_exio_v3_8_2_{year}{system}.mat"
+        elif (year <2016):
+            url = f"https://zenodo.org/record/3874309/files/Kbar_exio_v3_6_{year}{system}.mat"
+        else:
+            quit()    
+
+        wget.download(url, str(path))
+
     data_dict = loadmat(path)
     data_array = data_dict["KbarCfc"]
     capital_regions = [
