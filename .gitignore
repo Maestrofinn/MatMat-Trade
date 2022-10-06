@@ -129,7 +129,7 @@ dmypy.json
 .pyre/
 
 #vscode personal 
-/.vscode  settings
+.vscode  
 
 # additional gitignore from user
 data/capital_consumption/*
