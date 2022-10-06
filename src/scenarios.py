@@ -9,7 +9,7 @@ from src.model import Model
 
 
 def moves_from_sorted_index_by_sector(
-    model: Model, sector: str, regions_index: List[int], reloc: bool = None
+    model: Model, sector: str, regions_index: List[int], reloc: bool = False
 ) -> Tuple[pd.DataFrame]:
     """Allocates french importations for a sector in the order given by region_index
 
@@ -31,10 +31,12 @@ def moves_from_sorted_index_by_sector(
         regions = model.regions[1:]  # remove FR
     Z = model.iot.Z
     Y = model.iot.Y
-
+    A = model.iot.A
+     
     # french total importations demand for each sector / final demand
     inter_imports = Z["FR"].drop("FR", level=0).groupby(level=1).sum().loc[sector]
     final_imports = Y["FR"].drop("FR", level=0).groupby(level=1).sum().loc[sector]
+    technical_requirements_imports= A.loc[("FR",slice(None)),:].drop("FR",axis=1, level=0).groupby(level=1,axis=1).sum().xs(sector,axis=1).copy()
     total_imports = inter_imports.sum() + final_imports.sum()
     inter_autoconso_FR = (
         Z.loc[("FR", sector), ("FR", slice(None))].groupby(level=1).sum()
@@ -60,7 +62,7 @@ def moves_from_sorted_index_by_sector(
             remaining_imports -= export_capacities[reg]
         else:
             imports_from_regions.loc[reg] = remaining_imports
-            break
+            break 
 
     # allocations for intermediary imports
     new_inter_imports = imports_from_regions.to_frame("").dot(
@@ -74,7 +76,12 @@ def moves_from_sorted_index_by_sector(
     )
     new_final_imports.loc["FR"] += final_autoconso_FR
 
-    return new_inter_imports, new_final_imports
+    new_A = A.copy()
+    new_final_technical_req=A.copy().loc[("FR",slice(None)),(slice(None),sector)]*0
+    new_final_technical_req.loc[:,regions[regions_index[0]]]= technical_requirements_imports
+    new_final_technical_req["FR"]=new_A.loc[("FR",slice(None)),("FR",sector)]
+ 
+    return new_final_imports,new_final_technical_req
 
 
 def moves_from_sort_rule(
@@ -91,23 +98,25 @@ def moves_from_sort_rule(
 
     Returns:
         Tuple[pd.DataFrame]: tuple with 2 elements :
-            - reallocated Z matrix
             - reallocated Y matrix
+            - reallocated A matrix
     """
 
     sectors_list = model.sectors
     new_Z = model.iot.Z.copy()
     new_Y = model.iot.Y.copy()
+    new_A = model.iot.A.copy()
     new_Z["FR"] = new_Z["FR"] * 0
     new_Y["FR"] = new_Y["FR"] * 0
+    new_A.loc[("FR",slice(None)),:]=new_A.loc[("FR",slice(None)),:]*0
     for sector in sectors_list:
         regions_index = sorting_rule_by_sector(model, sector, reloc)
-        new_inter_imports, new_final_imports = moves_from_sorted_index_by_sector(
+        new_final_imports ,new_A_sector = moves_from_sorted_index_by_sector(
             model=model, sector=sector, regions_index=regions_index, reloc=reloc
         )
-        new_Z.loc[(slice(None), sector), ("FR", slice(None))] = new_inter_imports.values
         new_Y.loc[(slice(None), sector), ("FR", slice(None))] = new_final_imports.values
-    return new_Z, new_Y
+        new_A.loc[("FR",slice(None)),(slice(None),sector)] = new_A_sector
+    return new_Y, new_A 
 
 
 def sort_by_content(model: Model, sector: str, reloc: bool = False) -> np.array:
