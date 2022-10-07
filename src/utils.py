@@ -304,6 +304,7 @@ def build_counterfactual_data(
     model,
     scenar_function,
     reloc: bool = False,
+    legacy_use_Z: bool = True
 ) -> pymrio.IOSystem:
     """Builds the pymrio object given reference's settings and the scenario parameters
 
@@ -311,13 +312,19 @@ def build_counterfactual_data(
         model (Model): object Model defined in model.py
         scenar_function (Callable[[Model, bool], Tuple[pd.DataFrame]]): builds the new Z and Y matrices
         reloc (bool, optional): True if relocation is allowed. Defaults to False.
+        legacy_use_Z (bool, optional): True if willing to use legacy ùethod of changing Z as a intermediary step to change A, enbales certain types of scenarios.
     Returns:
         pymrio.IOSystem: modified pymrio model
     """
 
     iot = model.iot.copy()
     iot.reset_to_flows()
-    iot.Y, iot.A = scenar_function(model=model, reloc=reloc)
+    if legacy_use_Z:
+        iot.Z,iot.Y = scenar_function(model=model, reloc=reloc)
+        iot.A=iot.Z.dot(np.diag(1/model.iot.x.to_numpy().transpose()[0]))
+        iot.A.columns=iot.Z.columns #relabelling columns because matrice multiplication changes them arbitrarily
+    else :
+        iot.Y, iot.A = scenar_function(model=model, reloc=reloc,legacy_use_Z=legacy_use_Z)
     iot.Z=None
     iot.L=None
     iot.x = None

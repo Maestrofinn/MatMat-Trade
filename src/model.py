@@ -109,7 +109,8 @@ class Model:
         name: str,
         scenar_function: Callable[["Model", bool], Tuple[pd.DataFrame]],
         reloc: bool = False,
-    ) -> None:
+        legacy_use_Z: bool = True,
+        ) -> None:
         """Creates a new counterfactual from scenario_parameters in self.counterfactuals
 
         Args:
@@ -117,7 +118,7 @@ class Model:
             scenar_function (Callable[[Model, bool], Tuple[pd.DataFrame]]): functions that builds the new Z and Y matrices
             reloc (bool, optional): True if relocation is allowed. Defaults to False.
         """
-        self.counterfactuals[name] = Counterfactual(name, self, scenar_function, reloc)
+        self.counterfactuals[name] = Counterfactual(name, self, scenar_function, reloc,legacy_use_Z=legacy_use_Z)
 
     def create_counterfactuals_from_dict(
         self,
@@ -335,6 +336,7 @@ class Counterfactual:
         model: Model,
         scenar_function: Callable[[Model, bool], Tuple[pd.DataFrame]],
         reloc: bool = False,
+        legacy_use_Z : bool= True
     ):
         """Inits Counterfactual class
 
@@ -348,7 +350,7 @@ class Counterfactual:
         self.name = name
         self.reloc = reloc
         self.iot = build_counterfactual_data(
-            model=model, scenar_function=scenar_function, reloc=reloc
+            model=model, scenar_function=scenar_function, reloc=reloc, legacy_use_Z=legacy_use_Z
         )
         self.figures_dir = model.figures_dir / name
         if not os.path.isdir(self.figures_dir):

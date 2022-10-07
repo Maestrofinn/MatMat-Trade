@@ -9,8 +9,8 @@ from src.model import Model
 
 
 def moves_from_sorted_index_by_sector(
-    model: Model, sector: str, regions_index: List[int], reloc: bool = False
-) -> Tuple[pd.DataFrame]:
+    model: Model, sector: str, regions_index: List[int], reloc: bool = False,legacy_use_Z : bool =False
+) -> Tuple[pd.DataFrame,pd.DataFrame]:
     """Allocates french importations for a sector in the order given by region_index
 
     Args:
@@ -28,15 +28,15 @@ def moves_from_sorted_index_by_sector(
     if reloc:
         regions = model.regions
     else:
-        regions = model.regions[1:]  # remove FR
-    Z = model.iot.Z
-    Y = model.iot.Y
-    A = model.iot.A
+        regions = model.regions[1:] # remove FR
+    Z = model.iot.Z   
+    Y = model.iot.Y   
+    A = model.iot.A   
      
     # french total importations demand for each sector / final demand
     inter_imports = Z["FR"].drop("FR", level=0).groupby(level=1).sum().loc[sector]
     final_imports = Y["FR"].drop("FR", level=0).groupby(level=1).sum().loc[sector]
-    technical_requirements_imports= A.loc[("FR",slice(None)),:].drop("FR",axis=1, level=0).groupby(level=1,axis=1).sum().xs(sector,axis=1).copy()
+    technical_requirements_imports= A["FR"].drop("FR",axis=0, level=0).groupby(level=1,axis=0).sum().xs(sector,axis=0).copy()
     total_imports = inter_imports.sum() + final_imports.sum()
     inter_autoconso_FR = (
         Z.loc[("FR", sector), ("FR", slice(None))].groupby(level=1).sum()
@@ -77,18 +77,21 @@ def moves_from_sorted_index_by_sector(
     new_final_imports.loc["FR"] += final_autoconso_FR
 
     new_A = A.copy()
-    new_final_technical_req=A.copy().loc[("FR",slice(None)),(slice(None),sector)]*0
-    new_final_technical_req.loc[:,regions[regions_index[0]]]= technical_requirements_imports
-    new_final_technical_req["FR"]=new_A.loc[("FR",slice(None)),("FR",sector)]
+    new_final_technical_req=A.copy().loc[(slice(None),sector),("FR",slice(None))]*0
+    new_final_technical_req.loc[(regions[regions_index[0]],sector),"FR"]= technical_requirements_imports.values
+    new_final_technical_req.loc["FR"]=new_A.loc[("FR",sector),("FR",slice(None))].to_frame().transpose()
  
+    if legacy_use_Z:
+        return new_inter_imports, new_final_imports
     return new_final_imports,new_final_technical_req
 
 
 def moves_from_sort_rule(
     model: Model,
-    sorting_rule_by_sector: Callable[[str, bool], List[int]],
+    sorting_rule_by_sector: Callable[[Model,str, bool], List[int]],
     reloc: bool = False,
-) -> Tuple[pd.DataFrame]:
+    legacy_use_Z : bool =False,
+) -> Tuple[pd.DataFrame,pd.DataFrame]:
     """Allocates french importations for all sectors, sorting the regions with a given rule for each sector
 
     Args:
@@ -108,14 +111,24 @@ def moves_from_sort_rule(
     new_A = model.iot.A.copy()
     new_Z["FR"] = new_Z["FR"] * 0
     new_Y["FR"] = new_Y["FR"] * 0
-    new_A.loc[("FR",slice(None)),:]=new_A.loc[("FR",slice(None)),:]*0
+    
+    if legacy_use_Z:
+        for sector in sectors_list:
+            regions_index = sorting_rule_by_sector(model, sector, reloc)
+            new_inter_imports, new_final_imports = moves_from_sorted_index_by_sector(
+                model=model, sector=sector, regions_index=regions_index, reloc=reloc,legacy_use_Z=legacy_use_Z
+            )
+            new_Z.loc[(slice(None), sector), ("FR", slice(None))] = new_inter_imports.values
+            new_Y.loc[(slice(None), sector), ("FR", slice(None))] = new_final_imports.values
+        return new_Z,new_Y
+    new_A.loc[:,("FR",slice(None))]=new_A.loc[:,("FR",slice(None))]*0
     for sector in sectors_list:
         regions_index = sorting_rule_by_sector(model, sector, reloc)
         new_final_imports ,new_A_sector = moves_from_sorted_index_by_sector(
             model=model, sector=sector, regions_index=regions_index, reloc=reloc
         )
         new_Y.loc[(slice(None), sector), ("FR", slice(None))] = new_final_imports.values
-        new_A.loc[("FR",slice(None)),(slice(None),sector)] = new_A_sector
+        new_A.loc[(slice(None),sector),("FR",slice(None))] = new_A_sector
     return new_Y, new_A 
 
 
@@ -140,7 +153,7 @@ def sort_by_content(model: Model, sector: str, reloc: bool = False) -> np.array:
 ### BEST AND WORST SCENARIOS ###
 
 
-def scenar_best(model: Model, reloc: bool = False) -> Dict:
+def scenar_best(model: Model, reloc: bool = False,legacy_use_Z: bool =True) -> Tuple[pd.DataFrame,pd.DataFrame]:
     """Finds the least stressor-intense imports reallocation for all sectors
 
 
@@ -155,11 +168,11 @@ def scenar_best(model: Model, reloc: bool = False) -> Dict:
     """
 
     return moves_from_sort_rule(
-        model=model, sorting_rule_by_sector=sort_by_content, reloc=reloc
+        model=model, sorting_rule_by_sector=sort_by_content, reloc=reloc, legacy_use_Z=legacy_use_Z
     )
 
 
-def scenar_worst(model: Model, reloc: bool = False) -> Dict:
+def scenar_worst(model: Model, reloc: bool = False, legacy_use_Z: bool = True) -> Tuple[pd.DataFrame,pd.DataFrame]:
     """Finds the most stressor-intense imports reallocation for all sectors
 
 
@@ -177,13 +190,14 @@ def scenar_worst(model: Model, reloc: bool = False) -> Dict:
         model=model,
         sorting_rule_by_sector=lambda *args: sort_by_content(*args)[::-1],
         reloc=reloc,
+        legacy_use_Z=legacy_use_Z,
     )
 
 
 ### PREFERENCE SCENARIOS ###
 
 
-def scenar_pref(model, allies: List[str], reloc: bool = False) -> Dict:
+def scenar_pref(model, allies: List[str], reloc: bool = False) -> Tuple[pd.DataFrame,pd.DataFrame]:
     """Finds imports reallocation in order to trade as much as possible with the allies
 
     Args:
@@ -323,7 +337,7 @@ def scenar_pref(model, allies: List[str], reloc: bool = False) -> Dict:
     return new_Z, new_Y
 
 
-def scenar_pref_eu(model: Model, reloc: bool = False) -> Dict:
+def scenar_pref_eu(model: Model, reloc: bool = False) -> Tuple[pd.DataFrame,pd.DataFrame]:
     """Finds imports reallocation that prioritize trade with European Union
 
     Args:
@@ -331,7 +345,7 @@ def scenar_pref_eu(model: Model, reloc: bool = False) -> Dict:
         reloc (bool, optional): True if relocation is allowed. Defaults to False.
 
     Returns:
-        Tuple[pd.DataFrame]: tuple with 2 elements :
+        Tuple[pd.DataFrame,pd.DataFrame]: tuple with 2 elements :
             - reallocated Z matrix
             - reallocated Y matrix
     """
@@ -342,7 +356,7 @@ def scenar_pref_eu(model: Model, reloc: bool = False) -> Dict:
 ### TRADE WAR SCENARIOS ###
 
 
-def scenar_tradewar(model: Model, opponents: List[str], reloc: bool = False) -> Dict:
+def scenar_tradewar(model: Model, opponents: List[str], reloc: bool = False) -> Tuple[pd.DataFrame,pd.DataFrame]:
     """Finds imports reallocation in order to exclude a list of opponents as much as possible
 
     Args:
@@ -351,7 +365,7 @@ def scenar_tradewar(model: Model, opponents: List[str], reloc: bool = False) -> 
         reloc (bool, optional): True if relocation is allowed. Defaults to False.
 
     Returns:
-        Tuple[pd.DataFrame]: tuple with 2 elements :
+        Tuple[pd.DataFrame,pd.DataFrame]: tuple with 2 elements :
             - reallocated Z matrix
             - reallocated Y matrix
     """
@@ -362,7 +376,7 @@ def scenar_tradewar(model: Model, opponents: List[str], reloc: bool = False) -> 
     return scenar_pref(model=model, allies=allies, reloc=reloc)
 
 
-def scenar_tradewar_china(model: Model, reloc: bool = False) -> Dict:
+def scenar_tradewar_china(model: Model, reloc: bool = False) -> Tuple[pd.DataFrame,pd.DataFrame]:
     """Finds imports reallocation that prevents trade with China as much as possible
 
 
