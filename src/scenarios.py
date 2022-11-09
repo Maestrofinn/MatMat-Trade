@@ -9,7 +9,7 @@ from src.model import Model
 
 
 def moves_from_sorted_index_by_sector(
-    model: Model, sector: str, regions_index: List[int], reloc: bool = False,legacy_use_Z : bool =False
+    model, sector: str, regions_index: List[int], reloc: bool = False,legacy_use_Z : bool =False
 ) -> Tuple[pd.DataFrame,pd.DataFrame]:
     """Allocates french importations for a sector in the order given by region_index
 
@@ -47,8 +47,10 @@ def moves_from_sorted_index_by_sector(
 
     # export capacities of each regions
     export_capacities = {
-        reg: Z.drop(columns=reg, level=0).sum(axis=1).loc[(reg, sector)]
-        + Y.drop(columns=reg, level=0).sum(axis=1).loc[(reg, sector)]
+        reg: Z.drop(columns=reg, level=0).sum(axis=1).loc[(reg, sector)]*0/100
+        + Y.drop(columns=reg, level=0).sum(axis=1).loc[(reg, sector)]*0/100
+        + Z["FR"].sum(axis=1).loc[(reg, sector)]*120/100
+        + Y["FR"].sum(axis=1).loc[(reg, sector)]*120/100
         for reg in regions
     }
 
@@ -87,7 +89,7 @@ def moves_from_sorted_index_by_sector(
 
 
 def moves_from_sort_rule(
-    model: Model,
+    model,
     sorting_rule_by_sector: Callable[[Model,str, bool], List[int]],
     reloc: bool = False,
     legacy_use_Z : bool =False,
@@ -132,7 +134,7 @@ def moves_from_sort_rule(
     return new_Y, new_A 
 
 
-def sort_by_content(model: Model, sector: str, reloc: bool = False) -> np.array:
+def sort_by_content(model, sector: str, reloc: bool = False) -> List[int]:
     """Ascendantly sorts all regions by stressor content of a sector
 
     Args:
@@ -147,7 +149,7 @@ def sort_by_content(model: Model, sector: str, reloc: bool = False) -> np.array:
 
     M = model.iot.stressor_extension.M.sum(axis=0)
     regions_index = np.argsort(M[:, sector].values[1 - reloc :])
-    return regions_index
+    return regions_index # type: ignore
 
 
 ### BEST AND WORST SCENARIOS ###
@@ -182,6 +184,10 @@ def scenar_worst(model: Model, reloc: bool = False, legacy_use_Z: bool = True) -
 
     Returns:
         Tuple[pd.DataFrame]: tuple with 2 elements :
+            - reallocated Y matrix
+            - reallocated A matrix
+      or if legacy_use_Z is True
+        Tuple[pd.DataFrame]: tuple with 2 elements :
             - reallocated Z matrix
             - reallocated Y matrix
     """
@@ -197,7 +203,7 @@ def scenar_worst(model: Model, reloc: bool = False, legacy_use_Z: bool = True) -
 ### PREFERENCE SCENARIOS ###
 
 
-def scenar_pref(model, allies: List[str], reloc: bool = False) -> Tuple[pd.DataFrame,pd.DataFrame]:
+def scenar_pref(model, allies: List[str], reloc: bool = False, legacy_use_Z: bool = True) -> Tuple[pd.DataFrame,pd.DataFrame]:
     """Finds imports reallocation in order to trade as much as possible with the allies
 
     Args:
@@ -206,6 +212,10 @@ def scenar_pref(model, allies: List[str], reloc: bool = False) -> Tuple[pd.DataF
         reloc (bool, optional): True if relocation is allowed. Defaults to False.
 
     Returns:
+        Tuple[pd.DataFrame]: tuple with 2 elements :
+            - reallocated Y matrix
+            - reallocated A matrix
+        or if legacy_use_Z is True
         Tuple[pd.DataFrame]: tuple with 2 elements :
             - reallocated Z matrix
             - reallocated Y matrix
@@ -220,12 +230,27 @@ def scenar_pref(model, allies: List[str], reloc: bool = False) -> Tuple[pd.DataF
 
     new_Z = model.iot.Z.copy()
     new_Y = model.iot.Y.copy()
+    new_A = model.iot.A.copy()
     new_Z["FR"] = new_Z["FR"] * 0
     new_Y["FR"] = new_Y["FR"] * 0
+    new_A["FR"] = new_A["FR"] * 0
+
+    A= model.iot.A.copy()  
+    
+
+
 
     sectors = model.sectors
 
     for sector in sectors:
+        
+        
+        technical_requirements_imports_to_move= A["FR"].drop(list(set(allies+["FR"])),axis=0, level=0).groupby(level=1,axis=0).sum().xs(sector,axis=0).copy()/len(allies)
+        new_final_technical_req=A.copy().loc[(allies,sector),("FR",slice(None))]
+        new_final_technical_req+= technical_requirements_imports_to_move.values
+        new_A.loc[(allies,sector), ("FR", slice(None))]=new_final_technical_req
+        if not reloc: # keep own consumption identical when reloc is False 
+            new_A.loc[("FR",sector), ("FR", slice(None))]=A.copy().loc[("FR",sector),("FR",slice(None))]
 
         ## overall trade related with sector
         sector_exports_Z = model.iot.Z.loc[(regions, sector), :].sum(axis=0, level=0)
@@ -333,11 +358,13 @@ def scenar_pref(model, allies: List[str], reloc: bool = False) -> Tuple[pd.DataF
     new_Y.loc[("FR", slice(None)), ("FR", slice(None))] += model.iot.Y.loc[
         ("FR", slice(None)), ("FR", slice(None))
     ].values
-
+    if not legacy_use_Z:
+        return new_Y,new_A
+    
     return new_Z, new_Y
 
 
-def scenar_pref_eu(model: Model, reloc: bool = False) -> Tuple[pd.DataFrame,pd.DataFrame]:
+def scenar_pref_eu(model: Model, reloc: bool = False, legacy_use_Z: bool = True) -> Tuple[pd.DataFrame,pd.DataFrame]:
     """Finds imports reallocation that prioritize trade with European Union
 
     Args:
@@ -345,12 +372,16 @@ def scenar_pref_eu(model: Model, reloc: bool = False) -> Tuple[pd.DataFrame,pd.D
         reloc (bool, optional): True if relocation is allowed. Defaults to False.
 
     Returns:
-        Tuple[pd.DataFrame,pd.DataFrame]: tuple with 2 elements :
+        Tuple[pd.DataFrame]: tuple with 2 elements :
+            - reallocated Y matrix
+            - reallocated A matrix
+      or if legacy_use_Z is True
+        Tuple[pd.DataFrame]: tuple with 2 elements :
             - reallocated Z matrix
             - reallocated Y matrix
     """
 
-    return scenar_pref(model=model, allies=["EU"], reloc=reloc)
+    return scenar_pref(model=model, allies=["EU"], reloc=reloc,legacy_use_Z=legacy_use_Z)
 
 
 ### TRADE WAR SCENARIOS ###

@@ -122,7 +122,7 @@ class Model:
 
     def create_counterfactuals_from_dict(
         self,
-        parameters_dict: Dict = None,
+        parameters_dict: Dict = {},
         reloc: bool = False,
         verbose: bool = True,
     ) -> None:
@@ -134,7 +134,7 @@ class Model:
             verbose (bool, optional): True to print infos. Defaults to True.
         """
 
-        if parameters_dict is None:
+        if parameters_dict=={}:
             from scenarios import DICT_SCENARIOS
 
             parameters_dict = DICT_SCENARIOS
