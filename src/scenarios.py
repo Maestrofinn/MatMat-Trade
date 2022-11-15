@@ -1,7 +1,10 @@
 import numpy as np
 import pandas as pd
+import pymrio
 from typing import Callable, Dict, List, Tuple
 
+from src.utils import recal_stressor_per_region
+from src.advance import final_data_ratio,Link_country,final_technical_coef
 from src.model import Model
 
 
@@ -9,7 +12,7 @@ from src.model import Model
 
 
 def moves_from_sorted_index_by_sector(
-    model, sector: str, regions_index: List[int], reloc: bool = False,legacy_use_Z : bool =False
+    model, sector: str, regions_index: List[int], reloc: bool = False
 ) -> Tuple[pd.DataFrame,pd.DataFrame]:
     """Allocates french importations for a sector in the order given by region_index
 
@@ -31,12 +34,10 @@ def moves_from_sorted_index_by_sector(
         regions = model.regions[1:] # remove FR
     Z = model.iot.Z   
     Y = model.iot.Y   
-    A = model.iot.A   
      
     # french total importations demand for each sector / final demand
     inter_imports = Z["FR"].drop("FR", level=0).groupby(level=1).sum().loc[sector]
     final_imports = Y["FR"].drop("FR", level=0).groupby(level=1).sum().loc[sector]
-    technical_requirements_imports= A["FR"].drop("FR",axis=0, level=0).groupby(level=1,axis=0).sum().xs(sector,axis=0).copy()
     total_imports = inter_imports.sum() + final_imports.sum()
     inter_autoconso_FR = (
         Z.loc[("FR", sector), ("FR", slice(None))].groupby(level=1).sum()
@@ -77,23 +78,15 @@ def moves_from_sorted_index_by_sector(
         (final_imports / total_imports).to_frame("").T
     )
     new_final_imports.loc["FR"] += final_autoconso_FR
-
-    new_A = A.copy()
-    new_final_technical_req=A.copy().loc[(slice(None),sector),("FR",slice(None))]*0
-    new_final_technical_req.loc[(regions[regions_index[0]],sector),"FR"]= technical_requirements_imports.values
-    new_final_technical_req.loc["FR"]=new_A.loc[("FR",sector),("FR",slice(None))].to_frame().transpose()
  
-    if legacy_use_Z:
-        return new_inter_imports, new_final_imports
-    return new_final_imports,new_final_technical_req
+    return new_inter_imports, new_final_imports
 
 
 def moves_from_sort_rule(
     model,
     sorting_rule_by_sector: Callable[[Model,str, bool], List[int]],
     reloc: bool = False,
-    legacy_use_Z : bool =False,
-) -> Tuple[pd.DataFrame,pd.DataFrame]:
+) -> pymrio.IOSystem:
     """Allocates french importations for all sectors, sorting the regions with a given rule for each sector
 
     Args:
@@ -102,36 +95,35 @@ def moves_from_sort_rule(
         reloc (bool, optional): True if relocation is allowed. Defaults to False.
 
     Returns:
-        Tuple[pd.DataFrame]: tuple with 2 elements :
-            - reallocated Y matrix
-            - reallocated A matrix
+        pymrio.IOSystem: modified pymrio model
     """
 
     sectors_list = model.sectors
     new_Z = model.iot.Z.copy()
     new_Y = model.iot.Y.copy()
-    new_A = model.iot.A.copy()
     new_Z["FR"] = new_Z["FR"] * 0
     new_Y["FR"] = new_Y["FR"] * 0
     
-    if legacy_use_Z:
-        for sector in sectors_list:
-            regions_index = sorting_rule_by_sector(model, sector, reloc)
-            new_inter_imports, new_final_imports = moves_from_sorted_index_by_sector(
-                model=model, sector=sector, regions_index=regions_index, reloc=reloc,legacy_use_Z=legacy_use_Z
-            )
-            new_Z.loc[(slice(None), sector), ("FR", slice(None))] = new_inter_imports.values
-            new_Y.loc[(slice(None), sector), ("FR", slice(None))] = new_final_imports.values
-        return new_Z,new_Y
-    new_A.loc[:,("FR",slice(None))]=new_A.loc[:,("FR",slice(None))]*0
+
     for sector in sectors_list:
         regions_index = sorting_rule_by_sector(model, sector, reloc)
-        new_final_imports ,new_A_sector = moves_from_sorted_index_by_sector(
+        new_inter_imports, new_final_imports = moves_from_sorted_index_by_sector(
             model=model, sector=sector, regions_index=regions_index, reloc=reloc
         )
+        new_Z.loc[(slice(None), sector), ("FR", slice(None))] = new_inter_imports.values
         new_Y.loc[(slice(None), sector), ("FR", slice(None))] = new_final_imports.values
-        new_A.loc[(slice(None),sector),("FR",slice(None))] = new_A_sector
-    return new_Y, new_A 
+    
+    # integrate into mrio model 
+    iot=model.iot.copy()
+    iot.reset_to_flows()
+    iot.L=None
+    iot.A=None
+    iot.x=None
+    iot.Z=new_Z
+    iot.Y=new_Y
+    iot.calc_all()
+    
+    return iot
 
 
 def sort_by_content(model, sector: str, reloc: bool = False) -> List[int]:
@@ -155,7 +147,7 @@ def sort_by_content(model, sector: str, reloc: bool = False) -> List[int]:
 ### BEST AND WORST SCENARIOS ###
 
 
-def scenar_best(model: Model, reloc: bool = False,legacy_use_Z: bool =True) -> Tuple[pd.DataFrame,pd.DataFrame]:
+def scenar_best(model: Model, reloc: bool = False) -> pymrio.IOSystem:
     """Finds the least stressor-intense imports reallocation for all sectors
 
 
@@ -170,11 +162,11 @@ def scenar_best(model: Model, reloc: bool = False,legacy_use_Z: bool =True) -> T
     """
 
     return moves_from_sort_rule(
-        model=model, sorting_rule_by_sector=sort_by_content, reloc=reloc, legacy_use_Z=legacy_use_Z
+        model=model, sorting_rule_by_sector=sort_by_content, reloc=reloc
     )
 
 
-def scenar_worst(model: Model, reloc: bool = False, legacy_use_Z: bool = True) -> Tuple[pd.DataFrame,pd.DataFrame]:
+def scenar_worst(model: Model, reloc: bool = False) -> pymrio.IOSystem:
     """Finds the most stressor-intense imports reallocation for all sectors
 
 
@@ -184,10 +176,6 @@ def scenar_worst(model: Model, reloc: bool = False, legacy_use_Z: bool = True) -
 
     Returns:
         Tuple[pd.DataFrame]: tuple with 2 elements :
-            - reallocated Y matrix
-            - reallocated A matrix
-      or if legacy_use_Z is True
-        Tuple[pd.DataFrame]: tuple with 2 elements :
             - reallocated Z matrix
             - reallocated Y matrix
     """
@@ -195,15 +183,14 @@ def scenar_worst(model: Model, reloc: bool = False, legacy_use_Z: bool = True) -
     return moves_from_sort_rule(
         model=model,
         sorting_rule_by_sector=lambda *args: sort_by_content(*args)[::-1],
-        reloc=reloc,
-        legacy_use_Z=legacy_use_Z,
+        reloc=reloc
     )
 
 
 ### PREFERENCE SCENARIOS ###
 
 
-def scenar_pref(model, allies: List[str], reloc: bool = False, legacy_use_Z: bool = True) -> Tuple[pd.DataFrame,pd.DataFrame]:
+def scenar_pref(model, allies: List[str], reloc: bool = False) -> pymrio.IOSystem:
     """Finds imports reallocation in order to trade as much as possible with the allies
 
     Args:
@@ -212,10 +199,6 @@ def scenar_pref(model, allies: List[str], reloc: bool = False, legacy_use_Z: boo
         reloc (bool, optional): True if relocation is allowed. Defaults to False.
 
     Returns:
-        Tuple[pd.DataFrame]: tuple with 2 elements :
-            - reallocated Y matrix
-            - reallocated A matrix
-        or if legacy_use_Z is True
         Tuple[pd.DataFrame]: tuple with 2 elements :
             - reallocated Z matrix
             - reallocated Y matrix
@@ -230,12 +213,9 @@ def scenar_pref(model, allies: List[str], reloc: bool = False, legacy_use_Z: boo
 
     new_Z = model.iot.Z.copy()
     new_Y = model.iot.Y.copy()
-    new_A = model.iot.A.copy()
     new_Z["FR"] = new_Z["FR"] * 0
     new_Y["FR"] = new_Y["FR"] * 0
-    new_A["FR"] = new_A["FR"] * 0
-
-    A= model.iot.A.copy()  
+  
     
 
 
@@ -243,14 +223,6 @@ def scenar_pref(model, allies: List[str], reloc: bool = False, legacy_use_Z: boo
     sectors = model.sectors
 
     for sector in sectors:
-        
-        
-        technical_requirements_imports_to_move= A["FR"].drop(list(set(allies+["FR"])),axis=0, level=0).groupby(level=1,axis=0).sum().xs(sector,axis=0).copy()/len(allies)
-        new_final_technical_req=A.copy().loc[(allies,sector),("FR",slice(None))]
-        new_final_technical_req+= technical_requirements_imports_to_move.values
-        new_A.loc[(allies,sector), ("FR", slice(None))]=new_final_technical_req
-        if not reloc: # keep own consumption identical when reloc is False 
-            new_A.loc[("FR",sector), ("FR", slice(None))]=A.copy().loc[("FR",sector),("FR",slice(None))]
 
         ## overall trade related with sector
         sector_exports_Z = model.iot.Z.loc[(regions, sector), :].sum(axis=0, level=0)
@@ -358,13 +330,21 @@ def scenar_pref(model, allies: List[str], reloc: bool = False, legacy_use_Z: boo
     new_Y.loc[("FR", slice(None)), ("FR", slice(None))] += model.iot.Y.loc[
         ("FR", slice(None)), ("FR", slice(None))
     ].values
-    if not legacy_use_Z:
-        return new_Y,new_A
     
-    return new_Z, new_Y
+    # integrate into mrio model 
+    iot=model.iot.copy()
+    iot.reset_to_flows()
+    iot.L=None
+    iot.A=None
+    iot.x=None
+    iot.Z=new_Z
+    iot.Y=new_Y
+    iot.calc_all()
+    
+    return iot
 
 
-def scenar_pref_eu(model: Model, reloc: bool = False, legacy_use_Z: bool = True) -> Tuple[pd.DataFrame,pd.DataFrame]:
+def scenar_pref_eu(model: Model, reloc: bool = False) -> pymrio.IOSystem:
     """Finds imports reallocation that prioritize trade with European Union
 
     Args:
@@ -373,21 +353,17 @@ def scenar_pref_eu(model: Model, reloc: bool = False, legacy_use_Z: bool = True)
 
     Returns:
         Tuple[pd.DataFrame]: tuple with 2 elements :
-            - reallocated Y matrix
-            - reallocated A matrix
-      or if legacy_use_Z is True
-        Tuple[pd.DataFrame]: tuple with 2 elements :
             - reallocated Z matrix
             - reallocated Y matrix
     """
 
-    return scenar_pref(model=model, allies=["EU"], reloc=reloc,legacy_use_Z=legacy_use_Z)
+    return scenar_pref(model=model, allies=["EU"], reloc=reloc)
 
 
 ### TRADE WAR SCENARIOS ###
 
 
-def scenar_tradewar(model: Model, opponents: List[str], reloc: bool = False) -> Tuple[pd.DataFrame,pd.DataFrame]:
+def scenar_tradewar(model: Model, opponents: List[str], reloc: bool = False) -> pymrio.IOSystem:
     """Finds imports reallocation in order to exclude a list of opponents as much as possible
 
     Args:
@@ -407,7 +383,7 @@ def scenar_tradewar(model: Model, opponents: List[str], reloc: bool = False) -> 
     return scenar_pref(model=model, allies=allies, reloc=reloc)
 
 
-def scenar_tradewar_china(model: Model, reloc: bool = False) -> Tuple[pd.DataFrame,pd.DataFrame]:
+def scenar_tradewar_china(model: Model, reloc: bool = False) -> pymrio.IOSystem:
     """Finds imports reallocation that prevents trade with China as much as possible
 
 
@@ -427,23 +403,76 @@ def scenar_tradewar_china(model: Model, reloc: bool = False) -> Tuple[pd.DataFra
 
 ### DUMMY SCENARIO
 
-def scenar_dummy(model, reloc: bool = False,legacy_use_Z:bool = True) -> Tuple[pd.DataFrame,pd.DataFrame]:
+def scenar_dummy(model, reloc: bool = False) -> pymrio.IOSystem:
     """Dummy scenario functions that return an unchanged scenario
 
 
     Args:
         model (Model): object Model defined in model.py
-        reloc (bool, optional): True if relocation is allowed. Defaults to False.
+        reloc (bool, optional): True if relocation is allowed. Defaults to False. only available for compatibility
 
     Returns:
-        Tuple[pd.DataFrame]: tuple with 2 elements :
-            - reallocated Z matrix
-            - reallocated Y matrix
+        
     """
-    if not legacy_use_Z:
-        return model.iot.Y,model.iot.A
     
-    return model.iot.Z, model.iot.Y
+    return model.iot.copy()
+
+### IMACLIM SCENARIOS
+
+
+
+def emissivity_imaclim(model,year:int = 2050,scenario="INDC",**kwargs) -> pymrio.IOSystem:
+    
+    
+    region_belongs_to={region : Link_country.columns[Link_country.loc[region]==1][0] for region in model.regions}
+
+    iot=model.iot.copy()
+    iot.stressor_extension.S.loc["CO2"]= \
+            pd.concat([iot.stressor_extension.S.loc["CO2",region]*pd.Series(1+final_data_ratio.loc[(scenario,region_belongs_to[region]),year],name="CO2")  if region!="FR"
+                    else iot.stressor_extension.S.loc["CO2",region] for region in model.regions ],
+                    axis=0,
+                    names=("region","sector"),
+                    keys=model.regions)
+
+    # recompute the sorrect stressors based on the modifiations
+    iot.stressor_extension=recal_stressor_per_region(
+    iot=iot)
+    
+    return iot
+
+
+def tech_change_imaclim(model,year:int = 2050,scenario="INDC",**kwargs) -> pymrio.IOSystem:
+    
+    
+    
+    final_technical_coef_FR=final_technical_coef.copy()
+    final_technical_coef_FR.loc[:,(slice(None),slice(None),"FR")]=0 #not modifying French technologies (useful because that is done in MATMAT)
+    
+    
+    
+    iot=model.iot.copy()
+    A=iot.A.copy()
+    Y=iot.Y.copy()
+    iot.A=pd.concat([ pd.concat([A.loc[region_export,region_import]*(1+final_technical_coef_FR[scenario,year,region_import]) for region_import in model.regions],
+                                names=("region","sector"),
+                                keys=model.regions,
+                                axis=1)
+                     for region_export in model.regions],
+                    names=("region","sector"),
+                    keys=model.regions,
+                    axis=0)
+    iot.x = None
+    iot.L=None
+    
+    iot.calc_all()
+    
+    # recompute the correct stressors based on the modifiations
+    iot.stressor_extension=recal_stressor_per_region(
+        iot=iot,)
+    
+    return iot
+    
+
 
 ### AVAILABLE SCENARIOS ###
 
@@ -452,5 +481,7 @@ DICT_SCENARIOS = {
     "worst": scenar_worst,
     "pref_eu": scenar_pref_eu,
     "tradewar_china": scenar_tradewar_china,
-    "dummy":scenar_dummy
+    "dummy":scenar_dummy,
+    "emissivity_IMACLIM":emissivity_imaclim,
+    "technical_change_IMACLIM":tech_change_imaclim,
 }

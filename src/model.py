@@ -4,6 +4,8 @@ from typing import Callable, Dict, List, Tuple
 
 import pickle as pkl
 import pandas as pd
+import pymrio
+import copy
 
 
 
@@ -111,9 +113,8 @@ class Model:
     def new_counterfactual(
         self,
         name: str,
-        scenar_function: Callable[["Model", bool], Tuple[pd.DataFrame]],
-        reloc: bool = False,
-        legacy_use_Z: bool = True,
+        scenar_function: Callable[["Model", ], pymrio.IOSystem],
+        **kwargs
         ) -> None:
         """Creates a new counterfactual from scenario_parameters in self.counterfactuals
 
@@ -122,7 +123,7 @@ class Model:
             scenar_function (Callable[[Model, bool], Tuple[pd.DataFrame]]): functions that builds the new Z and Y matrices
             reloc (bool, optional): True if relocation is allowed. Defaults to False.
         """
-        self.counterfactuals[name] = Counterfactual(name, self, scenar_function, reloc,legacy_use_Z=legacy_use_Z)
+        self.counterfactuals[name] = Counterfactual(name, self, scenar_function, **kwargs)
 
     def create_counterfactuals_from_dict(
         self,
@@ -158,6 +159,28 @@ class Model:
             List[str]: names of the available counterfactuals
         """
         return list(self.counterfactuals.keys())
+    
+    def modify_counterfactual(
+        self,
+        name:str,
+        scenar_function: Callable[["Model", ], pymrio.IOSystem],
+        **kwargs
+        ) -> None:
+        """Creates a new counterfactual from scenario_parameters in self.counterfactuals
+
+        Args:
+            name (str): counterfactual to modify's name
+            scenar_function (Callable[[Model, bool], Tuple[pd.DataFrame]]): functions that builds the new Z and Y matrices
+            reloc (bool, optional): True if relocation is allowed. Defaults to False.
+        """
+        #creating a temporary model with counterfactuals info to work on
+        temp_model=copy.copy(self)
+        temp_model.iot=self.counterfactuals[name].iot
+        self.counterfactuals[name]=Counterfactual(name, temp_model, scenar_function, **kwargs)
+        del(temp_model)
+        
+        
+        
 
     ## aggregation mapping for figure editing
 
@@ -339,22 +362,21 @@ class Counterfactual:
         name: str,
         model: Model,
         scenar_function: Callable[[Model, bool], Tuple[pd.DataFrame]],
-        reloc: bool = False,
-        legacy_use_Z : bool= True
+        **kwargs
     ):
         """Inits Counterfactual class
 
         Args:
             name (str): name of the counterfactual
             model (Model): object Model defined in model.py
-            scenar_function (Callable[[Model, bool], Tuple[pd.DataFrame]]): builds the new Z and Y matrices
+            scenar_function (Callable[[Model, bool], Tuple[pd.DataFrame]]): builds the iot system
             reloc (bool, optional): True if relocation is allowed. Defaults to False.
         """
 
         self.name = name
-        self.reloc = reloc
+        self.reloc=kwargs.get("reloc",False)
         self.iot = build_counterfactual_data(
-            model=model, scenar_function=scenar_function, reloc=reloc, legacy_use_Z=legacy_use_Z
+            model=model, scenar_function=scenar_function, **kwargs
         )
         self.figures_dir = model.figures_dir / name
         if not os.path.isdir(self.figures_dir):

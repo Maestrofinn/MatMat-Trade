@@ -331,12 +331,16 @@ for pair in pairing:
 
 ### Adapating IMACLIM exctracted data to the country and sector aggregation of MATMAT Trade ###
 
-final_data_ratio=pd.concat([ Link.dot(final_data.loc[("INDC",region),:]) for region in regions],
-                           axis=0,
-                           keys=regions,
-                           names=["regions","sector"])
 
+scenarios=final_data.index.get_level_values("Scenario").unique()
 
+final_data_ratio=pd.concat([pd.concat([ Link.dot(final_data.loc[(scenario,region),:]) for region in regions],
+                                            axis=0,
+                                            keys=regions,
+                                            names=["regions","sector"]) for scenario in scenarios],
+                                axis=0,
+                                keys=scenarios,
+                                names=["scenario","regions","sector"])
 
 
 
