@@ -1,7 +1,11 @@
 import os
-import pandas as pd
-import pickle as pkl
+
 from typing import Callable, Dict, List, Tuple
+
+import pickle as pkl
+import pandas as pd
+
+
 
 import src.figures as figures
 from src.settings import (
@@ -129,7 +133,7 @@ class Model:
         """Creates all new counterfactuals from scenario_parameters in self.counterfactuals
 
         Args:
-            parameters_dict (Dict, optional): dictionnary with counterfactuals' names as keys and scenario parameters as values, set as DICT_SCENARIOS from scenarios.py if None. Defaults to None.
+            parameters_dict (Dict, optional): dictionnary with counterfactuals' names as keys and scenario parametersas values, set as DICT_SCENARIOS from scenarios.py if None. Defaults to None.
             reloc (bool, optional): True if relocation is allowed. Defaults to False.
             verbose (bool, optional): True to print infos. Defaults to True.
         """

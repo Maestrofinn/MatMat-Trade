@@ -328,7 +328,7 @@ def build_counterfactual_data(
     iot.Z=None
     iot.L=None
     iot.x = None
-
+    
     iot.calc_all()
 
     iot.stressor_extension = recal_stressor_per_region(

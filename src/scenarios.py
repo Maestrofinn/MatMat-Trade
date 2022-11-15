@@ -425,6 +425,25 @@ def scenar_tradewar_china(model: Model, reloc: bool = False) -> Tuple[pd.DataFra
         model=model, opponents=["China, RoW Asia and Pacific"], reloc=reloc
     )
 
+### DUMMY SCENARIO
+
+def scenar_dummy(model, reloc: bool = False,legacy_use_Z:bool = True) -> Tuple[pd.DataFrame,pd.DataFrame]:
+    """Dummy scenario functions that return an unchanged scenario
+
+
+    Args:
+        model (Model): object Model defined in model.py
+        reloc (bool, optional): True if relocation is allowed. Defaults to False.
+
+    Returns:
+        Tuple[pd.DataFrame]: tuple with 2 elements :
+            - reallocated Z matrix
+            - reallocated Y matrix
+    """
+    if not legacy_use_Z:
+        return model.iot.Y,model.iot.A
+    
+    return model.iot.Z, model.iot.Y
 
 ### AVAILABLE SCENARIOS ###
 
@@ -433,4 +452,5 @@ DICT_SCENARIOS = {
     "worst": scenar_worst,
     "pref_eu": scenar_pref_eu,
     "tradewar_china": scenar_tradewar_china,
+    "dummy":scenar_dummy
 }
