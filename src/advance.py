@@ -155,7 +155,7 @@ data = pd.concat(
 # build emission factors evolution
 final_data = data.loc['CO2 emission factors'].divide(data.loc['CO2 emission factors'][2015], axis = 0)
 final_data = final_data - 1
-final_data.drop(2015, axis = 1, inplace = True)
+# final_data.drop(2015, axis = 1, inplace = True)
 
 # set carbon content evolution of primary fossil fuels at zero
 # for scenario_name in final_data.index.get_level_values(0):
@@ -262,7 +262,7 @@ for scenario,sector in zip(technical_coef.index.get_level_values("Scenario"),tec
  
 	
 technical_coef = technical_coef.divide(technical_coef[2015], axis = 0) - 1
-technical_coef.drop(2015, axis = 1, inplace = True)
+# technical_coef.drop(2015, axis = 1, inplace = True)
 technical_coef.replace(np.nan, 0.0, inplace = True)
 technical_coef.replace(np.inf, 0.0, inplace = True)
 
@@ -324,7 +324,7 @@ Link_country=pd.DataFrame(data=0,index=np.sort(Region_list),columns=np.sort(fina
 pairing=[("EU","EUR"),("Brazil, Mexico","BRA"),("FR","EUR"),
          ("China, RoW Asia and Pacific","CHN"),("United States","USA"),("Asia, Row Europe","IND"),
          ("UK, Norway, Switzerland","EUR"),("RoW Middle East, Australia","MDE"),("Japan, Indonesia, RoW Africa","AFR"),
-         ("RoW America,Turkey, Taïwan","World"),("South Africa","AFR")]
+         ("South Africa","AFR"),("RoW America,Turkey, Taïwan","CAN")]
 for pair in pairing: 
     Link_country.loc[pair[0],pair[1]]=1
     
@@ -333,6 +333,7 @@ for pair in pairing:
 
 
 scenarios=final_data.index.get_level_values("Scenario").unique()
+final_data=final_data.fillna(0)
 
 final_data_ratio=pd.concat([pd.concat([ Link.dot(final_data.loc[(scenario,region),:]) for region in regions],
                                             axis=0,
@@ -341,6 +342,7 @@ final_data_ratio=pd.concat([pd.concat([ Link.dot(final_data.loc[(scenario,region
                                 axis=0,
                                 keys=scenarios,
                                 names=["scenario","regions","sector"])
+
 
 
 
