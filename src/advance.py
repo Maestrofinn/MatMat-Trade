@@ -386,10 +386,5 @@ def extract_data(aggregation,folder=folder_default):
 	final_technical_coef.columns.rename(["Scenario","Year","region","sector"],inplace=True)
 	final_technical_coef.index.rename("sector",inplace=True)
 
-	return final_data_ratio,final_technical_coef,Link_country,Link
+	return final_data_ratio,final_technical_coef,Link_country,Link,data.loc['Production volume']
 
-
-
-def enhance_industry_data():
-    
-    return 

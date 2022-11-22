@@ -425,7 +425,7 @@ def emissivity_imaclim(model,year:int = 2050,scenario="INDC",**kwargs) -> pymrio
     
     final_data_ratio,Link_country=extract_data(aggregation=model.aggregation_name)[slice(0,3,2)]
     
-    final_data_ratio=final_data_ratio.swaplevel()
+    final_data_ratio=final_data_ratio.swaplevel().sort_index()
     
     indexes=pd.Series(zip(final_data_ratio.index.get_level_values("scenario"),final_data_ratio.index.get_level_values("sector"))).unique()
     final_data_ratio=pd.concat([Link_country.dot(final_data_ratio.loc[scenario,sector]) for scenario,sector in indexes],
@@ -433,7 +433,7 @@ def emissivity_imaclim(model,year:int = 2050,scenario="INDC",**kwargs) -> pymrio
 								keys=indexes,
 								axis=0)
     
-    final_data_ratio=final_data_ratio.swaplevel()
+    final_data_ratio=final_data_ratio.swaplevel().sort_index()
 
     iot=model.iot.copy()
     iot.stressor_extension.S.loc["CO2"]= \
@@ -464,6 +464,7 @@ def tech_change_imaclim(model,year:int = 2050,scenario="INDC",**kwargs) -> pymri
     iot=model.iot.copy()
     A=iot.A.copy()
     Y=iot.Y.copy()
+    iot.reset_to_coefficient()
     iot.A=pd.concat([ pd.concat([A.loc[region_export,region_import]*(1+final_technical_coef_FR[scenario,year,region_import]) for region_import in model.regions],
                                 names=("region","sector"),
                                 keys=model.regions,
@@ -472,6 +473,7 @@ def tech_change_imaclim(model,year:int = 2050,scenario="INDC",**kwargs) -> pymri
                     names=("region","sector"),
                     keys=model.regions,
                     axis=0)
+    iot.Y=Y
     iot.x = None
     iot.L=None
     
@@ -483,7 +485,9 @@ def tech_change_imaclim(model,year:int = 2050,scenario="INDC",**kwargs) -> pymri
     
     return iot
     
-
+def final_demand_change_imaclim(model,year:int =2050,scneario:str ="INDC",**kwargs):
+    
+    return extract_data(aggregation=model.aggregation_name)[4]
 
 ### AVAILABLE SCENARIOS ###
 
