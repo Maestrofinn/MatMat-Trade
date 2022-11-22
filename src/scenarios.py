@@ -4,7 +4,7 @@ import pymrio
 from typing import Callable, Dict, List, Tuple
 
 from src.utils import recal_stressor_per_region
-from src.advance import final_data_ratio,Link_country,final_technical_coef
+from src.advance import extract_data
 from src.model import Model
 
 
@@ -423,12 +423,21 @@ def scenar_dummy(model, reloc: bool = False) -> pymrio.IOSystem:
 
 def emissivity_imaclim(model,year:int = 2050,scenario="INDC",**kwargs) -> pymrio.IOSystem:
     
+    final_data_ratio,Link_country=extract_data(aggregation=model.aggregation_name)[slice(0,3,2)]
     
-    region_belongs_to={region : Link_country.columns[Link_country.loc[region]==1][0] for region in model.regions}
+    final_data_ratio=final_data_ratio.swaplevel()
+    
+    indexes=pd.Series(zip(final_data_ratio.index.get_level_values("scenario"),final_data_ratio.index.get_level_values("sector"))).unique()
+    final_data_ratio=pd.concat([Link_country.dot(final_data_ratio.loc[scenario,sector]) for scenario,sector in indexes],
+                                names=("scenario","sector","regions"),
+								keys=indexes,
+								axis=0)
+    
+    final_data_ratio=final_data_ratio.swaplevel()
 
     iot=model.iot.copy()
     iot.stressor_extension.S.loc["CO2"]= \
-            pd.concat([iot.stressor_extension.S.loc["CO2",region]*pd.Series(1+final_data_ratio.loc[(scenario,region_belongs_to[region]),year],name="CO2")  if region!="FR"
+            pd.concat([iot.stressor_extension.S.loc["CO2",region]*pd.Series(1+final_data_ratio.loc[(scenario,region),year],name="CO2")  if region!="FR"
                     else iot.stressor_extension.S.loc["CO2",region] for region in model.regions ],
                     axis=0,
                     names=("region","sector"),
@@ -444,10 +453,12 @@ def emissivity_imaclim(model,year:int = 2050,scenario="INDC",**kwargs) -> pymrio
 def tech_change_imaclim(model,year:int = 2050,scenario="INDC",**kwargs) -> pymrio.IOSystem:
     
     
+    final_technical_coef=extract_data(aggregation=model.aggregation_name)[1]
     
     final_technical_coef_FR=final_technical_coef.copy()
-    final_technical_coef_FR.loc[:,(slice(None),slice(None),"FR")]=0 #not modifying French technologies (useful because that is done in MATMAT)
-    
+    if "FR" in final_technical_coef.columns.get_level_values("region"):
+        final_technical_coef_FR.loc[:,(slice(None),slice(None),"FR")]=0 #not modifying French technologies (useful because that is done in MATMAT)
+        
     
     
     iot=model.iot.copy()
