@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import pymrio
+import copy
 from typing import Callable, Dict, List, Tuple
 
 from src.utils import recal_stressor_per_region
@@ -423,7 +424,8 @@ def scenar_dummy(model, reloc: bool = False) -> pymrio.IOSystem:
 
 def emissivity_imaclim(model,year:int = 2050,scenario="INDC",**kwargs) -> pymrio.IOSystem:
     
-    final_data_ratio,Link_country=extract_data(aggregation=model.aggregation_name)[slice(0,3,2)]
+    data=extract_data(aggregation=model.aggregation_name)
+    final_data_ratio,Link_country=data[0],data[2]
     
     final_data_ratio=final_data_ratio.swaplevel().sort_index()
     
@@ -464,7 +466,7 @@ def tech_change_imaclim(model,year:int = 2050,scenario="INDC",**kwargs) -> pymri
     iot=model.iot.copy()
     A=iot.A.copy()
     Y=iot.Y.copy()
-    iot.reset_to_coefficient()
+    iot.reset_to_coefficients()
     iot.A=pd.concat([ pd.concat([A.loc[region_export,region_import]*(1+final_technical_coef_FR[scenario,year,region_import]) for region_import in model.regions],
                                 names=("region","sector"),
                                 keys=model.regions,
@@ -485,9 +487,39 @@ def tech_change_imaclim(model,year:int = 2050,scenario="INDC",**kwargs) -> pymri
     
     return iot
     
-def final_demand_change_imaclim(model,year:int =2050,scneario:str ="INDC",**kwargs):
+def production_change_imaclim(model,year:int =2050,scenario:str ="INDC",x_ref=None,**kwargs):
     
-    return extract_data(aggregation=model.aggregation_name)[4]
+    production_data=extract_data(aggregation=model.aggregation_name)[4]
+    
+    #get the relative change in production over all sectors/region.
+    production_change=production_data.loc[(scenario),year].sort_index()/production_data.loc[(scenario),2015].sort_index()
+    
+    #create the new scenario iot tables that will include production changes
+    iot=model.iot.copy()
+    
+    #include the production changes in the gross output x of new scenario
+    if x_ref is None:
+        x_ref=model.iot.x.sort_index().copy()
+    else :
+        x_ref=copy.deepcopy(x_ref.sort_index())
+    iot.x["indout"]=x_ref["indout"]*production_change
+    
+    ### The following intend to enable the use of integaretd footprint calculator (they rely on Y and not x, hence modifying x makes no difference,
+    ### we therfore create an artificial final demand Y that corresponds to the x we modififed)
+    
+    # Build a fictional Y matrix which would correspond to the current x : corresponds to the equation Y=(I-A)x
+    Y_we_need=iot.x-iot.A.dot(iot.x) 
+
+    # creates a fake detailed Y such that the row sums corresponds to the one we aim for ( we simply scale all values of a row)
+    coeffs=Y_we_need["indout"]/iot.Y.sum(axis=1)  #dropped a values here for yweneed
+    for row_index in iot.Y.index:
+        iot.Y.loc[row_index]=float(coeffs.loc[row_index])*iot.Y.loc[row_index]
+        
+    # we should now be able to compute some emissions, be carefull, the consumption based acounts don't make much sense here since we started with gross productions and made fictional Y
+    iot.stressor_extension=recal_stressor_per_region(
+            iot=iot,)
+    
+    return iot
 
 ### AVAILABLE SCENARIOS ###
 
@@ -499,4 +531,5 @@ DICT_SCENARIOS = {
     "dummy":scenar_dummy,
     "emissivity_IMACLIM":emissivity_imaclim,
     "technical_change_IMACLIM":tech_change_imaclim,
+    "production_change_IMACLIM":production_change_imaclim,
 }

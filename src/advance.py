@@ -385,6 +385,25 @@ def extract_data(aggregation,folder=folder_default):
 	final_technical_coef=final_technical_coef.reorder_levels(("Scenario","Year","Region","Sector"),axis=1)
 	final_technical_coef.columns.rename(["Scenario","Year","region","sector"],inplace=True)
 	final_technical_coef.index.rename("sector",inplace=True)
+ 
+	# getting the production volumes and formating with the right regions using correspondance matrix
+ 
+	Production_volumes=data.loc['Production volume']
+	
+	sectors=Production_volumes.index.get_level_values("Sector").unique()
+	scenarios=Production_volumes.index.get_level_values("Scenario").unique()
+ 
+	Production_volumes=Production_volumes.swaplevel().sort_index()
 
-	return final_data_ratio,final_technical_coef,Link_country,Link,data.loc['Production volume']
+	Production_volumes=pd.concat([pd.concat([ Link_country.dot(Production_volumes.loc[(scenario,sector),:]) for sector in sectors],
+													axis=0,
+													keys=sectors,
+													names=["sector","regions"]) for scenario in scenarios],
+										axis=0,
+										keys=scenarios,
+										names=["scenario","sector","region"])
+
+	Production_volumes=Production_volumes.swaplevel().sort_index()
+
+	return final_data_ratio,final_technical_coef,Link_country,Link,Production_volumes,data.loc['Direct CO2 emissions']
 

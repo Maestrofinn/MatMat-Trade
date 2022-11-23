@@ -164,6 +164,7 @@ class Model:
         self,
         name:str,
         scenar_function: Callable[["Model", ], pymrio.IOSystem],
+        new_name=None,
         **kwargs
         ) -> None:
         """Creates a new counterfactual from scenario_parameters in self.counterfactuals
@@ -172,11 +173,14 @@ class Model:
             name (str): counterfactual to modify's name
             scenar_function (Callable[[Model, bool], Tuple[pd.DataFrame]]): functions that builds the new Z and Y matrices
             reloc (bool, optional): True if relocation is allowed. Defaults to False.
+            new_name (str,optional): If not None, the modified counterfactuals is created and given the new_name, the original one remane unchanged
         """
         #creating a temporary model with counterfactuals info to work on
+        if new_name is None:
+            new_name=name
         temp_model=copy.copy(self)
         temp_model.iot=self.counterfactuals[name].iot
-        self.counterfactuals[name]=Counterfactual(name, temp_model, scenar_function, **kwargs)
+        self.counterfactuals[new_name]=Counterfactual(new_name, temp_model, scenar_function, **kwargs)
         del(temp_model)
         
         
