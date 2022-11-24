@@ -423,6 +423,15 @@ def scenar_dummy(model, reloc: bool = False) -> pymrio.IOSystem:
 
 
 def emissivity_imaclim(model,year:int = 2050,scenario="INDC",**kwargs) -> pymrio.IOSystem:
+    """Import emissivity changes predicted by IMACLIM model into the iot model, more precisely into the emissivity matrix S
+    
+    Args:
+        model (Model): object Model defined in model.py
+        year (int, optional) : The year of the scenario we want to create. Allows to choose the right emissiviy as IMACLIM preidtcion are on a annual basis. 
+        scenario (str, optional) : The IMACLIM scenario from which the changes are taken from. 
+
+    Returns:
+        pymrio.IOSystem : the modififed iot object"""
     
     data=extract_data(aggregation=model.aggregation_name)
     final_data_ratio,Link_country=data[0],data[2]
@@ -453,6 +462,15 @@ def emissivity_imaclim(model,year:int = 2050,scenario="INDC",**kwargs) -> pymrio
 
 
 def tech_change_imaclim(model,year:int = 2050,scenario="INDC",**kwargs) -> pymrio.IOSystem:
+    """Import technological changes predicted by IMACLIM model into the iot model, more precisely into the technical requirement matrix A
+    
+    Args:
+        model (Model): object Model defined in model.py
+        year (int, optional) : The year of the scenario we want to create. Allows to choose the right technological changes as IMACLIM preidtcion are on a annual basis. 
+        scenario (str, optional) : The IMACLIM scenario from which the changes are taken from. 
+
+    Returns:
+        pymrio.IOSystem : the modififed iot object"""
     
     
     final_technical_coef=extract_data(aggregation=model.aggregation_name)[1]
@@ -494,8 +512,20 @@ def tech_change_imaclim(model,year:int = 2050,scenario="INDC",**kwargs) -> pymri
     
     return iot
     
-def production_change_imaclim(model,year:int =2050,scenario:str ="INDC",x_ref=None,**kwargs):
+def production_change_imaclim(model,year:int =2050,scenario:str ="INDC",x_ref=None,ref_year:int=2015,**kwargs) -> pymrio.IOSystem:
+    """Import total production changes predicted by IMACLIM model into the iot model, more precisely into the gross output vector x.
+        Also create a fictional final demand Y that matches the gross output x, in order to keep a coherent iot. 
     
+    Args:
+        model (Model): object Model defined in model.py
+        year (int, optional) : The year of the scenario we want to create. Allows to choose the right technological changes as IMACLIM preidtcion are on a annual basis. 
+        scenario (str, optional) : The IMACLIM scenario from which the changes are taken from. 
+        x_ref (pandas.DataFrame, optional) : The reference production from which relative changes should be applied, default to the current iot.x, but might be usefull to specify another if the current ones has already changed
+        ref_year (int, optional) : The year of reference (from which the current IOT is), serves to know from which year to compute relative changes. 
+
+    Returns:
+        pymrio.IOSystem : the modififed iot object"""
+
     if x_ref is None:
         x_ref=model.iot.x.sort_index().copy()
     else :
@@ -504,7 +534,7 @@ def production_change_imaclim(model,year:int =2050,scenario:str ="INDC",x_ref=No
     production_data=extract_data(aggregation=model.aggregation_name)[4]
     
     #get the relative change in production over all sectors/region.
-    production_change=production_data.loc[(scenario),year].sort_index()/production_data.loc[(scenario),2015].sort_index()
+    production_change=production_data.loc[(scenario),year].sort_index()/production_data.loc[(scenario),ref_year].sort_index()
     
     #create the new scenario iot tables that will include production changes
     iot=model.iot.copy()
@@ -529,7 +559,18 @@ def production_change_imaclim(model,year:int =2050,scenario:str ="INDC",x_ref=No
     
     return iot
 
-def consumption_change_imaclim(model,year:int = 2050, scenario:str = "INDC", Y_ref=None,ref_year:int=2015,**kwargs):
+def consumption_change_imaclim(model,year:int = 2050, scenario:str = "INDC", Y_ref=None,ref_year:int=2015,**kwargs) -> pymrio.IOSystem:
+    """Import final demand changes predicted by IMACLIM model into the iot model, more precisely into the final demand_matrix Y
+    
+    Args:
+        model (Model): object Model defined in model.py
+        year (int, optional) : The year of the scenario we want to create. Allows to choose the right technological changes as IMACLIM preidtcion are on a annual basis. 
+        scenario (str, optional) : The IMACLIM scenario from which the changes are taken from. 
+        Y_ref (pandas.DataFrame, optional) : The reference demand from which relative changes should be applied, default to the current iot.x, but might be usefull to specify another if the current ones has already changed
+        ref_year (int, optional) : The year of reference (from which the current IOT is), serves to know from which year to compute relative changes. 
+
+    Returns:
+        pymrio.IOSystem : the modififed iot object"""
     
     if Y_ref is None:
         Y_ref=model.iot.Y.sort_index().copy()
