@@ -525,7 +525,7 @@ def production_change_imaclim(model,year:int =2050,scenario:str ="INDC",x_ref=No
         
     # we should now be able to compute some emissions, be carefull, the consumption based acounts don't make much sense here since we started with gross productions and made fictional Y
     iot.stressor_extension=recal_stressor_per_region(
-            iot=iot,)
+            iot=iot,recalc_F_Y=True)
     
     return iot
 
@@ -551,7 +551,7 @@ def consumption_change_imaclim(model,year:int = 2050, scenario:str = "INDC", Y_r
     iot.calc_all()
     
     iot.stressor_extension=recal_stressor_per_region(
-            iot=iot,)
+            iot=iot,recalc_F_Y=True)
     return iot
 
 ### AVAILABLE SCENARIOS ###
