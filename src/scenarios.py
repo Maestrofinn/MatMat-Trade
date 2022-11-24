@@ -479,6 +479,12 @@ def tech_change_imaclim(model,year:int = 2050,scenario="INDC",**kwargs) -> pymri
     iot.x = None
     iot.L=None
     
+    #some checks and safeguards might be needed here in order to prevent coefficient sums in each columns of A to be greater than 1 (which can lead to negative results of consumption/production etc)
+    columns_problem=iot.A.sum(axis=0)>1
+    print("Problems on sums of columns ",iot.A.loc[:,columns_problem].sum(axis=0))
+    iot.A.loc[:,columns_problem]=iot.A.loc[:,columns_problem]/(iot.A.loc[:,columns_problem].sum(axis=0)+1) #easy but dirty fix
+    
+    # completing the iot by calculating the missing parts
     iot.calc_all()
     
     # recompute the correct stressors based on the modifiations
@@ -489,6 +495,11 @@ def tech_change_imaclim(model,year:int = 2050,scenario="INDC",**kwargs) -> pymri
     
 def production_change_imaclim(model,year:int =2050,scenario:str ="INDC",x_ref=None,**kwargs):
     
+    if x_ref is None:
+        x_ref=model.iot.x.sort_index().copy()
+    else :
+        x_ref=copy.deepcopy(x_ref.sort_index())
+    
     production_data=extract_data(aggregation=model.aggregation_name)[4]
     
     #get the relative change in production over all sectors/region.
@@ -498,10 +509,6 @@ def production_change_imaclim(model,year:int =2050,scenario:str ="INDC",x_ref=No
     iot=model.iot.copy()
     
     #include the production changes in the gross output x of new scenario
-    if x_ref is None:
-        x_ref=model.iot.x.sort_index().copy()
-    else :
-        x_ref=copy.deepcopy(x_ref.sort_index())
     iot.x["indout"]=x_ref["indout"]*production_change
     
     ### The following intend to enable the use of integaretd footprint calculator (they rely on Y and not x, hence modifying x makes no difference,
@@ -521,6 +528,32 @@ def production_change_imaclim(model,year:int =2050,scenario:str ="INDC",x_ref=No
     
     return iot
 
+def consumption_change_imaclim(model,year:int = 2050, scenario:str = "INDC", Y_ref=None,ref_year:int=2015,**kwargs):
+    
+    if Y_ref is None:
+        Y_ref=model.iot.Y.sort_index().copy()
+    else :
+        Y_ref=copy.deepcopy(Y_ref.sort_index())
+        
+    consumption_data=extract_data(aggregation=model.aggregation_name)[5]
+    
+    consumption_change=consumption_data.loc[(scenario),year].sort_index()/consumption_data.loc[(scenario),ref_year].sort_index()
+    
+    iot=model.iot.copy()
+    Y=iot.Y.copy()
+    iot.reset_to_flows()
+    for region in model.regions:
+        for column in Y[region].columns:
+            Y[(region,column)]=Y[(region,column)]*consumption_change.loc[region]
+    iot.Y=Y
+    
+    iot.calc_all()
+    
+    iot.stressor_extension=recal_stressor_per_region(
+            iot=iot,)
+    
+    return iot
+
 ### AVAILABLE SCENARIOS ###
 
 DICT_SCENARIOS = {
@@ -532,4 +565,5 @@ DICT_SCENARIOS = {
     "emissivity_IMACLIM":emissivity_imaclim,
     "technical_change_IMACLIM":tech_change_imaclim,
     "production_change_IMACLIM":production_change_imaclim,
+    "consumption_change_imaclim":consumption_change_imaclim,
 }

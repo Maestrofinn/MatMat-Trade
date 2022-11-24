@@ -27,7 +27,7 @@ folder_default = "../Data/IMACLIM"
 
 
 def extract_data(aggregation,folder=folder_default):
-	"""Extract the usefull data from IMACLIM results and either reformat it or buids the tools to do so using the corresponding file
+	"""Extract the usefull data from IMACLIM results and either reformat it or builds the tools to do so using the corresponding file
 
 	Args:
 		folder (str): The folder where IMACLIM results are stored.
@@ -71,6 +71,9 @@ def extract_data(aggregation,folder=folder_default):
 
 	# reset index
 	data.reset_index(inplace = True)
+
+	#get total consumption
+	total_consumption=data.loc[data.Variable=="Consumption"]
 
 	# drop total quantities to avoid error
 	data = data.loc[~data.Variable.isin(components)]
@@ -404,6 +407,11 @@ def extract_data(aggregation,folder=folder_default):
 										names=["scenario","sector","region"])
 
 	Production_volumes=Production_volumes.swaplevel().sort_index()
+ 
+ 
+	# formating of total consumption
+ 
+	total_consumption=pd.DataFrame(data=total_consumption.drop(columns=["Scenario","Region","Unit","Variable"]).values,index=pd.MultiIndex.from_frame(total_consumption[["Scenario","Region"]]),columns=total_consumption.drop(columns=["Scenario","Region","Unit","Variable"]).columns)
 
-	return final_data_ratio,final_technical_coef,Link_country,Link,Production_volumes,data.loc['Direct CO2 emissions']
+	return final_data_ratio,final_technical_coef,Link_country,Link,Production_volumes,total_consumption,data.loc['Direct CO2 emissions']
 
