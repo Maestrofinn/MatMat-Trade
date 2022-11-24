@@ -481,8 +481,9 @@ def tech_change_imaclim(model,year:int = 2050,scenario="INDC",**kwargs) -> pymri
     
     #some checks and safeguards might be needed here in order to prevent coefficient sums in each columns of A to be greater than 1 (which can lead to negative results of consumption/production etc)
     columns_problem=iot.A.sum(axis=0)>1
-    print("Problems on sums of columns ",iot.A.loc[:,columns_problem].sum(axis=0))
-    iot.A.loc[:,columns_problem]=iot.A.loc[:,columns_problem]/(iot.A.loc[:,columns_problem].sum(axis=0)+1) #easy but dirty fix
+    if (iot.A.sum(axis=0)).any():
+        print("Problems on sums of columns ",iot.A.loc[:,columns_problem].sum(axis=0))
+        iot.A.loc[:,columns_problem]=iot.A.loc[:,columns_problem]/(iot.A.loc[:,columns_problem].sum(axis=0)+1) #easy but dirty fix
     
     # completing the iot by calculating the missing parts
     iot.calc_all()
@@ -551,7 +552,6 @@ def consumption_change_imaclim(model,year:int = 2050, scenario:str = "INDC", Y_r
     
     iot.stressor_extension=recal_stressor_per_region(
             iot=iot,)
-    
     return iot
 
 ### AVAILABLE SCENARIOS ###
