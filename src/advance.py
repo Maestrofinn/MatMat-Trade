@@ -27,7 +27,7 @@ folder_default = "../Data/IMACLIM"
 
 
 def extract_data(aggregation,folder=folder_default):
-	"""Extract the usefull data from IMACLIM results and either reformat it or buids the tools to do so using the corresponding file
+	"""Extract the usefull data from IMACLIM results and either reformat it or builds the tools to do so using the corresponding file
 
 	Args:
 		folder (str): The folder where IMACLIM results are stored.
@@ -71,6 +71,9 @@ def extract_data(aggregation,folder=folder_default):
 
 	# reset index
 	data.reset_index(inplace = True)
+
+	#get total consumption
+	total_consumption=data.loc[data.Variable=="Consumption"]
 
 	# drop total quantities to avoid error
 	data = data.loc[~data.Variable.isin(components)]
@@ -385,6 +388,30 @@ def extract_data(aggregation,folder=folder_default):
 	final_technical_coef=final_technical_coef.reorder_levels(("Scenario","Year","Region","Sector"),axis=1)
 	final_technical_coef.columns.rename(["Scenario","Year","region","sector"],inplace=True)
 	final_technical_coef.index.rename("sector",inplace=True)
+ 
+	# getting the production volumes and formating with the right regions using correspondance matrix
+ 
+	Production_volumes=data.loc['Production volume']
+	
+	sectors=Production_volumes.index.get_level_values("Sector").unique()
+	scenarios=Production_volumes.index.get_level_values("Scenario").unique()
+ 
+	Production_volumes=Production_volumes.swaplevel().sort_index()
 
-	return final_data_ratio,final_technical_coef,Link_country,Link,data.loc['Production volume']
+	Production_volumes=pd.concat([pd.concat([ Link_country.dot(Production_volumes.loc[(scenario,sector),:]) for sector in sectors],
+													axis=0,
+													keys=sectors,
+													names=["sector","regions"]) for scenario in scenarios],
+										axis=0,
+										keys=scenarios,
+										names=["scenario","sector","region"])
+
+	Production_volumes=Production_volumes.swaplevel().sort_index()
+ 
+ 
+	# formating of total consumption
+ 
+	total_consumption=pd.DataFrame(data=total_consumption.drop(columns=["Scenario","Region","Unit","Variable"]).values,index=pd.MultiIndex.from_frame(total_consumption[["Scenario","Region"]]),columns=total_consumption.drop(columns=["Scenario","Region","Unit","Variable"]).columns)
+
+	return final_data_ratio,final_technical_coef,Link_country,Link,Production_volumes,total_consumption,data.loc['Direct CO2 emissions']
 
