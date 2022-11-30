@@ -499,7 +499,7 @@ def tech_change_imaclim(model,year:int = 2050,scenario="INDC",**kwargs) -> pymri
     
     #some checks and safeguards might be needed here in order to prevent coefficient sums in each columns of A to be greater than 1 (which can lead to negative results of consumption/production etc)
     columns_problem=iot.A.sum(axis=0)>1
-    if (iot.A.sum(axis=0)).any():
+    if (iot.A.sum(axis=0)>1).any():
         print("Problems on sums of columns ",iot.A.loc[:,columns_problem].sum(axis=0))
         iot.A.loc[:,columns_problem]=iot.A.loc[:,columns_problem]/(iot.A.loc[:,columns_problem].sum(axis=0)+1) #easy but dirty fix
     
@@ -512,7 +512,7 @@ def tech_change_imaclim(model,year:int = 2050,scenario="INDC",**kwargs) -> pymri
     
     return iot
     
-def production_change_imaclim(model,year:int =2050,scenario:str ="INDC",x_ref=None,ref_year:int=2015,**kwargs) -> pymrio.IOSystem:
+def production_change_imaclim(model,year:int =2050,scenario:str ="INDC",x_ref=None,ref_year:int=2015,scenario_for_ref_year=None,**kwargs) -> pymrio.IOSystem:
     """Import total production changes predicted by IMACLIM model into the iot model, more precisely into the gross output vector x.
         Also create a fictional final demand Y that matches the gross output x, in order to keep a coherent iot. 
     
@@ -530,11 +530,14 @@ def production_change_imaclim(model,year:int =2050,scenario:str ="INDC",x_ref=No
         x_ref=model.iot.x.sort_index().copy()
     else :
         x_ref=copy.deepcopy(x_ref.sort_index())
+        
+    if scenario_for_ref_year is None:
+        scenario_for_ref_year=scenario
     
     production_data=extract_data(aggregation=model.aggregation_name)[4]
     
     #get the relative change in production over all sectors/region.
-    production_change=production_data.loc[(scenario),year].sort_index()/production_data.loc[(scenario),ref_year].sort_index()
+    production_change=production_data.loc[(scenario),year].sort_index()/production_data.loc[(scenario_for_ref_year),ref_year].sort_index()
     
     #create the new scenario iot tables that will include production changes
     iot=model.iot.copy()

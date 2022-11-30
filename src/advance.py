@@ -309,17 +309,11 @@ def extract_data(aggregation,folder=folder_default):
 	final_technical_coef.sort_index(inplace=True)
 
 
-	### Building the links between sectors and countris of IMACLIM and MATMAT Trade ### 
+	### Building the links between sectors and countries of IMACLIM and MATMAT Trade ### 
 
 
 	# Link between sectors
 
-	Region_list=['FR', 'UK, Norway, Switzerland', 'United States', 'Asia, Row Europe', 'China, RoW Asia and Pacific', 'RoW America,Turkey, Taïwan', 'RoW Middle East, Australia', 'Brazil, Mexico', 'South Africa', 'Japan, Indonesia, RoW Africa', 'EU']
-	Sector_list=['Agriculture', 'Crude coal', 'Crude oil', 'Natural gas',
-		'Extractive industry', 'Biomass_industry', 'Clothing', 'Heavy_industry',
-		'Construction', 'Automobile', 'Oth transport equipment', 'Machinery',
-		'Electronics', 'Fossil fuels', 'Electricity and heat',
-		'Transport services', 'Composite']
 
 
 	Link=pd.read_excel(imaclim_equivalent_file_name,sheet_name="sectors",index_col=0)
