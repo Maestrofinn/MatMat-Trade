@@ -32,7 +32,7 @@ def recal_stressor_per_region(
 
     Args:
         iot (pymrio.IOSystem): pymrio MRIO object
-        recalc_F_Y (Bool, optional) : allows to make the function recalculate F8Y as well, usefull if a change of final demand happend
+        recalc_F_Y (Bool, optional) : allows to make the function recalculate F_Y as well, usefull if a change of final demand happend
 
     Returns:
         pymrio.core.mriosystem.Extension: extension with account matrices completed
