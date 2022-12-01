@@ -6,10 +6,12 @@ import pickle as pkl
 import pycountry
 import pymrio
 from pymrio.tools import ioutil
+from pymrio.tools.iomath import calc_F_Y
 from scipy.io import loadmat
 from typing import Dict
 import warnings
 import wget
+
 
 from src.settings import AGGREGATION_DIR
 
@@ -23,12 +25,14 @@ warnings.simplefilter(action="ignore", category=FutureWarning)
 
 def recal_stressor_per_region(
     iot: pymrio.IOSystem,
+    recalc_F_Y: bool = False,
 ) -> pymrio.core.mriosystem.Extension:
-    """Computes the account matrices D_cba, D_pba, D_imp and D_exp
+    """Computes the account matrices D_cba, D_pba, D_imp, D_exp and optionally F_Y
        Based on pymrio.tools.iomath's function 'calc_accounts', see https://github.com/konstantinstadler/pymrio
 
     Args:
         iot (pymrio.IOSystem): pymrio MRIO object
+        recalc_F_Y (Bool, optional) : allows to make the function recalculate F_Y as well, usefull if a change of final demand happend
 
     Returns:
         pymrio.core.mriosystem.Extension: extension with account matrices completed
@@ -85,6 +89,11 @@ def recal_stressor_per_region(
         names=["region"],
     )
 
+    if recalc_F_Y:
+        S_Y=iot.stressor_extension.S_Y
+        y=iot.Y.sum()
+        extension.F_Y=calc_F_Y(S_Y,y)
+    
     return extension
 
 
@@ -303,26 +312,22 @@ def build_reference_data(model) -> pymrio.IOSystem:
 def build_counterfactual_data(
     model,
     scenar_function,
-    reloc: bool = False,
+    **kwargs
 ) -> pymrio.IOSystem:
     """Builds the pymrio object given reference's settings and the scenario parameters
 
     Args:
         model (Model): object Model defined in model.py
         scenar_function (Callable[[Model, bool], Tuple[pd.DataFrame]]): builds the new Z and Y matrices
-        reloc (bool, optional): True if relocation is allowed. Defaults to False.
+        **kwargs used :
+            reloc (bool, optional): True if relocation is allowed. Defaults to False.
+            year (int,optional) : Year for which the scenario is created. 
     Returns:
         pymrio.IOSystem: modified pymrio model
     """
-
-    iot = model.iot.copy()
-
-    iot.Z, iot.Y = scenar_function(model=model, reloc=reloc)
-
-    iot.A = None
-    iot.x = None
-    iot.L = None
-
+    
+    iot=scenar_function(model=model,**kwargs)
+    
     iot.calc_all()
 
     iot.stressor_extension = recal_stressor_per_region(

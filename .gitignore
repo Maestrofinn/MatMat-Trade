@@ -128,9 +128,13 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
+#vscode personal 
+.vscode  
+
 # additional gitignore from user
 data/capital_consumption/*
 data/exiobase/*
 data/models/*
 figures/
 figures/*
+importations_of_co2_scenarios_fixed.xlsx

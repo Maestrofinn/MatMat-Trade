@@ -1,7 +1,11 @@
 import numpy as np
 import pandas as pd
+import pymrio
+import copy
 from typing import Callable, Dict, List, Tuple
 
+from src.utils import recal_stressor_per_region
+from src.advance import extract_data
 from src.model import Model
 
 
@@ -9,8 +13,8 @@ from src.model import Model
 
 
 def moves_from_sorted_index_by_sector(
-    model: Model, sector: str, regions_index: List[int], reloc: bool = None
-) -> Tuple[pd.DataFrame]:
+    model, sector: str, regions_index: List[int], reloc: bool = False
+) -> Tuple[pd.DataFrame,pd.DataFrame]:
     """Allocates french importations for a sector in the order given by region_index
 
     Args:
@@ -28,10 +32,10 @@ def moves_from_sorted_index_by_sector(
     if reloc:
         regions = model.regions
     else:
-        regions = model.regions[1:]  # remove FR
-    Z = model.iot.Z
-    Y = model.iot.Y
-
+        regions = model.regions[1:] # remove FR
+    Z = model.iot.Z   
+    Y = model.iot.Y   
+     
     # french total importations demand for each sector / final demand
     inter_imports = Z["FR"].drop("FR", level=0).groupby(level=1).sum().loc[sector]
     final_imports = Y["FR"].drop("FR", level=0).groupby(level=1).sum().loc[sector]
@@ -45,8 +49,10 @@ def moves_from_sorted_index_by_sector(
 
     # export capacities of each regions
     export_capacities = {
-        reg: Z.drop(columns=reg, level=0).sum(axis=1).loc[(reg, sector)]
-        + Y.drop(columns=reg, level=0).sum(axis=1).loc[(reg, sector)]
+        reg: Z.drop(columns=reg, level=0).sum(axis=1).loc[(reg, sector)]*0/100
+        + Y.drop(columns=reg, level=0).sum(axis=1).loc[(reg, sector)]*0/100
+        + Z["FR"].sum(axis=1).loc[(reg, sector)]*120/100
+        + Y["FR"].sum(axis=1).loc[(reg, sector)]*120/100
         for reg in regions
     }
 
@@ -60,7 +66,7 @@ def moves_from_sorted_index_by_sector(
             remaining_imports -= export_capacities[reg]
         else:
             imports_from_regions.loc[reg] = remaining_imports
-            break
+            break 
 
     # allocations for intermediary imports
     new_inter_imports = imports_from_regions.to_frame("").dot(
@@ -73,15 +79,15 @@ def moves_from_sorted_index_by_sector(
         (final_imports / total_imports).to_frame("").T
     )
     new_final_imports.loc["FR"] += final_autoconso_FR
-
+ 
     return new_inter_imports, new_final_imports
 
 
 def moves_from_sort_rule(
-    model: Model,
-    sorting_rule_by_sector: Callable[[str, bool], List[int]],
+    model,
+    sorting_rule_by_sector: Callable[[Model,str, bool], List[int]],
     reloc: bool = False,
-) -> Tuple[pd.DataFrame]:
+) -> pymrio.IOSystem:
     """Allocates french importations for all sectors, sorting the regions with a given rule for each sector
 
     Args:
@@ -90,9 +96,7 @@ def moves_from_sort_rule(
         reloc (bool, optional): True if relocation is allowed. Defaults to False.
 
     Returns:
-        Tuple[pd.DataFrame]: tuple with 2 elements :
-            - reallocated Z matrix
-            - reallocated Y matrix
+        pymrio.IOSystem: modified pymrio model
     """
 
     sectors_list = model.sectors
@@ -100,6 +104,8 @@ def moves_from_sort_rule(
     new_Y = model.iot.Y.copy()
     new_Z["FR"] = new_Z["FR"] * 0
     new_Y["FR"] = new_Y["FR"] * 0
+    
+
     for sector in sectors_list:
         regions_index = sorting_rule_by_sector(model, sector, reloc)
         new_inter_imports, new_final_imports = moves_from_sorted_index_by_sector(
@@ -107,10 +113,21 @@ def moves_from_sort_rule(
         )
         new_Z.loc[(slice(None), sector), ("FR", slice(None))] = new_inter_imports.values
         new_Y.loc[(slice(None), sector), ("FR", slice(None))] = new_final_imports.values
-    return new_Z, new_Y
+    
+    # integrate into mrio model 
+    iot=model.iot.copy()
+    iot.reset_to_flows()
+    iot.L=None
+    iot.A=None
+    iot.x=None
+    iot.Z=new_Z
+    iot.Y=new_Y
+    iot.calc_all()
+    
+    return iot
 
 
-def sort_by_content(model: Model, sector: str, reloc: bool = False) -> np.array:
+def sort_by_content(model, sector: str, reloc: bool = False) -> List[int]:
     """Ascendantly sorts all regions by stressor content of a sector
 
     Args:
@@ -125,13 +142,13 @@ def sort_by_content(model: Model, sector: str, reloc: bool = False) -> np.array:
 
     M = model.iot.stressor_extension.M.sum(axis=0)
     regions_index = np.argsort(M[:, sector].values[1 - reloc :])
-    return regions_index
+    return regions_index # type: ignore
 
 
 ### BEST AND WORST SCENARIOS ###
 
 
-def scenar_best(model: Model, reloc: bool = False) -> Dict:
+def scenar_best(model: Model, reloc: bool = False) -> pymrio.IOSystem:
     """Finds the least stressor-intense imports reallocation for all sectors
 
 
@@ -150,7 +167,7 @@ def scenar_best(model: Model, reloc: bool = False) -> Dict:
     )
 
 
-def scenar_worst(model: Model, reloc: bool = False) -> Dict:
+def scenar_worst(model: Model, reloc: bool = False) -> pymrio.IOSystem:
     """Finds the most stressor-intense imports reallocation for all sectors
 
 
@@ -167,14 +184,14 @@ def scenar_worst(model: Model, reloc: bool = False) -> Dict:
     return moves_from_sort_rule(
         model=model,
         sorting_rule_by_sector=lambda *args: sort_by_content(*args)[::-1],
-        reloc=reloc,
+        reloc=reloc
     )
 
 
 ### PREFERENCE SCENARIOS ###
 
 
-def scenar_pref(model, allies: List[str], reloc: bool = False) -> Dict:
+def scenar_pref(model, allies: List[str], reloc: bool = False) -> pymrio.IOSystem:
     """Finds imports reallocation in order to trade as much as possible with the allies
 
     Args:
@@ -199,6 +216,10 @@ def scenar_pref(model, allies: List[str], reloc: bool = False) -> Dict:
     new_Y = model.iot.Y.copy()
     new_Z["FR"] = new_Z["FR"] * 0
     new_Y["FR"] = new_Y["FR"] * 0
+  
+    
+
+
 
     sectors = model.sectors
 
@@ -310,11 +331,21 @@ def scenar_pref(model, allies: List[str], reloc: bool = False) -> Dict:
     new_Y.loc[("FR", slice(None)), ("FR", slice(None))] += model.iot.Y.loc[
         ("FR", slice(None)), ("FR", slice(None))
     ].values
+    
+    # integrate into mrio model 
+    iot=model.iot.copy()
+    iot.reset_to_flows()
+    iot.L=None
+    iot.A=None
+    iot.x=None
+    iot.Z=new_Z
+    iot.Y=new_Y
+    iot.calc_all()
+    
+    return iot
 
-    return new_Z, new_Y
 
-
-def scenar_pref_eu(model: Model, reloc: bool = False) -> Dict:
+def scenar_pref_eu(model: Model, reloc: bool = False) -> pymrio.IOSystem:
     """Finds imports reallocation that prioritize trade with European Union
 
     Args:
@@ -333,7 +364,7 @@ def scenar_pref_eu(model: Model, reloc: bool = False) -> Dict:
 ### TRADE WAR SCENARIOS ###
 
 
-def scenar_tradewar(model: Model, opponents: List[str], reloc: bool = False) -> Dict:
+def scenar_tradewar(model: Model, opponents: List[str], reloc: bool = False) -> pymrio.IOSystem:
     """Finds imports reallocation in order to exclude a list of opponents as much as possible
 
     Args:
@@ -342,7 +373,7 @@ def scenar_tradewar(model: Model, opponents: List[str], reloc: bool = False) -> 
         reloc (bool, optional): True if relocation is allowed. Defaults to False.
 
     Returns:
-        Tuple[pd.DataFrame]: tuple with 2 elements :
+        Tuple[pd.DataFrame,pd.DataFrame]: tuple with 2 elements :
             - reallocated Z matrix
             - reallocated Y matrix
     """
@@ -353,7 +384,7 @@ def scenar_tradewar(model: Model, opponents: List[str], reloc: bool = False) -> 
     return scenar_pref(model=model, allies=allies, reloc=reloc)
 
 
-def scenar_tradewar_china(model: Model, reloc: bool = False) -> Dict:
+def scenar_tradewar_china(model: Model, reloc: bool = False) -> pymrio.IOSystem:
     """Finds imports reallocation that prevents trade with China as much as possible
 
 
@@ -371,6 +402,201 @@ def scenar_tradewar_china(model: Model, reloc: bool = False) -> Dict:
         model=model, opponents=["China, RoW Asia and Pacific"], reloc=reloc
     )
 
+### DUMMY SCENARIO
+
+def scenar_dummy(model, reloc: bool = False) -> pymrio.IOSystem:
+    """Dummy scenario functions that return an unchanged scenario
+
+
+    Args:
+        model (Model): object Model defined in model.py
+        reloc (bool, optional): True if relocation is allowed. Defaults to False. only available for compatibility
+
+    Returns:
+        
+    """
+    
+    return model.iot.copy()
+
+### IMACLIM SCENARIOS
+
+
+
+def emissivity_imaclim(model,year:int = 2050,scenario="INDC",**kwargs) -> pymrio.IOSystem:
+    """Import emissivity changes predicted by IMACLIM model into the iot model, more precisely into the emissivity matrix S
+    
+    Args:
+        model (Model): object Model defined in model.py
+        year (int, optional) : The year of the scenario we want to create. Allows to choose the right emissiviy as IMACLIM preidtcion are on a annual basis. 
+        scenario (str, optional) : The IMACLIM scenario from which the changes are taken from. 
+
+    Returns:
+        pymrio.IOSystem : the modififed iot object"""
+    
+    data=extract_data(aggregation=model.aggregation_name)
+    final_data_ratio,Link_country=data[0],data[2]
+    
+    final_data_ratio=final_data_ratio.swaplevel().sort_index()
+    
+    indexes=pd.Series(zip(final_data_ratio.index.get_level_values("scenario"),final_data_ratio.index.get_level_values("sector"))).unique()
+    final_data_ratio=pd.concat([Link_country.dot(final_data_ratio.loc[scenario,sector]) for scenario,sector in indexes],
+                                names=("scenario","sector","regions"),
+								keys=indexes,
+								axis=0)
+    
+    final_data_ratio=final_data_ratio.swaplevel().sort_index()
+
+    iot=model.iot.copy()
+    iot.stressor_extension.S.loc["CO2"]= \
+            pd.concat([iot.stressor_extension.S.loc["CO2",region]*pd.Series(1+final_data_ratio.loc[(scenario,region),year],name="CO2")  if region!="FR"
+                    else iot.stressor_extension.S.loc["CO2",region] for region in model.regions ],
+                    axis=0,
+                    names=("region","sector"),
+                    keys=model.regions)
+
+    # recompute the sorrect stressors based on the modifiations
+    iot.stressor_extension=recal_stressor_per_region(
+    iot=iot)
+    
+    return iot
+
+
+def tech_change_imaclim(model,year:int = 2050,scenario="INDC",**kwargs) -> pymrio.IOSystem:
+    """Import technological changes predicted by IMACLIM model into the iot model, more precisely into the technical requirement matrix A
+    
+    Args:
+        model (Model): object Model defined in model.py
+        year (int, optional) : The year of the scenario we want to create. Allows to choose the right technological changes as IMACLIM preidtcion are on a annual basis. 
+        scenario (str, optional) : The IMACLIM scenario from which the changes are taken from. 
+
+    Returns:
+        pymrio.IOSystem : the modififed iot object"""
+    
+    
+    final_technical_coef=extract_data(aggregation=model.aggregation_name)[1]
+    
+    final_technical_coef_FR=final_technical_coef.copy()
+    if "FR" in final_technical_coef.columns.get_level_values("region"):
+        final_technical_coef_FR.loc[:,(slice(None),slice(None),"FR")]=0 #not modifying French technologies (useful because that is done in MATMAT)
+        
+    
+    
+    iot=model.iot.copy()
+    A=iot.A.copy()
+    Y=iot.Y.copy()
+    iot.reset_to_coefficients()
+    iot.A=pd.concat([ pd.concat([A.loc[region_export,region_import]*(1+final_technical_coef_FR[scenario,year,region_import]) for region_import in model.regions],
+                                names=("region","sector"),
+                                keys=model.regions,
+                                axis=1)
+                     for region_export in model.regions],
+                    names=("region","sector"),
+                    keys=model.regions,
+                    axis=0)
+    iot.Y=Y
+    iot.x = None
+    iot.L=None
+    
+    #some checks and safeguards might be needed here in order to prevent coefficient sums in each columns of A to be greater than 1 (which can lead to negative results of consumption/production etc)
+    columns_problem=iot.A.sum(axis=0)>1
+    if (iot.A.sum(axis=0)>1).any():
+        print("Problems on sums of columns ",iot.A.loc[:,columns_problem].sum(axis=0))
+        iot.A.loc[:,columns_problem]=iot.A.loc[:,columns_problem]/(iot.A.loc[:,columns_problem].sum(axis=0)+1) #easy but dirty fix
+    
+    # completing the iot by calculating the missing parts
+    iot.calc_all()
+    
+    # recompute the correct stressors based on the modifiations
+    iot.stressor_extension=recal_stressor_per_region(
+        iot=iot,)
+    
+    return iot
+    
+def production_change_imaclim(model,year:int =2050,scenario:str ="INDC",x_ref=None,ref_year:int=2015,scenario_for_ref_year=None,**kwargs) -> pymrio.IOSystem:
+    """Import total production changes predicted by IMACLIM model into the iot model, more precisely into the gross output vector x.
+        Also create a fictional final demand Y that matches the gross output x, in order to keep a coherent iot. 
+    
+    Args:
+        model (Model): object Model defined in model.py
+        year (int, optional) : The year of the scenario we want to create. Allows to choose the right technological changes as IMACLIM preidtcion are on a annual basis. 
+        scenario (str, optional) : The IMACLIM scenario from which the changes are taken from. 
+        x_ref (pandas.DataFrame, optional) : The reference production from which relative changes should be applied, default to the current iot.x, but might be usefull to specify another if the current ones has already changed
+        ref_year (int, optional) : The year of reference (from which the current IOT is), serves to know from which year to compute relative changes. 
+
+    Returns:
+        pymrio.IOSystem : the modififed iot object"""
+
+    if x_ref is None:
+        x_ref=model.iot.x.sort_index().copy()
+    else :
+        x_ref=copy.deepcopy(x_ref.sort_index())
+        
+    if scenario_for_ref_year is None:
+        scenario_for_ref_year=scenario
+    
+    production_data=extract_data(aggregation=model.aggregation_name)[4]
+    
+    #get the relative change in production over all sectors/region.
+    production_change=production_data.loc[(scenario),year].sort_index()/production_data.loc[(scenario_for_ref_year),ref_year].sort_index()
+    
+    #create the new scenario iot tables that will include production changes
+    iot=model.iot.copy()
+    
+    #include the production changes in the gross output x of new scenario
+    iot.x["indout"]=x_ref["indout"]*production_change
+    
+    ### The following intend to enable the use of integaretd footprint calculator (they rely on Y and not x, hence modifying x makes no difference,
+    ### we therfore create an artificial final demand Y that corresponds to the x we modififed)
+    
+    # Build a fictional Y matrix which would correspond to the current x : corresponds to the equation Y=(I-A)x
+    Y_we_need=iot.x-iot.A.dot(iot.x) 
+
+    # creates a fake detailed Y such that the row sums corresponds to the one we aim for ( we simply scale all values of a row)
+    coeffs=Y_we_need["indout"]/iot.Y.sum(axis=1)  #dropped a values here for yweneed
+    for row_index in iot.Y.index:
+        iot.Y.loc[row_index]=float(coeffs.loc[row_index])*iot.Y.loc[row_index]
+        
+    # we should now be able to compute some emissions, be carefull, the consumption based acounts don't make much sense here since we started with gross productions and made fictional Y
+    iot.stressor_extension=recal_stressor_per_region(
+            iot=iot,recalc_F_Y=True)
+    
+    return iot
+
+def consumption_change_imaclim(model,year:int = 2050, scenario:str = "INDC", Y_ref=None,ref_year:int=2015,**kwargs) -> pymrio.IOSystem:
+    """Import final demand changes predicted by IMACLIM model into the iot model, more precisely into the final demand_matrix Y
+    
+    Args:
+        model (Model): object Model defined in model.py
+        year (int, optional) : The year of the scenario we want to create. Allows to choose the right technological changes as IMACLIM preidtcion are on a annual basis. 
+        scenario (str, optional) : The IMACLIM scenario from which the changes are taken from. 
+        Y_ref (pandas.DataFrame, optional) : The reference demand from which relative changes should be applied, default to the current iot.x, but might be usefull to specify another if the current ones has already changed
+        ref_year (int, optional) : The year of reference (from which the current IOT is), serves to know from which year to compute relative changes. 
+
+    Returns:
+        pymrio.IOSystem : the modififed iot object"""
+    
+    if Y_ref is None:
+        Y_ref=model.iot.Y.sort_index().copy()
+    else :
+        Y_ref=copy.deepcopy(Y_ref.sort_index())
+        
+    consumption_data=extract_data(aggregation=model.aggregation_name)[5]
+    
+    consumption_change=consumption_data.loc[(scenario),year].sort_index()/consumption_data.loc[(scenario),ref_year].sort_index()
+    
+    iot=model.iot.copy()
+    Y=iot.Y.copy()
+    iot.reset_to_flows()
+    for region in model.regions:
+        for column in Y[region].columns:
+            Y[(region,column)]=Y[(region,column)]*consumption_change.loc[region]
+    iot.Y=Y
+    
+    iot.calc_all()
+    
+    iot.stressor_extension=recal_stressor_per_region(
+            iot=iot,recalc_F_Y=True)
+    return iot
 
 ### AVAILABLE SCENARIOS ###
 
@@ -379,4 +605,9 @@ DICT_SCENARIOS = {
     "worst": scenar_worst,
     "pref_eu": scenar_pref_eu,
     "tradewar_china": scenar_tradewar_china,
+    "dummy":scenar_dummy,
+    "emissivity_IMACLIM":emissivity_imaclim,
+    "technical_change_IMACLIM":tech_change_imaclim,
+    "production_change_IMACLIM":production_change_imaclim,
+    "consumption_change_imaclim":consumption_change_imaclim,
 }

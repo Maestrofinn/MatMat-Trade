@@ -1,7 +1,13 @@
 import os
-import pandas as pd
-import pickle as pkl
+
 from typing import Callable, Dict, List, Tuple
+
+import pickle as pkl
+import pandas as pd
+import pymrio
+import copy
+
+
 
 import src.figures as figures
 from src.settings import (
@@ -107,9 +113,9 @@ class Model:
     def new_counterfactual(
         self,
         name: str,
-        scenar_function: Callable[["Model", bool], Tuple[pd.DataFrame]],
-        reloc: bool = False,
-    ) -> None:
+        scenar_function: Callable[["Model", ], pymrio.IOSystem],
+        **kwargs
+        ) -> None:
         """Creates a new counterfactual from scenario_parameters in self.counterfactuals
 
         Args:
@@ -117,23 +123,23 @@ class Model:
             scenar_function (Callable[[Model, bool], Tuple[pd.DataFrame]]): functions that builds the new Z and Y matrices
             reloc (bool, optional): True if relocation is allowed. Defaults to False.
         """
-        self.counterfactuals[name] = Counterfactual(name, self, scenar_function, reloc)
+        self.counterfactuals[name] = Counterfactual(name, self, scenar_function, **kwargs)
 
     def create_counterfactuals_from_dict(
         self,
-        parameters_dict: Dict = None,
+        parameters_dict: Dict = {},
         reloc: bool = False,
         verbose: bool = True,
     ) -> None:
         """Creates all new counterfactuals from scenario_parameters in self.counterfactuals
 
         Args:
-            parameters_dict (Dict, optional): dictionnary with counterfactuals' names as keys and scenario parameters as values, set as DICT_SCENARIOS from scenarios.py if None. Defaults to None.
+            parameters_dict (Dict, optional): dictionnary with counterfactuals' names as keys and scenario parametersas values, set as DICT_SCENARIOS from scenarios.py if None. Defaults to None.
             reloc (bool, optional): True if relocation is allowed. Defaults to False.
             verbose (bool, optional): True to print infos. Defaults to True.
         """
 
-        if parameters_dict is None:
+        if parameters_dict=={}:
             from scenarios import DICT_SCENARIOS
 
             parameters_dict = DICT_SCENARIOS
@@ -153,6 +159,32 @@ class Model:
             List[str]: names of the available counterfactuals
         """
         return list(self.counterfactuals.keys())
+    
+    def modify_counterfactual(
+        self,
+        name:str,
+        scenar_function: Callable[["Model", ], pymrio.IOSystem],
+        new_name=None,
+        **kwargs
+        ) -> None:
+        """Creates a new counterfactual from scenario_parameters in self.counterfactuals
+
+        Args:
+            name (str): counterfactual to modify's name
+            scenar_function (Callable[[Model, bool], Tuple[pd.DataFrame]]): functions that builds the new Z and Y matrices
+            reloc (bool, optional): True if relocation is allowed. Defaults to False.
+            new_name (str,optional): If not None, the modified counterfactuals is created and given the new_name, the original one remane unchanged
+        """
+        #creating a temporary model with counterfactuals info to work on
+        if new_name is None:
+            new_name=name
+        temp_model=copy.copy(self)
+        temp_model.iot=self.counterfactuals[name].iot
+        self.counterfactuals[new_name]=Counterfactual(new_name, temp_model, scenar_function, **kwargs)
+        del(temp_model)
+        
+        
+        
 
     ## aggregation mapping for figure editing
 
@@ -334,21 +366,21 @@ class Counterfactual:
         name: str,
         model: Model,
         scenar_function: Callable[[Model, bool], Tuple[pd.DataFrame]],
-        reloc: bool = False,
+        **kwargs
     ):
         """Inits Counterfactual class
 
         Args:
             name (str): name of the counterfactual
             model (Model): object Model defined in model.py
-            scenar_function (Callable[[Model, bool], Tuple[pd.DataFrame]]): builds the new Z and Y matrices
+            scenar_function (Callable[[Model, bool], Tuple[pd.DataFrame]]): builds the iot system
             reloc (bool, optional): True if relocation is allowed. Defaults to False.
         """
 
         self.name = name
-        self.reloc = reloc
+        self.reloc=kwargs.get("reloc",False)
         self.iot = build_counterfactual_data(
-            model=model, scenar_function=scenar_function, reloc=reloc
+            model=model, scenar_function=scenar_function, **kwargs
         )
         self.figures_dir = model.figures_dir / name
         if not os.path.isdir(self.figures_dir):
