@@ -24,6 +24,7 @@ final_year = 2050
 # folder name
 folder_default = "../Data/IMACLIM"
 
+Consumption_components=['Residential','Transportation|Passenger|Road|LDV']
 
 
 def extract_data(aggregation,folder=folder_default):
@@ -409,3 +410,57 @@ def extract_data(aggregation,folder=folder_default):
 
 	return final_data_ratio,final_technical_coef,Link_country,Link,Production_volumes,total_consumption,data.loc['Direct CO2 emissions']
 
+
+
+def exctract_consumption_emission(aggregation,folder=folder_default,GHG=["CO2"]):
+
+	imaclim_equivalent_file_name="data/IMACLIM_equivalent/"+aggregation+"_equivalent.xlsx"
+	# read data template
+
+	template = pd.read_excel(folder + '/template_data_output.xlsx')
+	template.drop(['Model', 'Scenario'], axis = 1, inplace = True)
+	template.set_index(['Region', 'Variable', 'Unit'], inplace = True)
+	template.insert(
+		len(template.columns),
+		template.columns[-1]  + 1,    # type: ignore , template.columns[-1] should be the last year of the scenario, hence an int
+		np.nan  # type: ignore 
+	)
+
+	# read scenario name
+	scenario_name = pd.read_excel(folder + '/scenario_names.xlsx')
+	scenario_name = scenario_name.loc[~scenario_name.equivalent.isin(['-'])]
+    	# read data
+	data = pd.concat(
+		[
+			pd.DataFrame(
+				np.genfromtxt(
+					(folder + ('/outputs_advance_wp6' + str(scenario_name.nb[x]) + '.tsv')),
+					delimiter = '\t'
+				),
+				index = template.index,
+				columns = template.columns
+			) for x in scenario_name.index 
+		],
+		axis = 0,
+		keys = scenario_name.equivalent,#.tolist(),
+		names = ['Scenario']
+	)
+	data.drop(template.columns[-1], axis = 1, inplace = True)
+
+	# reset index
+	data.reset_index(inplace = True)
+
+	#focus on emissions
+	emissions = data.loc[data.Variable.apply(lambda x: x.split('|')[0]=="Emissions")]
+
+	#get the GHG we want 
+	emissions = emissions.loc[emissions.Variable.apply(lambda x: x.split('|')[1] in GHG)]
+
+	consumption_emission=emissions.loc[emissions.Variable.apply(lambda x:x.split('|')[4:] in list(map(lambda x: x.split('|'),Consumption_components)))]
+	consumption_emission.loc[:,"Variable"]=consumption_emission.loc[:,"Variable"].apply(lambda x:'|'.join(x.split('|')[4:]))
+
+	consumption_emission.set_index(['Scenario',"Region","Variable"], inplace = True)
+ 
+	return consumption_emission
+ 
+ 
