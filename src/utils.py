@@ -96,6 +96,68 @@ def recal_stressor_per_region(
     
     return extension
 
+def get_very_detailed_emissions(iot: pymrio.IOSystem) -> pd.DataFrame:
+    """Computes a precise accounting of the impacts on stressors of the production, with easy traceability to both producing industry
+    and the final demand for which it is being produced
+
+    Args:
+        iot (pymrio.IOSystem): pymrio MRIO object
+
+    Returns:
+        pd.DataFrame : A detailed accounting matrix with rows for each region/sectors/stressor of production and columns for each region/goods of final demand.
+    """
+    S = iot.stressor_extension.S
+    L = iot.L
+    Y_vect = iot.Y.sum(level=0, axis=1)
+    nbsectors = len(iot.get_sectors())
+
+    Y_diag = ioutil.diagonalize_blocks(Y_vect.values, blocksize=nbsectors)
+    Y_diag = pd.DataFrame(Y_diag, index=Y_vect.index, columns=Y_vect.index)
+    
+    #for x_diag the row is the sector/region producing and the column the region/sector consumming
+    x_diag = L.dot(Y_diag)
+    
+    # DPDS is short for Detailed Production Demand Stressor matrix. It needs one value of stressor for
+    # each region/sector of production responding to each region/sector of demand
+    
+    #Making the matrix
+    DPDS=pd.concat([x_diag.copy() for stressor in range(iot.stressor_extension.S.shape[0])])
+    DPDS.sort_index(inplace=True)
+    DPDS.reset_index(inplace=True)
+    stressors=np.array( [iot.stressor_extension.S.index.values for production_sources in x_diag.index]).flatten()
+    DPDS["stressor"]=stressors
+    DPDS.set_index(["region","sector","stressor"],inplace=True)
+    
+    # here for each production type and location we compute for each stressor the amount of impact.  
+    DPDS=pd.concat([iot.stressor_extension.S.loc[stressor,(producing_region,producing_sector)]*x_diag.loc[(producing_region,producing_sector)]for producing_region,producing_sector,stressor in DPDS.index],
+          keys=DPDS.index,
+          axis=1).T.sort_index()
+    
+    return DPDS
+    
+
+def get_import_mean_stressor(
+    iot: pymrio.IOSystem,
+)-> pymrio.core.mriosystem.Extension:
+    
+    S = iot.stressor_extension.S
+    L = iot.L
+    Y_vect = iot.Y.sum(level=0, axis=1)
+    nbsectors = len(iot.get_sectors())
+
+    Y_diag = ioutil.diagonalize_blocks(Y_vect.values, blocksize=nbsectors)
+    Y_diag = pd.DataFrame(Y_diag, index=Y_vect.index, columns=Y_vect.index)
+    x_diag = L.dot(Y_diag)
+    
+    dom_block = np.zeros((nbsectors, nbsectors))
+    x_trade = pd.DataFrame(
+        ioutil.set_block(x_diag.values, dom_block),
+        index=x_diag.index,
+        columns=x_diag.columns,
+    )
+    
+    
+
 
 def convert_region_from_capital_matrix(reg: str) -> str:
     """Converts a capital matrix-formatted region code into an Exiobase-formatted region code
