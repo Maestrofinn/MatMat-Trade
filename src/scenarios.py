@@ -512,7 +512,7 @@ def tech_change_imaclim(model,year:int = 2050,scenario="INDC",**kwargs) -> pymri
     
     return iot
     
-def production_change_imaclim(model,year:int =2050,scenario:str ="INDC",x_ref=None,ref_year:int=2015,scenario_for_ref_year=None,**kwargs) -> pymrio.IOSystem:
+def production_change_imaclim(model,year:int =2050,scenario:str ="INDC",x_ref=None,ref_year:int=2015,scenario_for_ref_year=None,correct_negative_final_demand=True,**kwargs) -> pymrio.IOSystem:
     """Import total production changes predicted by IMACLIM model into the iot model, more precisely into the gross output vector x.
         Also create a fictional final demand Y that matches the gross output x, in order to keep a coherent iot. 
     
@@ -522,7 +522,7 @@ def production_change_imaclim(model,year:int =2050,scenario:str ="INDC",x_ref=No
         scenario (str, optional) : The IMACLIM scenario from which the changes are taken from. 
         x_ref (pandas.DataFrame, optional) : The reference production from which relative changes should be applied, default to the current iot.x, but might be usefull to specify another if the current ones has already changed
         ref_year (int, optional) : The year of reference (from which the current IOT is), serves to know from which year to compute relative changes. 
-
+        correct_negative_final_demand (bool, optinal) : Wether or not to make sure final demands are positive after it being obtained from gross output. If enabled might cause to deviate from original IMACLIM production and total emissions will be higher.
     Returns:
         pymrio.IOSystem : the modififed iot object"""
 
@@ -555,6 +555,10 @@ def production_change_imaclim(model,year:int =2050,scenario:str ="INDC",x_ref=No
     coeffs=Y_we_need["indout"]/iot.Y.sum(axis=1)  #dropped a values here for y_we_need
     for row_index in iot.Y.index:
         iot.Y.loc[row_index]=float(coeffs.loc[row_index])*iot.Y.loc[row_index]
+    
+    #the previous operations can lead to negative values if x is not determined according to similar technical coefficient, this gets rids of negative final demands
+    if correct_negative_final_demand:
+        iot.Y=iot.Y.mask(iot.Y.le(0),0)
         
     # we should now be able to compute some emissions, be carefull, the consumption based acounts don't make much sense here since we started with gross productions and made fictional Y
     iot.stressor_extension=recal_stressor_per_region(
