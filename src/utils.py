@@ -136,14 +136,24 @@ def get_very_detailed_emissions(iot: pymrio.IOSystem) -> pd.DataFrame:
     return DPDS
     
 
-def get_import_mean_stressor(
-    iot: pymrio.IOSystem,
-)-> pymrio.core.mriosystem.Extension:
+def get_import_mean_stressor(iot: pymrio.IOSystem,region:str)-> pd.Series:
+    """Computes the average stressor impact of imported goods by types of demands (intermediate and final). 
+    This corresponds to CoefRoW in MatMat.
+    
+    Args:
+        iot (pymrio.IOSystem): pymrio MRIO object
+        region (str): the region for which we want to compute the average stressor coefficents
+
+    Returns:
+        pd.Series : A Series of the stressor coefficient MultiIndexed by sector of final demand and stressor names
+    """
+    
     
     S = iot.stressor_extension.S
     L = iot.L
     Y_vect = iot.Y.sum(level=0, axis=1)
     nbsectors = len(iot.get_sectors())
+    D_imp=iot.stressor_extension.D_imp
 
     Y_diag = ioutil.diagonalize_blocks(Y_vect.values, blocksize=nbsectors)
     Y_diag = pd.DataFrame(Y_diag, index=Y_vect.index, columns=Y_vect.index)
@@ -156,6 +166,14 @@ def get_import_mean_stressor(
         columns=x_diag.columns,
     )
     
+    # As D_imp already computes the footprint per region of origins of the products, we only needs to actually compute the average value of stressor impact
+    region_imported_trade_by_sector=x_trade[region].groupby("sector").sum().sum(axis=1)
+    
+    import_mean_stressor=pd.concat([D_imp["EUR"].loc[(slice(None),stressor),:].sum(axis=0)/region_imported_trade_by_sector for stressor in D_imp.index.get_level_values(1).unique() ],
+                                   keys=D_imp.index.get_level_values(1).unique(),
+                                   names=("stressor","sector"))
+    
+    return import_mean_stressor
     
 
 

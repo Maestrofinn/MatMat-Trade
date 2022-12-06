@@ -552,7 +552,7 @@ def production_change_imaclim(model,year:int =2050,scenario:str ="INDC",x_ref=No
     Y_we_need=iot.x-iot.A.dot(iot.x) 
 
     # creates a fake detailed Y such that the row sums corresponds to the one we aim for ( we simply scale all values of a row)
-    coeffs=Y_we_need["indout"]/iot.Y.sum(axis=1)  #dropped a values here for yweneed
+    coeffs=Y_we_need["indout"]/iot.Y.sum(axis=1)  #dropped a values here for y_we_need
     for row_index in iot.Y.index:
         iot.Y.loc[row_index]=float(coeffs.loc[row_index])*iot.Y.loc[row_index]
         
