@@ -151,27 +151,30 @@ def get_import_mean_stressor(iot: pymrio.IOSystem,region:str)-> pd.Series:
     
     S = iot.stressor_extension.S
     L = iot.L
+    A=iot.A
     Y_vect = iot.Y.sum(level=0, axis=1)
     nbsectors = len(iot.get_sectors())
-    D_imp=iot.stressor_extension.D_imp
 
     Y_diag = ioutil.diagonalize_blocks(Y_vect.values, blocksize=nbsectors)
     Y_diag = pd.DataFrame(Y_diag, index=Y_vect.index, columns=Y_vect.index)
+    
+    # we isolate the imported final demand 
+    imported_final=Y_vect[region].copy()
+    imported_final[region]=0
+    
+    # we isolate the imported intermediate demand, deducted from the gross output of the region and the technical coefficients.
     x_diag = L.dot(Y_diag)
+    x_region=pd.DataFrame(x_diag.loc[(region,slice(None)),:]).sort_index()
+    imported_intermediate=A[region].sort_index().dot(x_region.sum(axis=1).values) #summing along axis 1 beacuse where the production goes is not relevent
+    imported_intermediate[region]=0
     
-    dom_block = np.zeros((nbsectors, nbsectors))
-    x_trade = pd.DataFrame(
-        ioutil.set_block(x_diag.values, dom_block),
-        index=x_diag.index,
-        columns=x_diag.columns,
-    )
+    total_imports=imported_final.add(imported_intermediate)
     
-    # As D_imp already computes the footprint per region of origins of the products, we only needs to actually compute the average value of stressor impact
-    region_imported_trade_by_sector=x_trade[region].groupby("sector").sum().sum(axis=1)
+    # Know those totals imports are used to get a weighted average of stressor impact per industry over the different import sources
     
-    import_mean_stressor=pd.concat([D_imp["EUR"].loc[(slice(None),stressor),:].sum(axis=0)/region_imported_trade_by_sector for stressor in D_imp.index.get_level_values(1).unique() ],
-                                   keys=D_imp.index.get_level_values(1).unique(),
-                                   names=("stressor","sector"))
+    S_L=S.dot(L)
+    import_mean_stressor=pd.concat([total_imports.mul(S_L.loc[stressor]).sum(level=1)/total_imports.sum(level=1)  for stressor in S_L.index.get_level_values(0).unique()],
+                                     keys=S_L.index.get_level_values(0).unique())
     
     return import_mean_stressor
     
