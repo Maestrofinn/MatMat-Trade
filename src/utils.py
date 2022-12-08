@@ -163,12 +163,12 @@ def get_import_mean_stressor(iot: pymrio.IOSystem,region:str)-> pd.Series:
     imported_final[region]=0
     
     # we isolate the imported intermediate demand, deducted from the gross output of the region and the technical coefficients.
-    x_diag = L.dot(Y_diag)
-    x_region=pd.DataFrame(x_diag.loc[(region,slice(None)),:]).sort_index()
-    imported_intermediate=A[region].sort_index().dot(x_region.sum(axis=1).values) #summing along axis 1 beacuse where the production goes is not relevent
-    imported_intermediate[region]=0
+    x = L.dot(iot.Y.sum(axis=1))
+    x_region=pd.DataFrame(x.loc[(region,slice(None))]).sort_index()
+    imported_intermediate=A[region].sort_index().dot(x_region.values) #summing along axis 1 beacuse where the production goes is not relevent
+    imported_intermediate.loc[(region,slice(None))]=0
     
-    total_imports=imported_final.add(imported_intermediate)
+    total_imports=imported_final.add(imported_intermediate[0])
     
     # Know those totals imports are used to get a weighted average of stressor impact per industry over the different import sources
     
