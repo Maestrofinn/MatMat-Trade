@@ -384,7 +384,7 @@ def extract_data(aggregation,folder=folder_default):
 	final_technical_coef.columns.rename(["Scenario","Year","region","sector"],inplace=True)
 	final_technical_coef.index.rename("sector",inplace=True)
  
-	# getting the production volumes and formating with the right regions using correspondance matrix
+	# getting the production volumes and formating with the right regions and sectors using correspondance matrix
  
 	Production_volumes=data.loc['Production volume']
 	
@@ -402,13 +402,28 @@ def extract_data(aggregation,folder=folder_default):
 										names=["scenario","sector","region"])
 
 	Production_volumes=Production_volumes.swaplevel().sort_index()
- 
- 
+	Production_volumes.sort_index(inplace=True,axis=1)
+
+	# return Link,Production_volumes
+    
+	Link.sort_index(axis=1,inplace=True)
+
+	link,production_data= Link,Production_volumes
+
+	
+	scenarios=production_data.index.get_level_values('scenario').unique()
+	production_volumes=pd.concat([pd.concat([ link.dot(production_data.loc[(scenario,region),:]) for region in production_data.index.get_level_values("region").unique()],
+													axis=0,
+													keys=production_data.index.get_level_values("region").unique(),
+													names=["regions","sector"]) for scenario in scenarios],
+										axis=0,
+										keys=scenarios,
+										names=["scenario","region","sector"])
 	# formating of total consumption
  
 	total_consumption=pd.DataFrame(data=total_consumption.drop(columns=["Scenario","Region","Unit","Variable"]).values,index=pd.MultiIndex.from_frame(total_consumption[["Scenario","Region"]]),columns=total_consumption.drop(columns=["Scenario","Region","Unit","Variable"]).columns)
 
-	return final_data_ratio,final_technical_coef,Link_country,Link,Production_volumes,total_consumption,data.loc['Direct CO2 emissions']
+	return final_data_ratio,final_technical_coef,Link_country,Link,production_volumes,total_consumption,data.loc['Direct CO2 emissions']
 
 
 
