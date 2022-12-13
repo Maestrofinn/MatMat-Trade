@@ -194,24 +194,20 @@ def build_reference_data(model) -> pymrio.IOSystem:
                 path=model.capital_consumption_path,
             )
             iot.Z += Kbar
-            cfc = iot.satellite.S.loc["Operating surplus: Consumption of fixed capital"]
-            gfcf = iot.Y.loc[
+            iot.Y.loc[
                 slice(None), (slice(None), "Gross fixed capital formation")
-            ]
-            iot.Y.loc[slice(None), (slice(None), "Gross fixed capital formation")] -= (
-                gfcf.divide(
-                    gfcf.sum(axis=1), axis="index"
-                )  # the CFC is shared among regions depending on their current level of investment in the associated couple (region x sector)
-                .fillna(
-                    1 / len(iot.get_regions())
-                )  # given that past investments are not available, if no region invests currently in a specific region's sector, then the investment is assumed to be equitable among all regions
-                .multiply(cfc, axis="index")
-            )
+            ] -= Kbar.groupby(axis=1, level=0).sum()
 
             # capital endogenization check
 
-            supply = iot.Y.sum(axis=1) + iot.Z.sum(axis=1)
-            use = iot.satellite.F.iloc[:9].sum(axis=0) + iot.Z.sum(axis=0)
+            supply = iot.Y.sum(axis=1, level=1)[
+                "Gross fixed capital formation"
+            ] + iot.Z.sum(axis=1)
+            use = (
+                iot.Z.sum(axis=0)
+                + iot.satellite.F.iloc[:9].sum(axis=0)
+                - iot.satellite.F.loc["Operating surplus: Consumption of fixed capital"]
+            )
             print(
                 "--- Vérification de l'équilibre emplois/ressources après endogénéisation du capital ---"
             )
@@ -220,6 +216,7 @@ def build_reference_data(model) -> pymrio.IOSystem:
             print(
                 f"abs(Emplois - Ressources) / Emplois = {abs(use.sum() - supply.sum()) / use.sum()}"
             )
+            print(f"max(Emplois - Ressources) = {max(use - supply)}")
 
         # extract emissions
         extension_list = list()
