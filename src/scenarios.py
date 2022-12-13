@@ -500,9 +500,16 @@ def tech_change_imaclim(model,year:int = 2050,scenario="INDC",**kwargs) -> pymri
     #some checks and safeguards might be needed here in order to prevent coefficient sums in each columns of A to be greater than 1 (which can lead to negative results of consumption/production etc)
     columns_problem=iot.A.sum(axis=0)>1
     if (iot.A.sum(axis=0)>1).any():
-        print("Problems on sums of columns ",iot.A.loc[:,columns_problem].sum(axis=0))
-        iot.A.loc[:,columns_problem]=iot.A.loc[:,columns_problem]/(iot.A.loc[:,columns_problem].sum(axis=0)+1) #easy but dirty fix
-    
+        column_list=iot.A.loc[:,columns_problem].columns
+        log_columns={column: [] for column in column_list}
+        for column in column_list:
+            while iot.A.loc[:,column].sum()>1:
+                max_index=iot.A.loc[:,column].idxmax()
+                iot.A.loc[max_index,column]/=(iot.A.loc[:,column].sum(axis=0)+1)
+                log_columns[column].append(max_index)
+            log_columns[column]=list(set(log_columns[column]))
+        print("Problems on sums of columns ",log_columns)#easy but dirty fix
+     
     # completing the iot by calculating the missing parts
     iot.calc_all()
     
