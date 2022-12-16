@@ -12,11 +12,72 @@ from src.model import Model
 ### AUXILIARY FUNCTIONS FOR SCENARIOS ###
 
 
+def moves_final_demand_from_sorted_index_by_sector(
+    model, sector: str, regions_index: List[int], reloc: bool = False
+) -> Tuple[pd.DataFrame,pd.DataFrame]:
+    """Allocates french final demand importations for a sector in the order given by region_index
+        #firectly adapated from moves_from_sorted_index_by_sector hence the ressemblance and some weird approaches
+ 
+    Args:
+        model (Model): object Model defined in model.py
+        sector (str): name of a product (or industry)
+        regions_index (List[int]): list of ordered region indices
+        reloc (bool): True if relocation is allowed. Defaults to None.
+
+    Returns:
+        Tuple[pd.DataFrame]: tuple with 2 elements :
+            - DataFrame with the imports of 'sector' from regions (rows) for french final demands (columns)
+    """
+
+    if reloc:
+        regions = model.regions
+    else:
+        regions = model.regions[1:] # remove FR
+    Z = model.iot.Z   
+    Y = model.iot.Y   
+     
+    # french total importations demand for each sector of final demand
+    final_imports = Y["FR"].drop("FR", level=0).groupby(level=1).sum().loc[sector]
+    total_imports = final_imports.sum()
+    final_autoconso_FR = (
+        Y.loc[("FR", sector), ("FR", slice(None))].groupby(level=1).sum()
+    )
+
+    # export capacities of each regions the two parameters determine how much production each region/sector can do for France
+    INCREASE_OVERALL=0
+    INCREASE_FRENCH_EXPORT=120/100 # if under 1 and INCREASE_OVERALL=0, reduces amounts available for france 
+    export_capacities = {
+        reg:  Y.drop(columns=reg, level=0).sum(axis=1).loc[(reg, sector)]*INCREASE_OVERALL
+        + Y["FR"].sum(axis=1).loc[(reg, sector)]*INCREASE_FRENCH_EXPORT
+        for reg in regions
+    }
+
+    # choice of the trade partners
+    imports_from_regions = pd.Series(0, index=model.regions)
+    remaining_imports = total_imports
+    for i in regions_index:
+        reg = regions[i]
+        if export_capacities[reg] <= remaining_imports:
+            imports_from_regions.loc[reg] = export_capacities[reg]
+            remaining_imports -= export_capacities[reg]
+        else:
+            imports_from_regions.loc[reg] = remaining_imports
+            break 
+
+    # allocations for final imports
+    new_final_imports = imports_from_regions.to_frame("").dot(
+        (final_imports / final_imports).to_frame("").T
+    )
+    new_final_imports.loc["FR"] += final_autoconso_FR
+ 
+    return new_final_imports
+
+
 def moves_from_sorted_index_by_sector(
     model, sector: str, regions_index: List[int], reloc: bool = False
 ) -> Tuple[pd.DataFrame,pd.DataFrame]:
     """Allocates french importations for a sector in the order given by region_index
-
+ 
     Args:
         model (Model): object Model defined in model.py
         sector (str): name of a product (or industry)
@@ -47,12 +108,14 @@ def moves_from_sorted_index_by_sector(
         Y.loc[("FR", sector), ("FR", slice(None))].groupby(level=1).sum()
     )
 
-    # export capacities of each regions
+    # export capacities of each regions the two parameters determine how much production each region/sector can do for France
+    INCREASE_OVERALL=0
+    INCREASE_FRENCH_EXPORT=120/100 # if under 1 and INCREASE_OVERALL=0, reduces amounts available for france 
     export_capacities = {
-        reg: Z.drop(columns=reg, level=0).sum(axis=1).loc[(reg, sector)]*0/100
-        + Y.drop(columns=reg, level=0).sum(axis=1).loc[(reg, sector)]*0/100
-        + Z["FR"].sum(axis=1).loc[(reg, sector)]*120/100
-        + Y["FR"].sum(axis=1).loc[(reg, sector)]*120/100
+        reg: Z.drop(columns=reg, level=0).sum(axis=1).loc[(reg, sector)]*INCREASE_OVERALL
+        + Y.drop(columns=reg, level=0).sum(axis=1).loc[(reg, sector)]*INCREASE_OVERALL
+        + Z["FR"].sum(axis=1).loc[(reg, sector)]*INCREASE_FRENCH_EXPORT
+        + Y["FR"].sum(axis=1).loc[(reg, sector)]*INCREASE_FRENCH_EXPORT
         for reg in regions
     }
 
@@ -83,10 +146,53 @@ def moves_from_sorted_index_by_sector(
     return new_inter_imports, new_final_imports
 
 
+def moves_final_demand_from_sort_rule(
+    model,
+    sorting_rule_by_sector: Callable[[Model,str, bool], List[int]],
+    reloc: bool = False,
+) -> pymrio.IOSystem:
+    """Allocates french final demand importations for all sectors, sorting the regions with a given rule for each sector
+
+    Args:
+        model (Model): object Model defined in model.py
+        sorting_rule_by_sector (Callable[[str, bool], List[int]]): given a sector name and the reloc value, returns a sorted list of regions' indices
+        reloc (bool, optional): True if relocation is allowed. Defaults to False.
+
+    Returns:
+        pymrio.IOSystem: modified pymrio model
+    """
+
+    sectors_list = model.sectors
+    new_Z = model.iot.Z.copy()
+    new_Y = model.iot.Y.copy()
+    new_Y["FR"] = new_Y["FR"] * 0
+    
+
+    for sector in sectors_list:
+        regions_index = sorting_rule_by_sector(model, sector, reloc)
+        new_final_imports = moves_final_demand_from_sorted_index_by_sector(
+            model=model, sector=sector, regions_index=regions_index, reloc=reloc
+        )
+        new_Y.loc[(slice(None), sector), ("FR", slice(None))] = new_final_imports.values
+    
+    # integrate into mrio model 
+    iot=model.iot.copy()
+    iot.reset_to_flows()
+    iot.L=None
+    iot.A=None
+    iot.x=None
+    iot.Z=new_Z
+    iot.Y=new_Y
+    iot.calc_all()
+    
+    return iot
+
+
 def moves_from_sort_rule(
     model,
     sorting_rule_by_sector: Callable[[Model,str, bool], List[int]],
     reloc: bool = False,
+    scope:int =3,
 ) -> pymrio.IOSystem:
     """Allocates french importations for all sectors, sorting the regions with a given rule for each sector
 
@@ -107,7 +213,7 @@ def moves_from_sort_rule(
     
 
     for sector in sectors_list:
-        regions_index = sorting_rule_by_sector(model, sector, reloc)
+        regions_index = sorting_rule_by_sector(model, sector, reloc,scope)
         new_inter_imports, new_final_imports = moves_from_sorted_index_by_sector(
             model=model, sector=sector, regions_index=regions_index, reloc=reloc
         )
@@ -127,28 +233,31 @@ def moves_from_sort_rule(
     return iot
 
 
-def sort_by_content(model, sector: str, reloc: bool = False) -> List[int]:
+def sort_by_content(model, sector: str, reloc: bool = False,scope: int = 3) -> List[int]:
     """Ascendantly sorts all regions by stressor content of a sector
 
     Args:
         model (Model): object Model defined in model.py
         sector (str): name of a product (or industry)
         reloc (bool, optional): True if relocation is allowed. Defaults to False.
-
+        scope (int , optional): defines the scope of the content (1 or 3) 2 might needs special implementation based on energy sector aggregations
 
     Returns:
         np.array: array of indices of regions sorted by stressor content
     """
-
-    M = model.iot.stressor_extension.M.sum(axis=0)
-    regions_index = np.argsort(M[:, sector].values[1 - reloc :])
+    if scope ==3:
+        content=model.iot.stressor_extension.M.sum(axis=0)
+    elif scope ==1:
+        content=model.iot.stressor_extension.S.sum(axis=0)
+    regions_index = np.argsort(content[:, sector].values[1 - reloc :])
     return regions_index # type: ignore
+
 
 
 ### BEST AND WORST SCENARIOS ###
 
 
-def scenar_best(model: Model, reloc: bool = False) -> pymrio.IOSystem:
+def scenar_best(model: Model, reloc: bool = False,scope:int =3) -> pymrio.IOSystem:
     """Finds the least stressor-intense imports reallocation for all sectors
 
 
@@ -163,7 +272,7 @@ def scenar_best(model: Model, reloc: bool = False) -> pymrio.IOSystem:
     """
 
     return moves_from_sort_rule(
-        model=model, sorting_rule_by_sector=sort_by_content, reloc=reloc
+        model=model, sorting_rule_by_sector=sort_by_content, reloc=reloc,scope=scope
     )
 
 
@@ -501,13 +610,13 @@ def tech_change_imaclim(model,year:int = 2050,scenario="INDC",**kwargs) -> pymri
     columns_problem=iot.A.sum(axis=0)>1
     if (iot.A.sum(axis=0)>1).any():
         column_list=iot.A.loc[:,columns_problem].columns
-        log_columns={column: [] for column in column_list}
+        log_columns={}
         for column in column_list:
-            while iot.A.loc[:,column].sum()>1:
-                max_index=iot.A.loc[:,column].idxmax()
-                iot.A.loc[max_index,column]/=(iot.A.loc[:,column].sum(axis=0)+1)
-                log_columns[column].append(max_index)
-            log_columns[column]=list(set(log_columns[column]))
+            big_numbers=iot.A.loc[:,column]>1 # first takes care of the coefs strictly bigger than 1
+            iot.A.loc[big_numbers,column]/=(iot.A.loc[:,column].sum(axis=0)+1) # and divides them by sum of the column (this usually suffice if 1 or 2 huge values are responsible for >1)
+            if iot.A.loc[:,column].sum()>1:
+                iot.A.loc[:,column]/=(iot.A.loc[:,column].sum(axis=0)+0.1) # if still needed, rescale the whole column
+            log_columns[column]=iot.A.loc[big_numbers,column].index
         print("Problems on sums of columns ",log_columns)#easy but dirty fix
      
     # completing the iot by calculating the missing parts
