@@ -32,15 +32,16 @@ def moves_final_demand_from_sorted_index_by_sector(
     if reloc:
         regions = model.regions
     else:
-        regions = model.regions[1:] # remove FR
+        regions = [ region for region in model.regions if region!="FR"] # remove FR
     Z = model.iot.Z   
     Y = model.iot.Y   
-     
+
+
     # french total importations demand for each sector of final demand
     final_imports = Y["FR"].drop("FR", level=0).groupby(level=1).sum().loc[sector]
     total_imports = final_imports.sum()
     final_autoconso_FR = (
-        Y.loc[("FR", sector), ("FR", slice(None))].groupby(level=1).sum()
+        Y.loc[("FR", sector), ("FR", slice(None))]
     )
 
     # export capacities of each regions the two parameters determine how much production each region/sector can do for France
@@ -63,12 +64,15 @@ def moves_final_demand_from_sorted_index_by_sector(
         else:
             imports_from_regions.loc[reg] = remaining_imports
             break 
-
+        
+    
     # allocations for final imports
     new_final_imports = imports_from_regions.to_frame("").dot(
-        (final_imports / final_imports).to_frame("").T
+        (final_imports / total_imports).to_frame("").fillna(0).T
     )
-    new_final_imports.loc["FR"] += final_autoconso_FR
+    new_final_imports.loc["FR"] += final_autoconso_FR["FR"]
+    
+    # print(new_final_imports.sum()-Y.loc[(slice(None), sector), ("FR", slice(None))].sum())
  
     return new_final_imports
 
@@ -93,7 +97,7 @@ def moves_from_sorted_index_by_sector(
     if reloc:
         regions = model.regions
     else:
-        regions = model.regions[1:] # remove FR
+        regions = [ region for region in model.regions if region!="FR"] # remove FR
     Z = model.iot.Z   
     Y = model.iot.Y   
      
@@ -102,10 +106,10 @@ def moves_from_sorted_index_by_sector(
     final_imports = Y["FR"].drop("FR", level=0).groupby(level=1).sum().loc[sector]
     total_imports = inter_imports.sum() + final_imports.sum()
     inter_autoconso_FR = (
-        Z.loc[("FR", sector), ("FR", slice(None))].groupby(level=1).sum()
+        Z.loc[("FR", sector), ("FR", slice(None))]
     )
     final_autoconso_FR = (
-        Y.loc[("FR", sector), ("FR", slice(None))].groupby(level=1).sum()
+        Y.loc[("FR", sector), ("FR", slice(None))]
     )
 
     # export capacities of each regions the two parameters determine how much production each region/sector can do for France
@@ -133,15 +137,15 @@ def moves_from_sorted_index_by_sector(
 
     # allocations for intermediary imports
     new_inter_imports = imports_from_regions.to_frame("").dot(
-        (inter_imports / total_imports).to_frame("").T
+        (inter_imports / total_imports).to_frame("").fillna(0).T
     )
-    new_inter_imports.loc["FR"] += inter_autoconso_FR
+    new_inter_imports.loc["FR"] += inter_autoconso_FR["FR"]
 
     # allocations for final imports
     new_final_imports = imports_from_regions.to_frame("").dot(
-        (final_imports / total_imports).to_frame("").T
+        (final_imports / total_imports).to_frame("").fillna(0).T
     )
-    new_final_imports.loc["FR"] += final_autoconso_FR
+    new_final_imports.loc["FR"] += final_autoconso_FR["FR"]
  
     return new_inter_imports, new_final_imports
 
@@ -164,7 +168,7 @@ def moves_final_demand_from_sort_rule(
     """
 
     sectors_list = model.sectors
-    new_Z = model.iot.Z.copy()
+    A = model.iot.A.copy()
     new_Y = model.iot.Y.copy()
     x=model.iot.x.copy()
     new_Y["FR"] = new_Y["FR"] * 0
@@ -178,13 +182,10 @@ def moves_final_demand_from_sort_rule(
         new_Y.loc[(slice(None), sector), ("FR", slice(None))] = new_final_imports.values
     
     # integrate into mrio model 
-    new_A=new_Z/x["indout"]
-    new_A=new_A.fillna(0)  # convert the changes we have one on Z to A, as it is the correct way to implement them
-    # integrate into mrio model 
     iot=model.iot.copy()
-    iot.reset_to_flows()
+    iot.reset_to_coefficients()
     iot.L=None
-    iot.A=new_A
+    iot.A=A
     iot.x=None
     iot.Z=None
     iot.Y=new_Y
