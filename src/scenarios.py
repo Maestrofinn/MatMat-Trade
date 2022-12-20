@@ -110,7 +110,7 @@ def moves_from_sorted_index_by_sector(
 
     # export capacities of each regions the two parameters determine how much production each region/sector can do for France
     INCREASE_OVERALL=0
-    INCREASE_FRENCH_EXPORT=120/100 # if under 1 and INCREASE_OVERALL=0, reduces amounts available for france 
+    INCREASE_FRENCH_EXPORT=120/100 # if under 1 and INCREASE_OVERALL=0, reduces amounts available for france ==> should create problems
     export_capacities = {
         reg: Z.drop(columns=reg, level=0).sum(axis=1).loc[(reg, sector)]*INCREASE_OVERALL
         + Y.drop(columns=reg, level=0).sum(axis=1).loc[(reg, sector)]*INCREASE_OVERALL
@@ -150,6 +150,7 @@ def moves_final_demand_from_sort_rule(
     model,
     sorting_rule_by_sector: Callable[[Model,str, bool], List[int]],
     reloc: bool = False,
+    scope: int =3,
 ) -> pymrio.IOSystem:
     """Allocates french final demand importations for all sectors, sorting the regions with a given rule for each sector
 
@@ -165,23 +166,27 @@ def moves_final_demand_from_sort_rule(
     sectors_list = model.sectors
     new_Z = model.iot.Z.copy()
     new_Y = model.iot.Y.copy()
+    x=model.iot.x.copy()
     new_Y["FR"] = new_Y["FR"] * 0
     
 
     for sector in sectors_list:
-        regions_index = sorting_rule_by_sector(model, sector, reloc)
+        regions_index = sorting_rule_by_sector(model, sector, reloc,scope)
         new_final_imports = moves_final_demand_from_sorted_index_by_sector(
             model=model, sector=sector, regions_index=regions_index, reloc=reloc
         )
         new_Y.loc[(slice(None), sector), ("FR", slice(None))] = new_final_imports.values
     
     # integrate into mrio model 
+    new_A=new_Z/x["indout"]
+    new_A=new_A.fillna(0)  # convert the changes we have one on Z to A, as it is the correct way to implement them
+    # integrate into mrio model 
     iot=model.iot.copy()
     iot.reset_to_flows()
     iot.L=None
-    iot.A=None
+    iot.A=new_A
     iot.x=None
-    iot.Z=new_Z
+    iot.Z=None
     iot.Y=new_Y
     iot.calc_all()
     
@@ -208,6 +213,7 @@ def moves_from_sort_rule(
     sectors_list = model.sectors
     new_Z = model.iot.Z.copy()
     new_Y = model.iot.Y.copy()
+    x=model.iot.x.copy()
     new_Z["FR"] = new_Z["FR"] * 0
     new_Y["FR"] = new_Y["FR"] * 0
     
@@ -220,13 +226,16 @@ def moves_from_sort_rule(
         new_Z.loc[(slice(None), sector), ("FR", slice(None))] = new_inter_imports.values
         new_Y.loc[(slice(None), sector), ("FR", slice(None))] = new_final_imports.values
     
+    
+    new_A=new_Z/x["indout"]
+    new_A=new_A.fillna(0)  # convert the changes we have one on Z to A, as it is the correct way to implement them
     # integrate into mrio model 
     iot=model.iot.copy()
     iot.reset_to_flows()
     iot.L=None
-    iot.A=None
+    iot.A=new_A
     iot.x=None
-    iot.Z=new_Z
+    iot.Z=None
     iot.Y=new_Y
     iot.calc_all()
     
@@ -296,6 +305,48 @@ def scenar_worst(model: Model, reloc: bool = False) -> pymrio.IOSystem:
         reloc=reloc
     )
 
+
+### BEST AND WORST SCENARIOS FOR FINAL DEMAND###
+
+
+def scenar_best_final_demand(model: Model, reloc: bool = False,scope:int =3) -> pymrio.IOSystem:
+    """Finds the least stressor-intense imports reallocation for all sectors
+
+
+    Args:
+        model (Model): object Model defined in model.py
+        reloc (bool, optional): True if relocation is allowed. Defaults to False.
+
+    Returns:
+        Tuple[pd.DataFrame]: tuple with 2 elements :
+            - reallocated Z matrix
+            - reallocated Y matrix
+    """
+
+    return moves_final_demand_from_sort_rule(
+        model=model, sorting_rule_by_sector=sort_by_content, reloc=reloc,scope=scope
+    )
+
+
+def scenar_worst_final_demand(model: Model, reloc: bool = False) -> pymrio.IOSystem:
+    """Finds the most stressor-intense imports reallocation for all sectors
+
+
+    Args:
+        model (Model): object Model defined in model.py
+        reloc (bool, optional): True if relocation is allowed. Defaults to False.
+
+    Returns:
+        Tuple[pd.DataFrame]: tuple with 2 elements :
+            - reallocated Z matrix
+            - reallocated Y matrix
+    """
+
+    return moves_final_demand_from_sort_rule(
+        model=model,
+        sorting_rule_by_sector=lambda *args: sort_by_content(*args)[::-1],
+        reloc=reloc
+    )
 
 ### PREFERENCE SCENARIOS ###
 
@@ -606,6 +657,7 @@ def tech_change_imaclim(model,year:int = 2050,scenario="INDC",**kwargs) -> pymri
     iot.x = None
     iot.L=None
     
+    
     #some checks and safeguards might be needed here in order to prevent coefficient sums in each columns of A to be greater than 1 (which can lead to negative results of consumption/production etc)
     columns_problem=iot.A.sum(axis=0)>1
     if (iot.A.sum(axis=0)>1).any():
@@ -722,7 +774,9 @@ def consumption_change_imaclim(model,year:int = 2050, scenario:str = "INDC", Y_r
 
 DICT_SCENARIOS = {
     "best": scenar_best,
+    "best final demand":scenar_best_final_demand,
     "worst": scenar_worst,
+    "worst final demand": scenar_worst_final_demand,
     "pref_eu": scenar_pref_eu,
     "tradewar_china": scenar_tradewar_china,
     "dummy":scenar_dummy,

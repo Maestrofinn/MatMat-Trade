@@ -43,6 +43,7 @@ def recal_stressor_per_region(
     L = iot.L
     Y_vect = iot.Y.sum(level=0, axis=1)
     nbsectors = len(iot.get_sectors())
+    extension.M=S@L
 
     Y_diag = ioutil.diagonalize_blocks(Y_vect.values, blocksize=nbsectors)
     Y_diag = pd.DataFrame(Y_diag, index=Y_vect.index, columns=Y_vect.index)
