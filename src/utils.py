@@ -135,6 +135,38 @@ def get_very_detailed_emissions(iot: pymrio.IOSystem) -> pd.DataFrame:
           axis=1).T.sort_index()
     
     return DPDS
+
+def get_total_imports_region(iot: pymrio.IOSystem,region:str)-> pd.Series:
+    """Computes the amount imported goods by types of demands (intermediate and final). 
+    
+    Args:
+        iot (pymrio.IOSystem): pymrio MRIO object
+        region (str): the region for which we want to compute the average stressor coefficents
+
+    Returns:
+        pd.Series : A Series of the stressor coefficient MultiIndexed by sector of final demand and stressor names
+    """
+    
+    L = iot.L
+    A=iot.A
+    Y_vect = iot.Y.sum(level=0, axis=1)
+    nbsectors = len(iot.get_sectors())
+
+    Y_diag = ioutil.diagonalize_blocks(Y_vect.values, blocksize=nbsectors)
+    Y_diag = pd.DataFrame(Y_diag, index=Y_vect.index, columns=Y_vect.index)
+    
+    # we isolate the imported final demand 
+    imported_final=Y_vect[region].copy()
+    imported_final[region]=0
+    
+    # we isolate the imported intermediate demand, deducted from the gross output of the region and the technical coefficients.
+    x = L.dot(iot.Y.sum(axis=1)) #summing along axis 1 beacuse where the production goes is not relevant
+    x_region=pd.DataFrame(x.loc[(region,slice(None))]).sort_index()
+    imported_intermediate=A[region].sort_index().dot(x_region.values) 
+    imported_intermediate.loc[(region,slice(None))]=0
+    
+    total_imports=imported_final.add(imported_intermediate[0])
+    return total_imports
     
 
 def get_import_mean_stressor(iot: pymrio.IOSystem,region:str)-> pd.Series:
@@ -152,24 +184,8 @@ def get_import_mean_stressor(iot: pymrio.IOSystem,region:str)-> pd.Series:
     
     S = iot.stressor_extension.S
     L = iot.L
-    A=iot.A
-    Y_vect = iot.Y.sum(level=0, axis=1)
-    nbsectors = len(iot.get_sectors())
-
-    Y_diag = ioutil.diagonalize_blocks(Y_vect.values, blocksize=nbsectors)
-    Y_diag = pd.DataFrame(Y_diag, index=Y_vect.index, columns=Y_vect.index)
     
-    # we isolate the imported final demand 
-    imported_final=Y_vect[region].copy()
-    imported_final[region]=0
-    
-    # we isolate the imported intermediate demand, deducted from the gross output of the region and the technical coefficients.
-    x = L.dot(iot.Y.sum(axis=1))
-    x_region=pd.DataFrame(x.loc[(region,slice(None))]).sort_index()
-    imported_intermediate=A[region].sort_index().dot(x_region.values) #summing along axis 1 beacuse where the production goes is not relevent
-    imported_intermediate.loc[(region,slice(None))]=0
-    
-    total_imports=imported_final.add(imported_intermediate[0])
+    total_imports=get_total_imports_region(iot,region)
     
     # Know those totals imports are used to get a weighted average of stressor impact per industry over the different import sources
     
