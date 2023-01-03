@@ -3,9 +3,14 @@ GHG_PARAMS = {
     "name_EN": "GHG",
     "unit": "kgCO2eq",
     "proxy": {
-        "CO2": {
+        "CO2 - combustion": {
             "exiobase_keys": [
                 "CO2 - combustion - air",
+            ],
+            "weight": 1,
+        },
+        "CO2 - other": {
+            "exiobase_keys": [
                 "CO2 - non combustion - Cement production - air",
                 "CO2 - non combustion - Lime production - air",
                 "CO2 - agriculture - peat decay - air",

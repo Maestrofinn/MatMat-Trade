@@ -608,9 +608,9 @@ def emissivity_imaclim(model,year:int = 2050,scenario="INDC",**kwargs) -> pymrio
     final_data_ratio=final_data_ratio.swaplevel().sort_index()
 
     iot=model.iot.copy()
-    iot.stressor_extension.S.loc["CO2"]= \
-            pd.concat([iot.stressor_extension.S.loc["CO2",region]*pd.Series(1+final_data_ratio.loc[(scenario,region),year],name="CO2")  if region!="FR"
-                    else iot.stressor_extension.S.loc["CO2",region] for region in model.regions ],
+    iot.stressor_extension.S.loc["CO2 - combustion"]= \
+            pd.concat([iot.stressor_extension.S.loc["CO2 - combustion",region]*pd.Series(1+final_data_ratio.loc[(scenario,region),year],name="CO2 - combustion")  if region!="FR"
+                    else iot.stressor_extension.S.loc["CO2 - combustion",region] for region in model.regions ],
                     axis=0,
                     names=("region","sector"),
                     keys=model.regions)
