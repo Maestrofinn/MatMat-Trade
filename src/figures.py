@@ -799,7 +799,7 @@ def plot_substressor_synthesis(
 def plot_sector_import_distrib(iot : pymrio.IOSystem,sectors: list,country_importing="FR",normalized_quantity=True):
     
     
-    emissiv_df=get_emmissiv_and_quantity(iot,country_importing,sectors)
+    emissiv_df=get_emmissiv_and_quantity(iot,country_importing)
 
     sector_needed_emssiv=emissiv_df.loc[emissiv_df.index.get_level_values("sector").isin(sectors)].reset_index()
 
@@ -829,10 +829,10 @@ def plot_sector_import_distrib_full(model ,sectors: list,country_importing="FR",
         
     dict_df_to_print={}
     
-    dict_df_to_print["base"]=get_emmissiv_and_quantity(model.iot,country_importing,sectors)
+    dict_df_to_print["base"]=get_emmissiv_and_quantity(model.iot,country_importing)
 
     for counterfactual in model.get_counterfactuals_list():
-        dict_df_to_print[counterfactual]=get_emmissiv_and_quantity(model.counterfactuals[counterfactual].iot,country_importing,sectors)
+        dict_df_to_print[counterfactual]=get_emmissiv_and_quantity(model.counterfactuals[counterfactual].iot,country_importing)
     
     df_to_print=pd.concat([dict_df_to_print[scenario] for scenario in dict_df_to_print.keys()],keys=dict_df_to_print.keys(),names=("scenario","region","sector"))
     
@@ -849,6 +849,6 @@ def plot_sector_import_distrib_full(model ,sectors: list,country_importing="FR",
 
     fig.show()
 
-def get_emmissiv_and_quantity(iot,country : str ,sectors : list):
+def get_emmissiv_and_quantity(iot,country : str ):
     emissiv_df=pd.DataFrame([iot.stressor_extension.M.sum(),get_total_imports_region(iot,country)],index=["emissivity","quantity"]).T
     return emissiv_df

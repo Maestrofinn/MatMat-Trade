@@ -136,7 +136,7 @@ def get_very_detailed_emissions(iot: pymrio.IOSystem) -> pd.DataFrame:
     
     return DPDS
 
-def get_total_imports_region(iot: pymrio.IOSystem,region:str)-> pd.Series:
+def get_total_imports_region(iot: pymrio.IOSystem,region:str,otherY=None)-> pd.Series:
     """Computes the amount imported goods by types of demands (intermediate and final). 
     
     Args:
@@ -149,27 +149,26 @@ def get_total_imports_region(iot: pymrio.IOSystem,region:str)-> pd.Series:
     
     L = iot.L
     A=iot.A
-    Y_vect = iot.Y.sum(level=0, axis=1)
-    nbsectors = len(iot.get_sectors())
+    if otherY is None:
+        Y_vect = iot.Y.sum(level=0, axis=1)
+    else : 
+        Y_vect=otherY
 
-    Y_diag = ioutil.diagonalize_blocks(Y_vect.values, blocksize=nbsectors)
-    Y_diag = pd.DataFrame(Y_diag, index=Y_vect.index, columns=Y_vect.index)
-    
     # we isolate the imported final demand 
-    imported_final=Y_vect[region].copy()
-    imported_final[region]=0
+    imported_final=Y_vect[region].copy() # gets the final demand that goes to the region of interest
+    imported_final[region]=0 # ignore the amount of goods that is locally produced
     
     # we isolate the imported intermediate demand, deducted from the gross output of the region and the technical coefficients.
-    x = L.dot(iot.Y.sum(axis=1)) #summing along axis 1 beacuse where the production goes is not relevant
-    x_region=pd.DataFrame(x.loc[(region,slice(None))]).sort_index()
+    x = L.dot(Y_vect.sum(axis=1)) #summing along axis 1 beacuse where the production goes is not relevant
+    x_region=pd.DataFrame(x.loc[(region,slice(None))]).sort_index() # getting the amount produced in the region of interest
     imported_intermediate=A[region].sort_index().dot(x_region.values) 
-    imported_intermediate.loc[(region,slice(None))]=0
+    imported_intermediate.loc[(region,slice(None))]=0 # ignoring the goods locally produced
     
-    total_imports=imported_final.add(imported_intermediate[0])
+    total_imports=imported_final.add(imported_intermediate[0]) # for some reason the dataframe imported_intermediate has one column named 0, but in practice it is simply one vector
     return total_imports
     
 
-def get_import_mean_stressor(iot: pymrio.IOSystem,region:str)-> pd.Series:
+def get_import_mean_stressor(iot: pymrio.IOSystem,region:str,otherY=None)-> pd.Series:
     """Computes the average stressor impact of imported goods by types of demands (intermediate and final). 
     This corresponds to CoefRoW in MatMat.
     
@@ -185,7 +184,7 @@ def get_import_mean_stressor(iot: pymrio.IOSystem,region:str)-> pd.Series:
     S = iot.stressor_extension.S
     L = iot.L
     
-    total_imports=get_total_imports_region(iot,region)
+    total_imports=get_total_imports_region(iot,region,otherY=otherY)
     
     # Know those totals imports are used to get a weighted average of stressor impact per industry over the different import sources
     
@@ -193,7 +192,7 @@ def get_import_mean_stressor(iot: pymrio.IOSystem,region:str)-> pd.Series:
     import_mean_stressor=pd.concat([total_imports.mul(S_L.loc[stressor]).sum(level=1)/total_imports.sum(level=1)  for stressor in S_L.index.get_level_values(0).unique()],
                                      keys=S_L.index.get_level_values(0).unique())
     
-    return import_mean_stressor
+    return import_mean_stressor.fillna(0)
     
 
 
