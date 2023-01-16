@@ -136,6 +136,7 @@ def get_very_detailed_emissions(iot: pymrio.IOSystem) -> pd.DataFrame:
     
     return DPDS
 
+
 def get_total_imports_region(iot: pymrio.IOSystem,region:str,otherY=None)-> pd.Series:
     """Computes the amount imported goods by types of demands (intermediate and final). 
     
@@ -148,23 +149,26 @@ def get_total_imports_region(iot: pymrio.IOSystem,region:str,otherY=None)-> pd.S
     """
     
     L = iot.L
-    A=iot.A
+    A_made_in_region=iot.A.copy()
+    for region_A in A_made_in_region.drop("FR",axis=1).columns.get_level_values("region").unique():
+        A_made_in_region.loc[(slice(None),slice(None)),(region_A,slice(None))]=0
+    A_made_in_region.loc[("FR",slice(None)),("FR",slice(None))]=0
+    
+    
     if otherY is None:
-        Y_vect = iot.Y.sum(level=0, axis=1)
+        Y_vect = iot.Y.sum(axis=1,level=0)
     else : 
         Y_vect=otherY
 
     # we isolate the imported final demand 
     imported_final=Y_vect[region].copy() # gets the final demand that goes to the region of interest
-    imported_final[region]=0 # ignore the amount of goods that is locally produced
+    imported_final[region]=0                                                    # ignore the amount of goods that is locally produced
     
-    # we isolate the imported intermediate demand, deducted from the gross output of the region and the technical coefficients.
-    x = L.dot(Y_vect.sum(axis=1)) #summing along axis 1 beacuse where the production goes is not relevant
-    x_region=pd.DataFrame(x.loc[(region,slice(None))]).sort_index() # getting the amount produced in the region of interest
-    imported_intermediate=A[region].sort_index().dot(x_region.values) 
-    imported_intermediate.loc[(region,slice(None))]=0 # ignoring the goods locally produced
+
     
-    total_imports=imported_final.add(imported_intermediate[0]) # for some reason the dataframe imported_intermediate has one column named 0, but in practice it is simply one vector
+    imported_intermediate=(A_made_in_region@L@Y_vect.sum(axis=1))
+    
+    total_imports=imported_final+imported_intermediate # for some reason the dataframe imported_intermediate has one column named 0, but in practice it is simply one vector
     return total_imports
     
 
