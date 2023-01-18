@@ -64,10 +64,10 @@ class Model:
         self.raw_file_name = f"IOT_{base_year}_{system}.zip"
         self.exiobase_pickle_file_name = self.summary_shortest + ".pickle"
         self.figures_dir = FIGURES_DIR / self.summary_long
-        if self.capital:
-            self.capital_consumption_path = (
-                CAPITAL_CONS_DIR / f"Kbar_exio_v3_6_{self.base_year}{self.system}.mat"
-            )
+        # if self.capital:
+        self.capital_consumption_path = (
+            CAPITAL_CONS_DIR / f"Kbar_exio_v3_6_{self.base_year}{self.system}.mat"
+        )
 
         self.iot = build_reference_data(model=self)
         self.regions = list(self.iot.get_regions())
@@ -351,8 +351,7 @@ class Counterfactual:
             model=model, scenar_function=scenar_function, reloc=reloc
         )
         self.figures_dir = model.figures_dir / name
-        if not os.path.isdir(self.figures_dir):
-            os.mkdir(self.figures_dir)
+        self.figures_dir.mkdir(exist_ok = True)
 
         self.regions = model.regions
         self.sectors = model.sectors

@@ -186,37 +186,60 @@ def build_reference_data(model) -> pymrio.IOSystem:
             with open(model.exiobase_dir / model.exiobase_pickle_file_name, "wb") as f:
                 pkl.dump(iot, f)
 
-        # endogenize capital
+        # endogenize capital or not
+        Kbar = load_Kbar(
+            year=model.base_year,
+            system=model.system,
+            path=model.capital_consumption_path,
+            )
+        CCF = iot.satellite.F.loc['Operating surplus: Consumption of fixed capital']
+        Kbar = CCF*(Kbar.divide(Kbar.sum(axis = 0), axis = 1))
+        Kbar = Kbar.fillna(0)
+
         if model.capital:
-            Kbar = load_Kbar(
-                year=model.base_year,
-                system=model.system,
-                path=model.capital_consumption_path,
-            )
+            # endogenize capital
             iot.Z += Kbar
-            iot.Y.loc[
-                slice(None), (slice(None), "Gross fixed capital formation")
-            ] -= Kbar.groupby(axis=1, level=0).sum()
-
+            iot.A = None
+            iot.L = None
+            iot.calc_system() # A is therefore recalculated with initial (loaded) x value.
+            # and remove it from final demand
+            iot.Y.loc[slice(None), (slice(None), "Gross fixed capital formation")] = 0
+        else:
+            # replace GFCF vector by pseudo-GFCF calculated from Kbar
+            Kvector = Kbar.groupby(axis=1, level=0).sum()
+            Kvector.columns = pd.MultiIndex.from_arrays(
+                                    [
+                                        Kvector.columns.tolist(),
+                                        ["Gross fixed capital formation"]*len(Kvector.columns.tolist())
+                                    ],
+                                    names = iot.Y.columns.names
+                                    )
+            iot.Y.update(Kvector)
+        # A, L, S, S_Y remain unchanged
+        # Z, x, F, F_Y are recalculated to take into account the changes on GFCF.
+        iot.Z = None
+        iot.x = None
+        iot.satellite.F = None
+        iot.satellite.F_Y = None
+        # iot.reset_all_to_coefficients() # /!\ erase Y !!!
+        iot.calc_all()
+            
             # capital endogenization check
-
-            supply = iot.Y.sum(axis=1, level=1)[
-                "Gross fixed capital formation"
-            ] + iot.Z.sum(axis=1)
-            use = (
-                iot.Z.sum(axis=0)
-                + iot.satellite.F.iloc[:9].sum(axis=0)
-                - iot.satellite.F.loc["Operating surplus: Consumption of fixed capital"]
-            )
-            print(
-                "--- Vérification de l'équilibre emplois/ressources après endogénéisation du capital ---"
-            )
-            print(f"Le R² des vecteurs emplois/ressources est de {supply.corr(use)}.")
-            print(f"Emplois - Ressources = {use.sum() - supply.sum()}")
-            print(
-                f"abs(Emplois - Ressources) / Emplois = {abs(use.sum() - supply.sum()) / use.sum()}"
-            )
-            print(f"max(Emplois - Ressources) = {max(use - supply)}")
+            # supply = iot.Y.sum(axis=1)+ iot.Z.sum(axis=1)
+            # use = (
+            #     iot.Z.sum(axis=0)
+            #     + iot.satellite.F.iloc[:9].sum(axis=0)
+            #     - iot.satellite.F.loc["Operating surplus: Consumption of fixed capital"]
+            # )
+            # print(
+            #     "--- Vérification de l'équilibre emplois/ressources après endogénéisation du capital ---"
+            # )
+            # print(f"Le R² des vecteurs emplois/ressources est de {supply.corr(use)}.")
+            # print(f"Emplois - Ressources = {use.sum() - supply.sum()}")
+            # print(
+            #     f"abs(Emplois - Ressources) / Emplois = {abs(use.sum() - supply.sum()) / use.sum()}"
+            # )
+            # print(f"max(Emplois - Ressources) = {max(use - supply)}")
 
         # extract emissions
         extension_list = list()
@@ -316,7 +339,9 @@ def build_counterfactual_data(
 
     iot.Z, iot.Y = scenar_function(model=model, reloc=reloc)
 
-    iot.A = None
+    # iot.A = None
+    iot.A = pymrio.tools.iomath.calc_A(iot.Z, iot.x)
+    iot.Z = None
     iot.x = None
     iot.L = None
 
