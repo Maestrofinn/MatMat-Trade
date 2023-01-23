@@ -186,7 +186,7 @@ def build_reference_data(model) -> pymrio.IOSystem:
             with open(model.exiobase_dir / model.exiobase_pickle_file_name, "wb") as f:
                 pkl.dump(iot, f)
 
-        # endogenize capital or not
+        # Pre-treatment of capital data
         Kbar = load_Kbar(
             year=model.base_year,
             system=model.system,
@@ -196,33 +196,35 @@ def build_reference_data(model) -> pymrio.IOSystem:
         Kbar = CCF*(Kbar.divide(Kbar.sum(axis = 0), axis = 1))
         Kbar = Kbar.fillna(0)
 
+        # replace GFCF vector by pseudo-GFCF calculated from Kbar
+        Kvector = Kbar.groupby(axis=1, level=0).sum()
+        Kvector.columns = pd.MultiIndex.from_arrays(
+                                [
+                                    Kvector.columns.tolist(),
+                                    ["Gross fixed capital formation"]*len(Kvector.columns.tolist())
+                                ],
+                                names = iot.Y.columns.names
+                                )
+        iot.Y.update(Kvector)
+        
+        # calculation of new system
+        # A,S remain unchanged, Z, x, F, F_Y  are recalculated to take into account the changes on GFCF.
+        iot.x = None
+        iot.Z = None
+        iot.L = None
+        iot.satellite.F = None
+        iot.satellite.F_Y = None
+        iot.calc_all()
+        
+        
         if model.capital:
-            # endogenize capital
+            # endogenizes capital
             iot.Z += Kbar
             iot.A = None
             iot.L = None
-            iot.calc_system() # A is therefore recalculated with initial (loaded) x value.
-            # and remove it from final demand
+            # removes endogenized capital from final demand:
             iot.Y.loc[slice(None), (slice(None), "Gross fixed capital formation")] = 0
-        else:
-            # replace GFCF vector by pseudo-GFCF calculated from Kbar
-            Kvector = Kbar.groupby(axis=1, level=0).sum()
-            Kvector.columns = pd.MultiIndex.from_arrays(
-                                    [
-                                        Kvector.columns.tolist(),
-                                        ["Gross fixed capital formation"]*len(Kvector.columns.tolist())
-                                    ],
-                                    names = iot.Y.columns.names
-                                    )
-            iot.Y.update(Kvector)
-        # A, L, S, S_Y remain unchanged
-        # Z, x, F, F_Y are recalculated to take into account the changes on GFCF.
-        iot.Z = None
-        iot.x = None
-        iot.satellite.F = None
-        iot.satellite.F_Y = None
-        # iot.reset_all_to_coefficients() # /!\ erase Y !!!
-        iot.calc_all()
+            iot.calc_all() # A is therefore recalculated with previously modified x value.
             
             # capital endogenization check
             # supply = iot.Y.sum(axis=1)+ iot.Z.sum(axis=1)
