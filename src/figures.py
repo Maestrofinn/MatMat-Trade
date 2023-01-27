@@ -64,6 +64,7 @@ def plot_footprint(
         build_description(model=model, counterfactual_name=counterfactual_name),
         transform=plt.gcf().transFigure,
     )
+    plt.axis([-200000, 1E6,-0.5,0.5])
 
     plt.savefig(counterfactual.figures_dir / f"empreinte_{region}.png")
 
@@ -414,6 +415,7 @@ def plot_df_synthesis(
     reference_df: pd.Series,
     counterfactual_df: pd.Series,
     account_name: str,
+    account_description: str,
     account_unit: str,
     scenario_name: str,
     output_dir: pathlib.PosixPath,
@@ -438,23 +440,35 @@ def plot_df_synthesis(
         reference_df.index.get_level_values(level=1).drop_duplicates()
     )  # same with .get_sectors()
 
-    account_name = (
-        account_name[0].upper() + account_name[1:]
-    )  # doesn't use .capitalize() in order to preserve capital letters in the middle
-    account_name_file = unidecode(account_name.lower().replace(" ", "_"))
-    current_dir = output_dir / (scenario_name + "__" + account_name_file)
+    # account_name = (
+    #     account_name[0].upper() + account_name[1:]
+    # )  # doesn't use .capitalize() in order to preserve capital letters in the middle
+    # account_name_file = unidecode(account_name.lower().replace(" ", "_"))
+    # current_dir = output_dir / (scenario_name + "__" + account_name_file)
+    current_dir = output_dir / (scenario_name + "__" + account_name)
 
-    if not os.path.isdir(current_dir):
-        os.mkdir(current_dir)  # can overwrite existing files
+    # if not os.path.isdir(current_dir):
+    #     os.mkdir(current_dir)  # can overwrite existing files
+    current_dir.mkdir(exist_ok = True, parents = True)
 
-    # plot reference importations
+    # preliminary aggregation
     ref_conso_by_sector_FR = reference_df
-    ref_imports_by_region_FR = ref_conso_by_sector_FR.drop("FR", level=0).sum(level=0)
+    # ref_impacts_by_region_FR = ref_conso_by_sector_FR.drop("FR", level=0).sum(level=0)
+    ref_impacts_by_region_FR = reference_df.sum(level=0)
 
-    ref_imports_by_region_FR.T.plot.barh(
-        stacked=True, fontsize=17, color=COLORS_NO_FR, figsize=(12, 5)
+    scen_conso_by_sector_FR = counterfactual_df
+    # scen_impacts_by_region_FR = scen_conso_by_sector_FR.drop("FR", level=0).sum(level=0)
+    scen_impacts_by_region_FR = scen_conso_by_sector_FR.sum(level=0)
+
+    # xmax = max(max(reference_df), max(counterfactual_df.values))*1.2
+    xmax = max(max(ref_impacts_by_region_FR), max(scen_impacts_by_region_FR.values))*1.2
+    
+    
+    # plot reference impacts
+    ref_impacts_by_region_FR.T.plot.barh(
+        stacked=True, fontsize=17, color=COLORS, figsize=(12, 5)
     )
-    plt.title(f"{account_name} (référence)", size=17, fontweight="bold")
+    plt.title(f"{account_description} (référence)", size=17, fontweight="bold")
     plt.xlabel(account_unit, size=15)
     plt.tight_layout()
     plt.grid(visible=True)
@@ -464,22 +478,21 @@ def plot_df_synthesis(
         description,
         transform=plt.gcf().transFigure,
     )
-    plt.savefig(current_dir / "reference.png")
+    plt.axis([0,xmax, -1, len(regions)])
+    plt.savefig(current_dir / f"{account_name}_reference.png")
     plt.close()
 
-    # plot counterfactual importations
-    scen_conso_by_sector_FR = counterfactual_df
-    scen_imports_by_region_FR = scen_conso_by_sector_FR.drop("FR", level=0).sum(level=0)
-
-    scen_imports_by_region_FR.T.plot.barh(
-        stacked=True, fontsize=17, color=COLORS_NO_FR, figsize=(12, 5)
+    # plot counterfactual impacts
+    scen_impacts_by_region_FR.T.plot.barh(
+        stacked=True, fontsize=17, color=COLORS, figsize=(12, 5)
     )
     plt.title(
-        f"{account_name} (scénario {scenario_name})",
+        f"{account_description} (scénario {scenario_name})",
         size=17,
         fontweight="bold",
     )
     plt.xlabel(account_unit, size=15)
+    plt.tight_layout()
     plt.grid(visible=True)
     plt.text(
         0.13,
@@ -487,32 +500,34 @@ def plot_df_synthesis(
         description,
         transform=plt.gcf().transFigure,
     )
-    plt.savefig(current_dir / f"{scenario_name}.png")
+    plt.axis([0,xmax,-1, len(regions)])
+    # ax.set(xlim=(0,xmax))
+    plt.savefig(current_dir / f"{account_name}_{scenario_name}.png")
 
-    # compare counterfactual and reference importations
-    compare_imports_by_region_FR = pd.DataFrame(
+    # compare counterfactual and reference impacts
+    compare_impacts_by_region_FR = pd.DataFrame(
         {
-            "Référence": ref_imports_by_region_FR,
-            f"Scénario {scenario_name}": scen_imports_by_region_FR,
+            "Référence": ref_impacts_by_region_FR,
+            f"Scénario {scenario_name}": scen_impacts_by_region_FR,
         }
     )
-    compare_imports_by_region_FR.T.plot.barh(
-        stacked=True, fontsize=17, figsize=(12, 8), color=COLORS_NO_FR
+    compare_impacts_by_region_FR.T.plot.barh(
+        stacked=True, fontsize=17, figsize=(12, 8), color=COLORS
     )
-    plt.title(f"{account_name} (comparaison)", size=17, fontweight="bold")
+    plt.title(f"{account_description} (comparaison)", size=17, fontweight="bold")
     plt.xlabel(account_unit, size=15)
     plt.tight_layout()
     plt.grid(visible=True)
-    plt.legend(prop={"size": 12})
+    plt.legend(prop={"size": 12}, bbox_to_anchor = (1,0.75))
     plt.text(
         0.13,
-        -0.2,
+        -0.1,
         description,
         transform=plt.gcf().transFigure,
     )
-    plt.savefig(current_dir / f"comparison_by_region.png")
+    plt.savefig(current_dir / f"{account_name}_comparison_by_region.png")
 
-    # compare each region for each importation sector for the reference and the counterfactual
+    # compare each region for each sector for the reference and the counterfactual
 
     def grouped_and_stacked_plot(
         df_ref: pd.DataFrame,
@@ -531,7 +546,7 @@ def plot_df_synthesis(
             plot_filename (str): to save the figure
         """
         df_to_display = pd.DataFrame(
-            columns=regions[1:],
+            columns=regions[0:],
             index=pd.MultiIndex.from_arrays(
                 [
                     sum([2 * [sec] for sec in sectors], []),
@@ -562,7 +577,7 @@ def plot_df_synthesis(
                     stacked="True",
                     ax=graph[x],
                     legend=False,
-                    color=COLORS_NO_FR,
+                    color=COLORS,
                 )
                 .set_ylabel(
                     x,
@@ -592,16 +607,16 @@ def plot_df_synthesis(
     try:
         df_ref_parts = (
             (
-                ref_conso_by_sector_FR.drop("FR", level=0)
-                / ref_conso_by_sector_FR.drop("FR", level=0).sum(level=1)
+                ref_conso_by_sector_FR
+                / ref_conso_by_sector_FR.sum(level=1)
             )
             .replace([np.inf, -np.inf], np.nan)
             .fillna(0)
         )
         df_scen_parts = (
             (
-                scen_conso_by_sector_FR.drop("FR", level=0)
-                / scen_conso_by_sector_FR.drop("FR", level=0).sum(level=1)
+                scen_conso_by_sector_FR
+                / scen_conso_by_sector_FR.sum(level=1)
             )
             .replace([np.inf, -np.inf], np.nan)
             .fillna(0)
@@ -610,19 +625,19 @@ def plot_df_synthesis(
             df_ref_parts,
             df_scen_parts,
             True,
-            f"{account_name}",
-            f"comparison_parts_region_sector.png",
+            f"{account_description}",
+            f"{account_name}_relat_comparison_region_sector.png",
         )
     except ValueError:
         pass  # ignore substressors plot, may be improved
 
     df_ref_values = (
-        ref_conso_by_sector_FR.drop("FR", level=0)
+        ref_conso_by_sector_FR
         .replace([np.inf, -np.inf], np.nan)
         .fillna(0)
     )
     df_scen_values = (
-        scen_conso_by_sector_FR.drop("FR", level=0)
+        scen_conso_by_sector_FR
         .replace([np.inf, -np.inf], np.nan)
         .fillna(0)
     )
@@ -630,8 +645,8 @@ def plot_df_synthesis(
         df_ref_values,
         df_scen_values,
         False,
-        f"{account_name}",
-        f"comparison_values_region_sector.png",
+        f"{account_description}",
+        f"{account_name}_absolute_comparison_region_sector.png",
     )
 
 
@@ -683,6 +698,7 @@ def plot_trade_synthesis(
         reference_df=reference_trade,
         counterfactual_df=counterfactual_trade,
         account_name="importations françaises",
+        account_description="importations françaises",
         account_unit="M€",
         scenario_name=counterfactual_name,
         output_dir=counterfactual.figures_dir,
@@ -734,7 +750,8 @@ def plot_stressor_synthesis(
         plot_df_synthesis(
             reference_df=reference_trade,
             counterfactual_df=counterfactual_trade,
-            account_name=description,
+            account_name=name,
+            account_description=description,
             account_unit=model.stressor_unit,
             scenario_name=counterfactual_name,
             output_dir=counterfactual.figures_dir,
@@ -786,12 +803,71 @@ def plot_substressor_synthesis(
         plot_df_synthesis(
             reference_df=reference_stressor,
             counterfactual_df=counterfactual_stressor,
-            account_name=description,
+            account_name=name,
+            account_description=description,
             account_unit=model.stressor_unit,
             scenario_name=counterfactual_name,
             output_dir=counterfactual.figures_dir,
             description=build_description(
                 model=model, counterfactual_name=counterfactual_name
+            ),
+        )
+
+def plot_stressor_synthesis_k_comp(
+    model,
+    model_k,
+) -> None:
+    """Plots the french emissions of stressors by sector for a given counterfactual
+
+    Args:
+        model (Model): object Model defined in model.py
+        model_k (Model): object Model defined in model.py
+    """
+    if model.stressor_name == 'GES':
+        emissions_types = {
+            "D_cba": f"empreinte de la France en {model.stressor_name}",
+            "D_pba": f"émissions territoriales de la France en {model.stressor_name}",
+            "D_imp": f"émissions importées par la France en {model.stressor_name}",
+            "D_exp": f"émissions exportées par la France en {model.stressor_name}",
+        }
+    else:
+        emissions_types = {
+            "D_cba": f"empreinte de la France en {model.stressor_name}",
+            "D_pba": f"impact territorial de la France en {model.stressor_name}",
+            "D_imp": f"impact importé par la France en {model.stressor_name}",
+            "D_exp": f"impact exporté par la France en {model.stressor_name}",
+        }
+    
+    for name, description in emissions_types.items():
+
+        ref_df = aggregate_sum_2levels_on_axis1_level0_on_axis0(
+            df=getattr(model.iot.stressor_extension, name),
+            new_index_0=model.new_regions_index,
+            new_index_1=model.new_sectors_index,
+            reverse_mapper_0=model.rev_regions_mapper,
+            reverse_mapper_1=model.rev_sectors_mapper,
+        )
+        ref_k_df = aggregate_sum_2levels_on_axis1_level0_on_axis0(
+            df=getattr(model_k.iot.stressor_extension, name),
+            new_index_0=model.new_regions_index,
+            new_index_1=model.new_sectors_index,
+            reverse_mapper_0=model.rev_regions_mapper,
+            reverse_mapper_1=model.rev_sectors_mapper,
+        )
+
+        reference_trade = ref_df["FR"].sum(level=0).stack()
+        reference_k_trade = ref_k_df["FR"].sum(level=0).stack()
+
+        plot_df_synthesis(
+            reference_df=reference_trade,
+            counterfactual_df=reference_k_trade,
+            account_name=name,
+            account_description=description,
+            account_unit=model.stressor_unit,
+            scenario_name='endo_capital',
+            output_dir=(model_k.figures_dir)/'comparaison_k',
+            description=build_description(
+                model=model, counterfactual_name=None
             ),
         )
         

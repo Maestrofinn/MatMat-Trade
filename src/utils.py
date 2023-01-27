@@ -300,40 +300,62 @@ def build_reference_data(model) -> pymrio.IOSystem:
             with open(model.exiobase_dir / model.exiobase_pickle_file_name, "wb") as f:
                 pkl.dump(iot, f)
 
-        # endogenize capital
+        # Pre-treatment of capital data
+        Kbar = load_Kbar(
+            year=model.base_year,
+            system=model.system,
+            path=model.capital_consumption_path,
+            )
+        CCF = iot.satellite.F.loc['Operating surplus: Consumption of fixed capital']
+        Kbar = CCF*(Kbar.divide(Kbar.sum(axis = 0), axis = 1))
+        Kbar = Kbar.fillna(0)
+
+        # replace GFCF vector by pseudo-GFCF calculated from Kbar
+        Kvector = Kbar.groupby(axis=1, level=0).sum()
+        Kvector.columns = pd.MultiIndex.from_arrays(
+                                [
+                                    Kvector.columns.tolist(),
+                                    ["Gross fixed capital formation"]*len(Kvector.columns.tolist())
+                                ],
+                                names = iot.Y.columns.names
+                                )
+        iot.Y.update(Kvector)
+        
+        # calculation of new system
+        # A,S remain unchanged, Z, x, F, F_Y  are recalculated to take into account the changes on GFCF.
+        iot.x = None
+        iot.Z = None
+        iot.L = None
+        iot.satellite.F = None
+        iot.satellite.F_Y = None
+        iot.calc_all()
+        
+        
         if model.capital:
-            Kbar = load_Kbar(
-                year=model.base_year,
-                system=model.system,
-                path=model.capital_consumption_path,
-            )
+            # endogenizes capital
             iot.Z += Kbar
-            cfc = iot.satellite.S.loc["Operating surplus: Consumption of fixed capital"]
-            gfcf = iot.Y.loc[
-                slice(None), (slice(None), "Gross fixed capital formation")
-            ]
-            iot.Y.loc[slice(None), (slice(None), "Gross fixed capital formation")] -= (
-                gfcf.divide(
-                    gfcf.sum(axis=1), axis="index"
-                )  # the CFC is shared among regions depending on their current level of investment in the associated couple (region x sector)
-                .fillna(
-                    1 / len(iot.get_regions())
-                )  # given that past investments are not available, if no region invests currently in a specific region's sector, then the investment is assumed to be equitable among all regions
-                .multiply(cfc, axis="index")
-            )
-
+            iot.A = None
+            iot.L = None
+            # removes endogenized capital from final demand:
+            iot.Y.loc[slice(None), (slice(None), "Gross fixed capital formation")] = 0
+            iot.calc_all() # A is therefore recalculated with previously modified x value.
+            
             # capital endogenization check
-
-            supply = iot.Y.sum(axis=1) + iot.Z.sum(axis=1)
-            use = iot.satellite.F.iloc[:9].sum(axis=0) + iot.Z.sum(axis=0)
-            print(
-                "--- Vérification de l'équilibre emplois/ressources après endogénéisation du capital ---"
-            )
-            print(f"Le R² des vecteurs emplois/ressources est de {supply.corr(use)}.")
-            print(f"Emplois - Ressources = {use.sum() - supply.sum()}")
-            print(
-                f"abs(Emplois - Ressources) / Emplois = {abs(use.sum() - supply.sum()) / use.sum()}"
-            )
+            # supply = iot.Y.sum(axis=1)+ iot.Z.sum(axis=1)
+            # use = (
+            #     iot.Z.sum(axis=0)
+            #     + iot.satellite.F.iloc[:9].sum(axis=0)
+            #     - iot.satellite.F.loc["Operating surplus: Consumption of fixed capital"]
+            # )
+            # print(
+            #     "--- Vérification de l'équilibre emplois/ressources après endogénéisation du capital ---"
+            # )
+            # print(f"Le R² des vecteurs emplois/ressources est de {supply.corr(use)}.")
+            # print(f"Emplois - Ressources = {use.sum() - supply.sum()}")
+            # print(
+            #     f"abs(Emplois - Ressources) / Emplois = {abs(use.sum() - supply.sum()) / use.sum()}"
+            # )
+            # print(f"max(Emplois - Ressources) = {max(use - supply)}")
 
         # extract emissions
         extension_list = list()
