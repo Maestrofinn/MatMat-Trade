@@ -21,6 +21,7 @@ from src.utils import (
     footprint_extractor,
     get_total_imports_region,
 )
+from src.stressors import GHG_STRESSOR_NAMES
 
 
 ### CARBON FOOTPRINT ###
@@ -810,8 +811,8 @@ def plot_sector_import_distrib(iot : pymrio.IOSystem,sectors: list,country_impor
     else :
         ecdf_norm=None
 
-    fig=px.ecdf(sector_needed_emssiv,y="emissivity",color="sector",x="quantity",orientation="h",
-                log_y=True,
+    fig=px.ecdf(sector_needed_emssiv,x="emissivity",color="sector",y="quantity",
+                log_x=True,
                 ecdfnorm=ecdf_norm,
                 hover_name="region",
                 hover_data=["emissivity","quantity"])
@@ -819,7 +820,7 @@ def plot_sector_import_distrib(iot : pymrio.IOSystem,sectors: list,country_impor
     fig.show()
 
 
-def plot_sector_import_distrib_full(model ,sectors: list,country_importing="FR",normalized_quantity=True):
+def plot_sector_import_distrib_full(model ,sectors: list,country_importing="FR",normalized_quantity=True,scenarios=None,stressor_list: list=GHG_STRESSOR_NAMES):
     
     # choose to normalize or not total quantitty produced in the graph
     if normalized_quantity:
@@ -829,26 +830,28 @@ def plot_sector_import_distrib_full(model ,sectors: list,country_importing="FR",
         
     dict_df_to_print={}
     
-    dict_df_to_print["base"]=get_emmissiv_and_quantity(model.iot,country_importing)
+    dict_df_to_print["base"]=get_emmissiv_and_quantity(model.iot,country_importing,stressor_list=stressor_list)
 
     for counterfactual in model.get_counterfactuals_list():
-        dict_df_to_print[counterfactual]=get_emmissiv_and_quantity(model.counterfactuals[counterfactual].iot,country_importing)
+        dict_df_to_print[counterfactual]=get_emmissiv_and_quantity(model.counterfactuals[counterfactual].iot,country_importing,stressor_list=stressor_list)
     
-    df_to_print=pd.concat([dict_df_to_print[scenario] for scenario in dict_df_to_print.keys()],keys=dict_df_to_print.keys(),names=("scenario","region","sector"))
+    if scenarios is None : 
+        scenarios=dict_df_to_print.keys()
+    df_to_print=pd.concat([dict_df_to_print[scenario] for scenario in scenarios],keys=scenarios,names=("scenario","region","sector"))
     
     sector_needed_emssiv=df_to_print.loc[df_to_print.index.get_level_values("sector").isin(sectors)].reset_index()
 
     sector_needed_emssiv=sector_needed_emssiv.drop(index=sector_needed_emssiv.loc[sector_needed_emssiv["quantity"]==0].index)
 
-    fig=px.ecdf(sector_needed_emssiv,y="emissivity",color="sector",x="quantity",orientation="h",
-                log_y=True,
+    fig=px.ecdf(sector_needed_emssiv,x="emissivity",color="sector",y="quantity",
+                log_x=True,
                 ecdfnorm=ecdf_norm,
                 hover_name="region",
-                hover_data=["emissivity","quantity"],
+                hover_data=["emissivity"],
                 animation_frame="scenario")
 
     fig.show()
 
-def get_emmissiv_and_quantity(iot,country : str ):
-    emissiv_df=pd.DataFrame([iot.stressor_extension.M.sum(),get_total_imports_region(iot,country)],index=["emissivity","quantity"]).T
+def get_emmissiv_and_quantity(iot,country : str ,stressor_list: list=GHG_STRESSOR_NAMES):
+    emissiv_df=pd.DataFrame([iot.stressor_extension.M.loc[stressor_list].sum(),get_total_imports_region(iot,country)],index=["emissivity","quantity"]).T
     return emissiv_df

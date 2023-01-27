@@ -13,7 +13,9 @@ import warnings
 import wget
 
 
+
 from src.settings import AGGREGATION_DIR
+from src.stressors import GHG_STRESSOR_NAMES,MATERIAL_STRESSOR_NAMES
 
 
 # remove pandas warning related to pymrio future deprecations
@@ -696,22 +698,23 @@ def aggregate_sum_level0_on_axis1_2levels_on_axis0(
 ### FEATURE EXTRACTORS ###
 
 
-def footprint_extractor(model, region: str = "FR") -> Dict:
+def footprint_extractor(model, region: str = "FR",stressor_list=GHG_STRESSOR_NAMES) -> Dict:
     """Computes region's footprint (D_pba-D_exp+D_imp+F_Y)
 
     Args:
         model (Union[Model, Counterfactual]): object Model or Counterfactual defined in model.py
         region (str, optional): region name. Defaults to "FR".
+        stressor_list (list(str),optional) : names of the stressor to sum, default to the GHG stressor list.
 
     Returns:
         Dict: values of -D_exp, D_pba, D_imp and F_Y
     """
     stressor_extension = model.iot.stressor_extension
     return {
-        "Exportations": -stressor_extension.D_exp[region].sum().sum(),
-        "Production": stressor_extension.D_pba[region].sum().sum(),
-        "Importations": stressor_extension.D_imp[region].sum().sum(),
-        "Consommation": stressor_extension.F_Y[region].sum().sum(),
+        "Exportations": -stressor_extension.D_exp[region].loc[(slice(None),stressor_list),:].sum().sum(),
+        "Production": stressor_extension.D_pba[region].loc[(slice(None),stressor_list),:].sum().sum(),
+        "Importations": stressor_extension.D_imp[region].loc[(slice(None),stressor_list),:].sum().sum(),
+        "Consommation": stressor_extension.F_Y[region].loc[stressor_list].sum().sum(),
     }
 
 
