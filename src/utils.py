@@ -8,7 +8,7 @@ import pymrio
 from pymrio.tools import ioutil
 from pymrio.tools.iomath import calc_F_Y
 from scipy.io import loadmat
-from typing import Dict
+from typing import Dict,List
 import warnings
 import wget
 
@@ -739,6 +739,39 @@ def footprint_extractor(model, region: str = "FR",stressor_list=GHG_STRESSOR_NAM
         "Consommation": stressor_extension.F_Y[region].loc[stressor_list].sum().sum(),
     }
 
+def multi_footprints_extractor(iot: pymrio.IOSystem,region : str = "FR", stressor_lists : Dict ={"GHG":GHG_STRESSOR_NAMES,"MATERIAL":MATERIAL_STRESSOR_NAMES}):
+    """Computes region's footprint indicators : D_imp, D_cba, D_pba,D_exp, Footprint for several groups of stressors. 
+
+    Args:
+        model (Union[Model, Counterfactual]): object Model or Counterfactual defined in model.py
+        region (str, optional): region name. Defaults to "FR".
+        stressor_lists (Dict[str:List[str]],optional) : list of the groups of the stressor to sum, default to the {"GHG":GHG_STRESSOR_NAMES,"MATERIAL":MATERIAL_STRESSOR_NAMES}.
+
+    Returns:
+        pandas Dataframe with axis ["D_imp_MatMat","D_imp_pymrio","Footprint","D_cba","D_pba","D_exp"]) and columns the stressor_lists groups
+    """
+    
+    Footprints=pd.DataFrame(index=["D_imp_MatMat","D_imp_pymrio","Footprint","D_cba","D_pba","D_exp"])# initialte empty datarframe
+    total_imports=get_total_imports_region(iot,region)
+    mean_stressors=get_import_mean_stressor(iot,region)
+                                   
+    for name,stressor_list in stressor_lists.items() :
+        D_imp_MatMat=(mean_stressors.loc[stressor_list].sum(level=1)*total_imports.groupby("sector").sum()).sum()
+        D_imp_pymrio=iot.stressor_extension.D_imp[region].loc[(slice(None),stressor_list),:].sum().sum()
+        Footprint=iot.stressor_extension.D_cba[region].loc[(slice(None),stressor_list),:].sum().sum()+iot.stressor_extension.F_Y[region].sum().sum()
+        D_cba=iot.stressor_extension.D_cba[region].loc[(slice(None),stressor_list),:].sum().sum()
+        D_pba=iot.stressor_extension.D_pba[region].loc[(slice(None),stressor_list),:].sum().sum()
+        D_exp=iot.stressor_extension.D_exp[region].loc[(slice(None),stressor_list),:].sum().sum()
+        Footprints[name]=[D_imp_MatMat,D_imp_pymrio,Footprint,D_cba,D_pba,D_exp]
+        
+    return Footprints
+
+def save_footprints(iot: pymrio.IOSystem,path:str,region : str = "FR", stressor_lists : Dict ={"GHG":GHG_STRESSOR_NAMES,"MATERIAL":MATERIAL_STRESSOR_NAMES}):
+    Footprints=multi_footprints_extractor(iot,region=region, stressor_lists=stressor_lists)
+    
+    with pd.ExcelWriter(path) as writer:
+        Footprints.to_excel(writer,sheet_name="Footprints",index=False)
+        pd.DataFrame.from_dict(stressor_lists,orient='index').T.to_excel(writer,sheet_name="Stressor_groups",index=False)
 
 ### AUXILIARY FUNCTIONS FOR FIGURES EDITING ###
 
