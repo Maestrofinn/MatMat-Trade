@@ -152,7 +152,7 @@ def get_total_imports_region(iot: pymrio.IOSystem,region:str,otherY=None)-> pd.S
     
     L = iot.L
     A_made_in_region=iot.A.copy()
-    for region_A in A_made_in_region.drop("FR",axis=1).columns.get_level_values("region").unique():
+    for region_A in A_made_in_region.drop(region,axis=1).columns.get_level_values("region").unique():
         A_made_in_region.loc[(slice(None),slice(None)),(region_A,slice(None))]=0
     A_made_in_region.loc[("FR",slice(None)),("FR",slice(None))]=0
     
@@ -174,13 +174,14 @@ def get_total_imports_region(iot: pymrio.IOSystem,region:str,otherY=None)-> pd.S
     return total_imports
     
 
-def get_import_mean_stressor(iot: pymrio.IOSystem,region:str,otherY=None)-> pd.Series:
+def get_import_mean_stressor(iot: pymrio.IOSystem,region:str,otherY=None,scope:int =3)-> pd.Series:
     """Computes the average stressor impact of imported goods by types of demands (intermediate and final). 
     This corresponds to CoefRoW in MatMat.
     
     Args:
         iot (pymrio.IOSystem): pymrio MRIO object
         region (str): the region for which we want to compute the average stressor coefficents
+        scope (int, optional) : the scope used to compute the mean stressor of import ie either taking the whole supply chain or only the last stop. values accepted : 1 or 3
 
     Returns:
         pd.Series : A Series of the stressor coefficient MultiIndexed by sector of final demand and stressor names
@@ -766,12 +767,33 @@ def multi_footprints_extractor(iot: pymrio.IOSystem,region : str = "FR", stresso
         
     return Footprints
 
-def save_footprints(iot: pymrio.IOSystem,path:str,region : str = "FR", stressor_lists : Dict ={"GHG":GHG_STRESSOR_NAMES,"MATERIAL":MATERIAL_STRESSOR_NAMES}):
-    Footprints=multi_footprints_extractor(iot,region=region, stressor_lists=stressor_lists)
+def save_footprints(model,path:str,region : str = "FR", stressor_lists : Dict ={"GHG":GHG_STRESSOR_NAMES,"MATERIAL":MATERIAL_STRESSOR_NAMES}):
+    Footprints=multi_footprints_extractor(model.iot,region=region, stressor_lists=stressor_lists)
     
     with pd.ExcelWriter(path) as writer:
-        Footprints.to_excel(writer,sheet_name="Footprints",index=False)
+        Footprints.to_excel(writer,sheet_name="base_year")
+        for counterfactual in model.get_counterfactuals_list():
+            Footprints=multi_footprints_extractor(model.counterfactuals[counterfactual].iot,region=region, stressor_lists=stressor_lists)
+            Footprints.to_excel(writer,sheet_name=counterfactual)
         pd.DataFrame.from_dict(stressor_lists,orient='index').T.to_excel(writer,sheet_name="Stressor_groups",index=False)
+        
+def save_Coef_Row(model,Transition_money_hybrid,path, region : str = "FR", stressor_lists : Dict ={"GHG":GHG_STRESSOR_NAMES,"MATERIAL":MATERIAL_STRESSOR_NAMES}):
+    
+    with pd.ExcelWriter(path) as writer:
+        Coef_Row=pd.DataFrame()
+        for stressors_name,stressors in stressor_lists.items():
+            Coef_Row_mon=get_import_mean_stressor(model.iot,region).loc[stressors].groupby("sector").sum().reindex(model.agg_sectors)
+            Coef_Row_hyb=Coef_Row_mon*Transition_money_hybrid
+            Coef_Row[stressors_name]=Coef_Row_hyb
+        Coef_Row.to_excel(writer,sheet_name="base_year")
+        
+        for counterfactual in model.get_counterfactuals_list():
+            Coef_Row=pd.DataFrame()
+            for stressors_name,stressors in stressor_lists.items():
+                Coef_Row_mon=get_import_mean_stressor(model.counterfactuals[counterfactual].iot,region).loc[stressors].groupby("sector").sum().reindex(model.agg_sectors)
+                Coef_Row_hyb=Coef_Row_mon*Transition_money_hybrid
+                Coef_Row[stressors_name]=Coef_Row_hyb
+            Coef_Row.to_excel(writer,sheet_name=counterfactual)
 
 ### AUXILIARY FUNCTIONS FOR FIGURES EDITING ###
 

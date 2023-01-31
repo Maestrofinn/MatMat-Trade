@@ -228,7 +228,7 @@ def moves_from_sort_rule(
         new_Y.loc[(slice(None), sector), ("FR", slice(None))] = new_final_imports.values
     
     
-    new_A=new_Z/x["indout"]
+    new_A=pymrio.tools.iomath.calc_A(new_Z,x)
     new_A=new_A.fillna(0)  # convert the changes we have one on Z to A, as it is the correct way to implement them
     # integrate into mrio model 
     iot=model.iot.copy()
