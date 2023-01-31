@@ -896,7 +896,7 @@ def plot_sector_import_distrib(iot : pymrio.IOSystem,sectors: list,country_impor
     fig.show()
 
 
-def plot_sector_import_distrib_full(model ,sectors: list,country_importing="FR",normalized_quantity=True,scenarios=None,stressor_list: list=GHG_STRESSOR_NAMES):
+def plot_sector_import_distrib_full(model ,sectors: list,country_importing="FR",normalized_quantity=True,scenarios=None,stressor_list: list=GHG_STRESSOR_NAMES,scope=3):
     
     # choose to normalize or not total quantitty produced in the graph
     if normalized_quantity:
@@ -906,10 +906,10 @@ def plot_sector_import_distrib_full(model ,sectors: list,country_importing="FR",
         
     dict_df_to_print={}
     
-    dict_df_to_print["base"]=get_emmissiv_and_quantity(model.iot,country_importing,stressor_list=stressor_list)
+    dict_df_to_print["base"]=get_emmissiv_and_quantity(model.iot,country_importing,stressor_list=stressor_list,scope=scope)
 
     for counterfactual in model.get_counterfactuals_list():
-        dict_df_to_print[counterfactual]=get_emmissiv_and_quantity(model.counterfactuals[counterfactual].iot,country_importing,stressor_list=stressor_list)
+        dict_df_to_print[counterfactual]=get_emmissiv_and_quantity(model.counterfactuals[counterfactual].iot,country_importing,stressor_list=stressor_list,scope=scope)
     
     if scenarios is None : 
         scenarios=dict_df_to_print.keys()
@@ -928,6 +928,8 @@ def plot_sector_import_distrib_full(model ,sectors: list,country_importing="FR",
 
     fig.show()
 
-def get_emmissiv_and_quantity(iot,country : str ,stressor_list: list=GHG_STRESSOR_NAMES):
-    emissiv_df=pd.DataFrame([iot.stressor_extension.M.loc[stressor_list].sum(),get_total_imports_region(iot,country)],index=["emissivity","quantity"]).T
+def get_emmissiv_and_quantity(iot,country : str ,stressor_list: list=GHG_STRESSOR_NAMES,scope=3):
+    if scope ==1:
+        emissiv_df=pd.DataFrame([iot.stressor_extension.S.loc[stressor_list].sum(),get_total_imports_region(iot,country)],index=["emissivity","quantity"]).T
+    else : emissiv_df=pd.DataFrame([iot.stressor_extension.M.loc[stressor_list].sum(),get_total_imports_region(iot,country)],index=["emissivity","quantity"]).T
     return emissiv_df

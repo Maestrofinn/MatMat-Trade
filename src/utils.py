@@ -196,6 +196,8 @@ def get_import_mean_stressor(iot: pymrio.IOSystem,region:str,otherY=None,scope:i
     # Know those totals imports are used to get a weighted average of stressor impact per industry over the different import sources
     
     S_L=S.dot(L)
+    if scope==1:
+        S_L=S
     import_mean_stressor=pd.concat([total_imports.mul(S_L.loc[stressor]).sum(level=1)/total_imports.sum(level=1)  for stressor in S_L.index.get_level_values(0).unique()],
                                      keys=S_L.index.get_level_values(0).unique())
     
