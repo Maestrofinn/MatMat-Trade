@@ -15,7 +15,7 @@ import wget
 
 
 from src.settings import AGGREGATION_DIR
-from src.stressors import GHG_STRESSOR_NAMES,MATERIAL_STRESSOR_NAMES
+from src.stressors import GHG_STRESSOR_NAMES,MATERIAL_STRESSOR_NAMES,STRESSOR_DICT_GHG_MAT_DETAIL
 
 
 # remove pandas warning related to pymrio future deprecations
@@ -99,44 +99,47 @@ def recal_stressor_per_region(
     
     return extension
 
-def get_very_detailed_emissions(iot: pymrio.IOSystem) -> pd.DataFrame:
+def get_very_detailed_emissions(iot: pymrio.IOSystem,stressors_groups: Dict =None,production_diag=None) -> pd.DataFrame:
     """Computes a precise accounting of the impacts on stressors of the production, with easy traceability to both producing industry
     and the final demand for which it is being produced
 
     Args:
         iot (pymrio.IOSystem): pymrio MRIO object
+        stressor_groups (Dict, optional) : allows to aggregate stressors to limit computation time, arg must follow the scheme :  stressors_groups={"GHG":GHG_STRESSOR_NAMES,"MATERIAL":MATERIAL_STRESSOR_NAMES},
+            with GHG_STRESSOR_NAMES the list of names of the stressor in this group
+        production_diag (pd.DataFrame, optional) : allows for specifying amounts of production and their destination of consumption, if the standard demand is not the variable of interest.
 
     Returns:
         pd.DataFrame : A detailed accounting matrix with rows for each region/sectors/stressor of production and columns for each region/goods of final demand.
     """
-    S = iot.stressor_extension.S
-    L = iot.L
-    Y_vect = iot.Y.sum(level=0, axis=1)
-    nbsectors = len(iot.get_sectors())
-
-    Y_diag = ioutil.diagonalize_blocks(Y_vect.values, blocksize=nbsectors)
-    Y_diag = pd.DataFrame(Y_diag, index=Y_vect.index, columns=Y_vect.index)
+    if stressors_groups is None:
+        S = iot.stressor_extension.S
+    else:
+        S=pd.concat([iot.stressor_extension.S.loc[stressors].sum() for stressors in stressors_groups.values()],axis=1,keys=stressors_groups.keys()).T
     
-    #for x_diag the row is the sector/region producing and the column the region/sector consumming
-    x_diag = L.dot(Y_diag)
+    if production_diag is None:
+        L = iot.L
+        Y_vect = iot.Y.sum(level=0, axis=1)
+        nbsectors = len(iot.get_sectors())
+
+        Y_diag = ioutil.diagonalize_blocks(Y_vect.values, blocksize=nbsectors)
+        Y_diag = pd.DataFrame(Y_diag, index=Y_vect.index, columns=Y_vect.index)
+        
+        #for x_diag the row is the sector/region producing and the column the region/sector consumming
+        x_diag = L.dot(Y_diag)
+    
+    else : x_diag=production_diag
     
     # DPDS is short for Detailed Production Demand Stressor matrix. It needs one value of stressor for
     # each region/sector of production responding to each region/sector of demand
-    
-    #Making the matrix
-    DPDS=pd.concat([x_diag.copy() for stressor in range(iot.stressor_extension.S.shape[0])])
-    DPDS.sort_index(inplace=True)
-    DPDS.reset_index(inplace=True)
-    stressors=np.array( [iot.stressor_extension.S.index.values for production_sources in x_diag.index]).flatten()
-    DPDS["stressor"]=stressors
-    DPDS.set_index(["region","sector","stressor"],inplace=True)
-    
     # here for each production type and location we compute for each stressor the amount of impact.  
-    DPDS=pd.concat([iot.stressor_extension.S.loc[stressor,(producing_region,producing_sector)]*x_diag.loc[(producing_region,producing_sector)]for producing_region,producing_sector,stressor in DPDS.index],
-          keys=DPDS.index,
-          axis=1).T.sort_index()
+    DPDS=pd.concat([x_diag.multiply(S.loc[stressor],axis=0) for stressor in S.index],
+            keys=S.index,
+            names=("stressor","region","sector")
+            )
     
-    return DPDS
+    
+    return DPDS.reorder_levels(["region","sector","stressor"])
 
 
 def get_total_imports_region(iot: pymrio.IOSystem,region:str,otherY=None)-> pd.Series:
@@ -769,7 +772,7 @@ def multi_footprints_extractor(iot: pymrio.IOSystem,region : str = "FR", stresso
         
     return Footprints
 
-def save_footprints(model,path:str,region : str = "FR", stressor_lists : Dict ={"GHG":GHG_STRESSOR_NAMES,"MATERIAL":MATERIAL_STRESSOR_NAMES}):
+def save_footprints(model,path:str,region : str = "FR", stressor_lists : Dict =STRESSOR_DICT_GHG_MAT_DETAIL):
     Footprints=multi_footprints_extractor(model.iot,region=region, stressor_lists=stressor_lists)
     
     with pd.ExcelWriter(path) as writer:
@@ -830,3 +833,67 @@ def build_description(model, counterfactual_name: str = None) -> str:
         else:
             output += "\nScénario sans relocalisation"
     return output
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+from typing import Union
+
+def diagonalize_columns_to_sectors(
+    df: pd.DataFrame, sector_index_level: Union[str, int] = "sector"
+) -> pd.DataFrame:
+    """Adds the resolution of the rows to columns by diagonalizing
+    Parameters
+    ----------
+    df : pd.DataFrame
+        The DataFrame to diagonalize
+    sector_index_name : string, optional
+        Name or number of the index level containing sectors.
+    Returns
+    -------
+    pd.DataFrame, diagonalized
+    Example
+    --------
+        input       output
+         (all letters are index or header)
+            A B     A A A B B B
+                    x y z x y z
+        A x 3 1     3 0 0 1 0 0
+        A y 4 2     0 4 0 0 2 0
+        A z 5 3     0 0 5 0 0 3
+        B x 6 9     6 0 0 9 0 0
+        B y 7 6     0 7 0 0 6 0
+        B z 8 4     0 0 8 0 0 4
+    """
+
+    sectors = df.index.get_level_values(sector_index_level).unique()
+    sector_name = sector_index_level if type(sector_index_level) is str else "sector"
+
+    new_col_index = [
+        tuple(list(orig) + [new]) for orig in df.columns for new in sectors
+    ]
+
+    diag_df = pd.DataFrame(
+        data=ioutil.diagonalize_blocks(df.values, blocksize=len(sectors)),
+        index=df.index,
+        columns=pd.MultiIndex.from_product(
+            [df.columns, sectors], names=[*df.columns.names, sector_name]
+        ),
+    )
+    return diag_df

@@ -7,7 +7,7 @@ from typing import Callable, Dict, List, Tuple
 from src.utils import recal_stressor_per_region
 from src.advance import extract_data
 from src.model import Model
-
+from src.stressors import GHG_STRESSOR_NAMES
 
 ### AUXILIARY FUNCTIONS FOR SCENARIOS ###
 
@@ -243,7 +243,7 @@ def moves_from_sort_rule(
     return iot
 
 
-def sort_by_content(model, sector: str, reloc: bool = False,scope: int = 3) -> List[int]:
+def sort_by_content(model, sector: str, reloc: bool = False,scope: int = 3,stressors_used:List[str] = GHG_STRESSOR_NAMES) -> List[int]:
     """Ascendantly sorts all regions by stressor content of a sector
 
     Args:
@@ -256,10 +256,12 @@ def sort_by_content(model, sector: str, reloc: bool = False,scope: int = 3) -> L
         np.array: array of indices of regions sorted by stressor content
     """
     if scope ==3:
-        content=model.iot.stressor_extension.M.sum(axis=0)
+        content=model.iot.stressor_extension.M.loc[GHG_STRESSOR_NAMES].sum(axis=0)
     elif scope ==1:
-        content=model.iot.stressor_extension.S.sum(axis=0)
-    regions_index = np.argsort(content[:, sector].values[1 - reloc :])
+        content=model.iot.stressor_extension.S.loc[GHG_STRESSOR_NAMES].sum(axis=0)
+    if not reloc:
+        content=content.drop("FR")
+    regions_index = np.argsort(content[:, sector].values)
     return regions_index # type: ignore
 
 
