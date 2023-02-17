@@ -936,6 +936,12 @@ def get_emmissiv_and_quantity(iot,country : str ,stressor_list: list=GHG_STRESSO
     else : emissiv_df=pd.DataFrame([iot.stressor_extension.M.loc[stressor_list].sum(),get_total_imports_region(iot,country)],index=["emissivity","quantity"]).T
     return emissiv_df
 
+    
+def get_emissions_and_quantity(iot,country : str ,stressor_list: list=GHG_STRESSOR_NAMES,scope=3):
+    emissions_and_quantity=get_emmissiv_and_quantity(iot,country=country,stressor_list=stressor_list,scope=scope)
+    emissions_and_quantity["emissions"]=emissions_and_quantity["emissivity"]*emissions_and_quantity["quantity"]
+    return emissions_and_quantity.drop("emissivity",axis=1)
+
 def emission_location_import_distrib_full(model ,sectors: list,country_importing="FR",normalized_quantity=True,scenarios=None,stressor_list: list=GHG_STRESSOR_NAMES,scope=3):
     
     # choose to normalize or not total quantitty produced in the graph
@@ -981,14 +987,8 @@ def get_local_emissions_and_quantity(iot,country_importing : str ,stressor_list:
     return pd.DataFrame([local_emissions,local_emissions],index=["emissivity","quantity"]).T
 
 
-def emission_location_import_distrib_one_sector(model ,sector: str,country_importing="FR",normalized_quantity=True,scenarios=None,stressor_list: list=GHG_STRESSOR_NAMES,scope=3):
+def emission_location_import_distrib_one_sector(model ,sector: str,country_importing="FR",scenarios=None,stressor_list: list=GHG_STRESSOR_NAMES,scope=3):
     
-    # choose to normalize or not total quantitty produced in the graph
-    if normalized_quantity:
-        ecdf_norm="percent"
-    else :
-        ecdf_norm=None
-        
     dict_df_to_print={}
 
     dict_df_to_print["base"]=get_local_emissions_and_quantity(model.iot,country_importing=country_importing,stressor_list=stressor_list)
@@ -1004,9 +1004,44 @@ def emission_location_import_distrib_one_sector(model ,sector: str,country_impor
 
     sector_needed_emssiv=sector_needed_emssiv.drop(index=sector_needed_emssiv.loc[sector_needed_emssiv["quantity"]==0].index)
 
-    fig=px.bar(sector_needed_emssiv.sort_values(ascending=False,by=["emissivity"],axis=0).sort_values(by="scenario",kind="stable"),y="emissivity",color="region",x="scenario",
-                hover_name="region",color_discrete_sequence=px.colors.qualitative.D3+px.colors.qualitative.Light24,)
+    sector_needed_emssiv['scenario'] = pd.Categorical(sector_needed_emssiv.scenario, categories = scenarios, ordered = True)
+    
+    colors_list=px.colors.qualitative.D3+px.colors.qualitative.Alphabet+px.colors.qualitative.Dark24
+    fig=px.bar(sector_needed_emssiv.sort_values(ascending=False,by="emissivity",axis=0).sort_values(by="scenario",kind="stable"),y="emissivity",color="region",x="scenario",
+                hover_name="region",color_discrete_map=dict(zip(model.regions, colors_list[:len(model.regions)])))
     
     fig.update_layout(xaxis_title="Scenario", yaxis_title="Emissions")
-
+    
     fig.show()
+    
+    
+
+
+def emission_import_distrib_one_sector(model ,sector: str,country_importing="FR",scenarios=None,stressor_list: list=GHG_STRESSOR_NAMES,scope=3):
+    
+        
+    dict_df_to_print={}
+
+    dict_df_to_print["base"]=get_emissions_and_quantity(model.iot,country=country_importing,stressor_list=stressor_list)
+
+    for counterfactual in model.get_counterfactuals_list():
+        dict_df_to_print[counterfactual]=get_emissions_and_quantity(model.counterfactuals[counterfactual].iot,country=country_importing,stressor_list=stressor_list)
+    
+    if scenarios is None : 
+        scenarios=dict_df_to_print.keys()
+    df_to_print=pd.concat([dict_df_to_print[scenario] for scenario in scenarios],keys=scenarios,names=("scenario","region","sector"))
+    
+    sector_needed_emssiv=df_to_print.loc[df_to_print.index.get_level_values("sector")==sector].reset_index()
+
+    sector_needed_emssiv['scenario'] = pd.Categorical(sector_needed_emssiv.scenario, categories = scenarios, ordered = True)
+    
+    colors_list=px.colors.qualitative.D3+px.colors.qualitative.Alphabet+px.colors.qualitative.Dark24
+    fig=px.bar(sector_needed_emssiv.sort_values(ascending=False,by="emissions",axis=0).sort_values(by="scenario",kind="stable"),y="emissions",color="region",x="scenario",
+                hover_name="region",color_discrete_map=dict(zip(model.regions, colors_list[:len(model.regions)])))
+    
+    fig.update_layout(xaxis_title="Scenario", yaxis_title="Emissions")
+    
+    fig.show()
+
+
+
