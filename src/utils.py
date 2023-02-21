@@ -218,12 +218,18 @@ def build_reference_data(model) -> pymrio.IOSystem:
         
         
         if model.capital:
-            # endogenizes capital
+            # endogenizes capital except for residential buildings (most of the investments made by real_estate_services sector)
+            Real_estate_services = Kbar.xs('Real estate services (70)', axis = 1, level = 1, drop_level = True)
+            Real_estate_services = pd.concat([Real_estate_services], axis = 1, keys = ['Gross fixed capital formation'])
+            Real_estate_services = Real_estate_services.reorder_levels([1, 0], axis = 1)
+            Kbar.loc[slice(None), (slice(None), "Real estate services (70)")] = 0
+            
             iot.Z += Kbar
             iot.A = None
             iot.L = None
             # removes endogenized capital from final demand:
             iot.Y.loc[slice(None), (slice(None), "Gross fixed capital formation")] = 0
+            iot.Y.update(Real_estate_services)
             iot.calc_all() # A is therefore recalculated with previously modified x value.
             
             # capital endogenization check
