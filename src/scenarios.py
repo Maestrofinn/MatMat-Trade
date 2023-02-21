@@ -373,7 +373,7 @@ def scenar_pref(model, allies: List[str], reloc: bool = False) -> pymrio.IOSyste
         if not "FR" in allies:
             allies += ["FR"]
     else:
-        regions = model.regions[1:]  # remove FR
+        regions=[ region for region in model.regions if region!="FR"]  # remove FR
 
     new_Z = model.iot.Z.copy()
     new_Y = model.iot.Y.copy()
@@ -495,13 +495,17 @@ def scenar_pref(model, allies: List[str], reloc: bool = False) -> pymrio.IOSyste
         ("FR", slice(None)), ("FR", slice(None))
     ].values
     
+    
+    
+    new_A=pymrio.tools.iomath.calc_A(new_Z,model.iot.x)
+    new_A=new_A.fillna(0)  # convert the changes we have one on Z to A, as it is the correct way to implement them
     # integrate into mrio model 
     iot=model.iot.copy()
     iot.reset_to_flows()
     iot.L=None
-    iot.A=None
+    iot.A=new_A
     iot.x=None
-    iot.Z=new_Z
+    iot.Z=None
     iot.Y=new_Y
     iot.calc_all()
     
@@ -544,6 +548,7 @@ def scenar_tradewar(model: Model, opponents: List[str], reloc: bool = False) -> 
     allies = list(set(model.regions) - set(opponents))
     if not reloc:
         allies.remove("FR")
+    
     return scenar_pref(model=model, allies=allies, reloc=reloc)
 
 
@@ -562,7 +567,7 @@ def scenar_tradewar_china(model: Model, reloc: bool = False) -> pymrio.IOSystem:
     """
 
     return scenar_tradewar(
-        model=model, opponents=["China, RoW Asia and Pacific"], reloc=reloc
+        model=model, opponents=[ region for region in model.regions if "China in region"], reloc=reloc
     )
 
 ### DUMMY SCENARIO

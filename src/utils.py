@@ -27,7 +27,7 @@ warnings.simplefilter(action="ignore", category=FutureWarning)
 
 def recal_stressor_per_region(
     iot: pymrio.IOSystem,
-    recalc_F_Y: bool = False,
+    recalc_F_Y: bool = True,
 ) -> pymrio.core.mriosystem.Extension:
     """Computes the account matrices D_cba, D_pba, D_imp, D_exp and optionally F_Y
        Based on pymrio.tools.iomath's function 'calc_accounts', see https://github.com/konstantinstadler/pymrio
