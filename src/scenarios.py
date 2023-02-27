@@ -567,7 +567,7 @@ def scenar_tradewar_china(model: Model, reloc: bool = False) -> pymrio.IOSystem:
     """
 
     return scenar_tradewar(
-        model=model, opponents=[ region for region in model.regions if "China in region"], reloc=reloc
+        model=model, opponents=[ region for region in model.regions if "China" in region], reloc=reloc
     )
 
 ### DUMMY SCENARIO
