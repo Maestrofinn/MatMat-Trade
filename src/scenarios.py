@@ -590,7 +590,7 @@ def scenar_dummy(model, reloc: bool = False) -> pymrio.IOSystem:
 
 
 
-def emissivity_imaclim(model,year:int = 2050,scenario="INDC",**kwargs) -> pymrio.IOSystem:
+def emissivity_imaclim(model,year:int = 2050,scenario="INDC",except_FR=True,**kwargs) -> pymrio.IOSystem:
     """Import emissivity changes predicted by IMACLIM model into the iot model, more precisely into the emissivity matrix S
     
     Args:
@@ -600,11 +600,16 @@ def emissivity_imaclim(model,year:int = 2050,scenario="INDC",**kwargs) -> pymrio
 
     Returns:
         pymrio.IOSystem : the modififed iot object"""
+        
+    if except_FR:  # creates the list of countries for which we make no changes
+        except_country=["FR"]
+    else : except_country =[]
     
     data=extract_data(aggregation=model.aggregation_name)
     final_data_ratio,Link_country=data[0],data[2]
     
     final_data_ratio=final_data_ratio.swaplevel().sort_index()
+    
     
     indexes=pd.Series(zip(final_data_ratio.index.get_level_values("scenario"),final_data_ratio.index.get_level_values("sector"))).unique()
     final_data_ratio=pd.concat([Link_country.dot(final_data_ratio.loc[scenario,sector]) for scenario,sector in indexes],
@@ -616,7 +621,7 @@ def emissivity_imaclim(model,year:int = 2050,scenario="INDC",**kwargs) -> pymrio
 
     iot=model.iot.copy()
     iot.stressor_extension.S.loc["CO2 - combustion"]= \
-            pd.concat([iot.stressor_extension.S.loc["CO2 - combustion",region]*pd.Series(1+final_data_ratio.loc[(scenario,region),year],name="CO2 - combustion")  if region!="FR"
+            pd.concat([iot.stressor_extension.S.loc["CO2 - combustion",region]*pd.Series(1+final_data_ratio.loc[(scenario,region),year],name="CO2 - combustion")  if region not in except_country
                     else iot.stressor_extension.S.loc["CO2 - combustion",region] for region in model.regions ],
                     axis=0,
                     names=("region","sector"),
@@ -629,7 +634,7 @@ def emissivity_imaclim(model,year:int = 2050,scenario="INDC",**kwargs) -> pymrio
     return iot
 
 
-def tech_change_imaclim(model,year:int = 2050,scenario="INDC",**kwargs) -> pymrio.IOSystem:
+def tech_change_imaclim(model,year:int = 2050,scenario="INDC",except_FR=True,**kwargs) -> pymrio.IOSystem:
     """Import technological changes predicted by IMACLIM model into the iot model, more precisely into the technical requirement matrix A
     
     Args:
@@ -644,7 +649,7 @@ def tech_change_imaclim(model,year:int = 2050,scenario="INDC",**kwargs) -> pymri
     final_technical_coef=extract_data(aggregation=model.aggregation_name)[1]
     
     final_technical_coef_FR=final_technical_coef.copy()
-    if "FR" in final_technical_coef.columns.get_level_values("region"):
+    if "FR" in final_technical_coef.columns.get_level_values("region") and except_FR:
         final_technical_coef_FR.loc[:,(slice(None),slice(None),"FR")]=0 #not modifying French technologies (useful because that is done in MATMAT)
         
     
