@@ -78,7 +78,7 @@ def moves_final_demand_from_sorted_index_by_sector(
 
 
 def moves_from_sorted_index_by_sector(
-    model, sector: str, regions_index: List[int], reloc: bool = False
+    model, sector: str, regions_index: List[int], reloc: bool = False, coeff_increase_by_region_sector=None,increase_french_import=20/100
 ) -> Tuple[pd.DataFrame,pd.DataFrame]:
     """Allocates french importations for a sector in the order given by region_index
  
@@ -112,16 +112,24 @@ def moves_from_sorted_index_by_sector(
         Y.loc[("FR", sector), ("FR", slice(None))]
     )
 
-    # export capacities of each regions the two parameters determine how much production each region/sector can do for France
-    INCREASE_OVERALL=0
-    INCREASE_FRENCH_EXPORT=120/100 # if under 1 and INCREASE_OVERALL=0, reduces amounts available for france ==> should create problems
-    export_capacities = {
-        reg: Z.drop(columns=reg, level=0).sum(axis=1).loc[(reg, sector)]*INCREASE_OVERALL
-        + Y.drop(columns=reg, level=0).sum(axis=1).loc[(reg, sector)]*INCREASE_OVERALL
-        + Z["FR"].sum(axis=1).loc[(reg, sector)]*INCREASE_FRENCH_EXPORT
-        + Y["FR"].sum(axis=1).loc[(reg, sector)]*INCREASE_FRENCH_EXPORT
-        for reg in regions
-    }
+    if coeff_increase_by_region_sector is None :
+        # export capacities of each regions the two parameters determine how much production each region/sector can do for France
+        INCREASE_OVERALL=0
+        INCREASE_FRENCH_EXPORT=1 + increase_french_import # if under 1 and INCREASE_OVERALL=0, reduces amounts available for france ==> should create problems
+        export_capacities = {
+            reg: Z.drop(columns=reg, level=0).sum(axis=1).loc[(reg, sector)]*INCREASE_OVERALL
+            + Y.drop(columns=reg, level=0).sum(axis=1).loc[(reg, sector)]*INCREASE_OVERALL
+            + Z["FR"].sum(axis=1).loc[(reg, sector)]*INCREASE_FRENCH_EXPORT
+            + Y["FR"].sum(axis=1).loc[(reg, sector)]*INCREASE_FRENCH_EXPORT
+            for reg in regions
+        }
+    else : 
+        export_capacities = {
+            reg:  Z["FR"].sum(axis=1).loc[(reg, sector)]*(1 +coeff_increase_by_region_sector.loc[reg,sector])
+            + Y["FR"].sum(axis=1).loc[(reg, sector)]*(1 +coeff_increase_by_region_sector.loc[reg,sector])
+            for reg in regions
+        }
+        
 
     # choice of the trade partners
     imports_from_regions = pd.Series(0, index=model.regions)
@@ -133,8 +141,11 @@ def moves_from_sorted_index_by_sector(
             remaining_imports -= export_capacities[reg]
         else:
             imports_from_regions.loc[reg] = remaining_imports
+            remaining_imports=0
             break 
 
+    if remaining_imports>0:
+        print("error {} remainig import not attributed".format(remaining_imports))
     # allocations for intermediary imports
     new_inter_imports = imports_from_regions.to_frame("").dot(
         (inter_imports / total_imports).to_frame("").fillna(0).T
@@ -199,13 +210,16 @@ def moves_from_sort_rule(
     sorting_rule_by_sector: Callable[[Model,str, bool], List[int]],
     reloc: bool = False,
     scope:int =3,
+    coeff_increase_by_region_sector : pd.DataFrame = None,
+    increase_french_import:float = 20/100
 ) -> pymrio.IOSystem:
     """Allocates french importations for all sectors, sorting the regions with a given rule for each sector
 
     Args:
         model (Model): object Model defined in model.py
         sorting_rule_by_sector (Callable[[str, bool], List[int]]): given a sector name and the reloc value, returns a sorted list of regions' indices
-        reloc (bool, optional): True if relocation is allowed. Defaults to False.
+        reloc (bool, optional): True if relocation is allowed. Defaults to False
+        coeff_increase_by_region_sector (pd.DataFrame, optional) : values per region and sector (with same aggregation as iot) of the possible amount of import increase from each foreign sector/region.
 
     Returns:
         pymrio.IOSystem: modified pymrio model
@@ -222,7 +236,8 @@ def moves_from_sort_rule(
     for sector in sectors_list:
         regions_index = sorting_rule_by_sector(model, sector, reloc,scope)
         new_inter_imports, new_final_imports = moves_from_sorted_index_by_sector(
-            model=model, sector=sector, regions_index=regions_index, reloc=reloc
+            model=model, sector=sector, regions_index=regions_index, reloc=reloc,coeff_increase_by_region_sector=coeff_increase_by_region_sector,
+            increase_french_import=increase_french_import
         )
         new_Z.loc[(slice(None), sector), ("FR", slice(None))] = new_inter_imports.values
         new_Y.loc[(slice(None), sector), ("FR", slice(None))] = new_final_imports.values
@@ -269,7 +284,8 @@ def sort_by_content(model, sector: str, reloc: bool = False,scope: int = 3,stres
 ### BEST AND WORST SCENARIOS ###
 
 
-def scenar_best(model: Model, reloc: bool = False,scope:int =3) -> pymrio.IOSystem:
+def scenar_best(model: Model, reloc: bool = False,scope:int =3,coeff_increase_by_region_sector : pd.DataFrame = None,
+                increase_french_import: float =20/100) -> pymrio.IOSystem:
     """Finds the least stressor-intense imports reallocation for all sectors
 
 
@@ -284,7 +300,8 @@ def scenar_best(model: Model, reloc: bool = False,scope:int =3) -> pymrio.IOSyst
     """
 
     return moves_from_sort_rule(
-        model=model, sorting_rule_by_sector=sort_by_content, reloc=reloc,scope=scope
+        model=model, sorting_rule_by_sector=sort_by_content, reloc=reloc,scope=scope,coeff_increase_by_region_sector=coeff_increase_by_region_sector,
+        increase_french_import=increase_french_import
     )
 
 
