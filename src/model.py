@@ -31,6 +31,7 @@ class Model:
         sectors_mapper: Dict = None,
         capital: bool = False,
         stressor_params: Dict = GHG_PARAMS,
+        exiobase_vanilla=False
     ):
         """Inits Model class
 
@@ -43,6 +44,7 @@ class Model:
             sectors_mapper (Dict, optional): sectors aggregation for figures editing, no aggregation if is None. Defaults to None.
             capital (bool, optional): True to endogenize investments and capital. Defaults to False.
             stressor_params (Dict, optional): dictionnary with the stressors' french name, english name, unit and a proxy as a dictionnary of comparable stressors (name as key, dictionnary as value with the list of corresponding Exiobase stressors and their weight). Defaults to a dictionnary with the GHGs.
+            exiobase_vanilla (Bool) option to stop any modification we do to exiobase data relative to capital in order to have reproducible and comparable results
         """
 
         self.base_year = base_year
@@ -50,6 +52,7 @@ class Model:
         self.aggregation_name = aggregation_name
         self.calib = calib
         self.capital = capital
+        sel.exiobase_vanilla=exiobase_vanilla
         self.stressor_name = stressor_params["name_FR"]
         self.stressor_shortname = "".join(
             filter(str.isalnum, stressor_params["name_EN"].lower())
