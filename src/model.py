@@ -52,7 +52,7 @@ class Model:
         self.aggregation_name = aggregation_name
         self.calib = calib
         self.capital = capital
-        sel.exiobase_vanilla=exiobase_vanilla
+        self.exiobase_vanilla=exiobase_vanilla
         self.stressor_name = stressor_params["name_FR"]
         self.stressor_shortname = "".join(
             filter(str.isalnum, stressor_params["name_EN"].lower())

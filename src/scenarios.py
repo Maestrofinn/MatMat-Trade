@@ -145,7 +145,7 @@ def moves_from_sorted_index_by_sector(
             break 
 
     if remaining_imports>0:
-        print("error {} remainig import not attributed".format(remaining_imports))
+        print("error {} remainig import not attributed {}".format(remaining_imports,sector))
     # allocations for intermediary imports
     new_inter_imports = imports_from_regions.to_frame("").dot(
         (inter_imports / total_imports).to_frame("").fillna(0).T
@@ -274,6 +274,10 @@ def sort_by_content(model, sector: str, reloc: bool = False,scope: int = 3,stres
         content=model.iot.stressor_extension.M.loc[GHG_STRESSOR_NAMES].sum(axis=0)
     elif scope ==1:
         content=model.iot.stressor_extension.S.loc[GHG_STRESSOR_NAMES].sum(axis=0)
+    elif scope == 1.5:
+        S=model.iot.stressor_extension.S.loc[GHG_STRESSOR_NAMES].sum(axis=0)
+        content=S+model.iot.A.dot(S)
+        
     if not reloc:
         content=content.drop("FR")
     regions_index = np.argsort(content[:, sector].values)
