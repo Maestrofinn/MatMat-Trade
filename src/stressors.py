@@ -1,13 +1,10 @@
-GHG_PARAMS = {
-    "name_FR": "GES",
-    "name_EN": "GHG",
-    "unit": "kgCO2eq",
-    "proxy": {
+ALL_STRESSORS={
         "CO2 - combustion": {
             "exiobase_keys": [
                 "CO2 - combustion - air",
             ],
             "weight": 1,
+            "unit": "kgCO2eq",
         },
         "CO2 - other": {
             "exiobase_keys": [
@@ -18,6 +15,7 @@ GHG_PARAMS = {
                 "CO2 - waste - fossil - air",
             ],
             "weight": 1,
+            "unit": "kgCO2eq",
         },
         "CH4": {
             "exiobase_keys": [
@@ -34,288 +32,27 @@ GHG_PARAMS = {
                 "CH4 - waste - air",
             ],
             "weight": 28,
+            "unit": "kgCO2eq",
         },
         "N2O": {
             "exiobase_keys": ["N2O - combustion - air", "N2O - agriculture - air"],
             "weight": 265,
+            "unit": "kgCO2eq",
         },
         "SF6": {
             "exiobase_keys": ["SF6 - air"],
             "weight": 23500,
+            "unit": "kgCO2eq",
         },
         "HFC": {
             "exiobase_keys": ["HFC - air"],
             "weight": 1,
+            "unit": "kgCO2eq",
         },
         "PFC": {
             "exiobase_keys": ["PFC - air"],
             "weight": 1,
-        },
-    },
-}
-
-MATERIAL_PARAMS = {
-    "name_FR": "matières",
-    "name_EN": "materials",
-    "unit": "kt",
-    "proxy": {
-        "Bauxite et aluminium": {
-            "exiobase_keys": [
-                "Domestic Extraction Used - Metal Ores - Bauxite and aluminium ores",
-                "Unused Domestic Extraction - Metal Ores - Bauxite and aluminium ores",
-            ],
-            "weight": 1,
-        },
-        "Cuivre": {
-            "exiobase_keys": [
-                "Domestic Extraction Used - Metal Ores - Copper ores",
-                "Unused Domestic Extraction - Metal Ores - Copper ores",
-            ],
-            "weight": 1,
-        },
-        "Or": {
-            "exiobase_keys": [
-                "Domestic Extraction Used - Metal Ores - Gold ores",
-                "Unused Domestic Extraction - Metal Ores - Gold ores",
-            ],
-            "weight": 1,
-        },
-        "Fer": {
-            "exiobase_keys": [
-                "Domestic Extraction Used - Metal Ores - Iron ores",
-                "Unused Domestic Extraction - Metal Ores - Iron ores",
-            ],
-            "weight": 1,
-        },
-        "Plomb": {
-            "exiobase_keys": [
-                "Domestic Extraction Used - Metal Ores - Lead ores",
-                "Unused Domestic Extraction - Metal Ores - Lead ores",
-            ],
-            "weight": 1,
-        },
-        "Nickel": {
-            "exiobase_keys": [
-                "Domestic Extraction Used - Metal Ores - Nickel ores",
-                "Unused Domestic Extraction - Metal Ores - Nickel ores",
-            ],
-            "weight": 1,
-        },
-        "Autres métaux non-ferreux": {
-            "exiobase_keys": [
-                "Domestic Extraction Used - Metal Ores - Other non-ferrous metal ores",
-                "Unused Domestic Extraction - Metal Ores - Other non-ferrous metal ores",
-            ],
-            "weight": 1,
-        },
-        "Platine": {
-            "exiobase_keys": [
-                "Domestic Extraction Used - Metal Ores - PGM ores",
-                "Unused Domestic Extraction - Metal Ores - PGM ores",
-            ],
-            "weight": 1,
-        },
-        "Argent": {
-            "exiobase_keys": [
-                "Domestic Extraction Used - Metal Ores - Silver ores",
-                "Unused Domestic Extraction - Metal Ores - Silver ores",
-            ],
-            "weight": 1,
-        },
-        "Cassitérite": {
-            "exiobase_keys": [
-                "Domestic Extraction Used - Metal Ores - Tin ores",
-                "Unused Domestic Extraction - Metal Ores - Tin ores",
-            ],
-            "weight": 1,
-        },
-        "Uranium et thorium": {
-            "exiobase_keys": [
-                "Domestic Extraction Used - Metal Ores - Uranium and thorium ores",
-                "Unused Domestic Extraction - Metal Ores - Uranium and thorium ores",
-            ],
-            "weight": 1,
-        },
-        "Zinc": {
-            "exiobase_keys": [
-                "Domestic Extraction Used - Metal Ores - Zinc ores",
-                "Unused Domestic Extraction - Metal Ores - Zinc ores",
-            ],
-            "weight": 1,
-        },
-        "Pierre de construction": {
-            "exiobase_keys": [
-                "Domestic Extraction Used - Non-Metallic Minerals - Building stones",
-                "Unused Domestic Extraction - Non-Metallic Minerals - Building stones",
-            ],
-            "weight": 1,
-        },
-        "Minéraux chimiques et d'engrais": {
-            "exiobase_keys": [
-                "Domestic Extraction Used - Non-Metallic Minerals - Chemical and fertilizer minerals",
-                "Unused Domestic Extraction - Non-Metallic Minerals - Chemical and fertilizer minerals",
-            ],
-            "weight": 1,
-        },
-        "Argiles et kaolin": {
-            "exiobase_keys": [
-                "Domestic Extraction Used - Non-Metallic Minerals - Clays and kaolin",
-                "Unused Domestic Extraction - Non-Metallic Minerals - Clays and kaolin",
-            ],
-            "weight": 1,
-        },
-        "Gravier et sable": {
-            "exiobase_keys": [
-                "Domestic Extraction Used - Non-Metallic Minerals - Gravel and sand",
-                "Unused Domestic Extraction - Non-Metallic Minerals - Gravel and sand",
-            ],
-            "weight": 1,
-        },
-        "Calcaire, gypse, craie, dolomite": {
-            "exiobase_keys": [
-                "Domestic Extraction Used - Non-Metallic Minerals - Limestone, gypsum, chalk, dolomite",
-                "Unused Domestic Extraction - Non-Metallic Minerals - Limestone, gypsum, chalk, dolomite",
-            ],
-            "weight": 1,
-        },
-        "Autres minéraux": {
-            "exiobase_keys": [
-                "Domestic Extraction Used - Non-Metallic Minerals - Other minerals",
-                "Unused Domestic Extraction - Non-Metallic Minerals - Other minerals",
-            ],
-            "weight": 1,
-        },
-        "Sel": {
-            "exiobase_keys": [
-                "Domestic Extraction Used - Non-Metallic Minerals - Salt",
-                "Unused Domestic Extraction - Non-Metallic Minerals - Salt",
-            ],
-            "weight": 1,
-        },
-        "Ardoise": {
-            "exiobase_keys": [
-                "Domestic Extraction Used - Non-Metallic Minerals - Slate",
-                "Unused Domestic Extraction - Non-Metallic Minerals - Slate",
-            ],
-            "weight": 1,
-        },
-    },
-}
-
-COPPER_PARAMS = {
-    "name_FR": "cuivre",
-    "name_EN": "copper",
-    "unit": "kt",
-    "proxy": {
-        "Cuivre": {
-            "exiobase_keys": [
-                "Domestic Extraction Used - Metal Ores - Copper ores",
-                "Unused Domestic Extraction - Metal Ores - Copper ores",
-            ],
-            "weight": 1,
-        },
-    },
-}
-
-LANDUSE_PARAMS = {
-    "name_FR": "usage des sols",
-    "name_EN": "land_use",
-    "unit": "km2",
-    "proxy": {
-        "cultures": {
-            "exiobase_keys": [
-                "Cropland - Cereal grains nec",
-                "Cropland - Crops nec",
-                "Cropland - Fodder crops-Cattle",
-                "Cropland - Fodder crops-Meat animals nec",
-                "Cropland - Fodder crops-Pigs",
-                "Cropland - Fodder crops-Poultry",
-                "Cropland - Fodder crops-Raw milk",
-                "Cropland - Oil seeds",
-                "Cropland - Paddy rice",
-                "Cropland - Plant-based fibers",
-                '"Cropland - Sugar cane, sugar beet"',
-                '"Cropland - Vegetables, fruit, nuts"',
-                "Cropland - Wheat",
-            ],
-            "weight": 1,
-        },
-        "forêts": {
-            "exiobase_keys": [
-                "Forest area - Forestry",
-                "Forest area - Marginal use",
-            ],
-            "weight": 1,
-        },
-        "pâturages": {
-            "exiobase_keys": [
-                "Permanent pastures - Grazing-Cattle",
-                "Permanent pastures - Grazing-Meat animals nec",
-                "Permanent pastures - Grazing-Raw milk",
-            ],
-            "weight": 1,
-        },
-        "infrastructures": {
-            "exiobase_keys": ["Infrastructure land"],
-            "weight": 1,
-        },
-        "autres usages": {"exiobase_keys": ["Other land Use: Total"], "weight": 1},
-    },
-}
-
-
-GHG_AND_MATERIALS_PARAM={
-    "name_FR": "GES et matière",
-    "name_EN": "ghg_and_material",
-    "unit": "kgCO2eq_or_kt",
-    "proxy": {
-        "CO2 - combustion": {
-            "exiobase_keys": [
-                "CO2 - combustion - air",
-            ],
-            "weight": 1,
-        },
-        "CO2 - other": {
-            "exiobase_keys": [
-                "CO2 - non combustion - Cement production - air",
-                "CO2 - non combustion - Lime production - air",
-                "CO2 - agriculture - peat decay - air",
-                "CO2 - waste - biogenic - air",
-                "CO2 - waste - fossil - air",
-            ],
-            "weight": 1,
-        },
-        "CH4": {
-            "exiobase_keys": [
-                "CH4 - combustion - air",
-                "CH4 - non combustion - Extraction/production of (natural) gas - air",
-                "CH4 - non combustion - Extraction/production of crude oil - air",
-                "CH4 - non combustion - Mining of antracite - air",
-                "CH4 - non combustion - Mining of bituminous coal - air",
-                "CH4 - non combustion - Mining of coking coal - air",
-                "CH4 - non combustion - Mining of lignite (brown coal) - air",
-                "CH4 - non combustion - Mining of sub-bituminous coal - air",
-                "CH4 - non combustion - Oil refinery - air",
-                "CH4 - agriculture - air",
-                "CH4 - waste - air",
-            ],
-            "weight": 28,
-        },
-        "N2O": {
-            "exiobase_keys": ["N2O - combustion - air", "N2O - agriculture - air"],
-            "weight": 265,
-        },
-        "SF6": {
-            "exiobase_keys": ["SF6 - air"],
-            "weight": 23500,
-        },
-        "HFC": {
-            "exiobase_keys": ["HFC - air"],
-            "weight": 1,
-        },
-        "PFC": {
-            "exiobase_keys": ["PFC - air"],
-            "weight": 1,
+            "unit": "kgCO2eq",
         },
         "Metal Ores": {
             "exiobase_keys": [
@@ -345,8 +82,9 @@ GHG_AND_MATERIALS_PARAM={
                 "Unused Domestic Extraction - Metal Ores - Zinc ores",
             ],
             "weight": 1,
+            "unit": "kt",
         },
-        "Non-Mettalic Minerals": {
+        "Non-Metallic Minerals": {
             "exiobase_keys": [
                 "Domestic Extraction Used - Non-Metallic Minerals - Building stones",
                 "Unused Domestic Extraction - Non-Metallic Minerals - Building stones",
@@ -366,6 +104,7 @@ GHG_AND_MATERIALS_PARAM={
                 "Unused Domestic Extraction - Non-Metallic Minerals - Slate",
             ],
             "weight": 1,
+            "unit": "kt",
         },
         "Fossil Fuels": {
             "exiobase_keys": [
@@ -381,6 +120,7 @@ GHG_AND_MATERIALS_PARAM={
                 "Unused Domestic Extraction - Fossil Fuels - Sub-bituminous coal"
             ],
             "weight": 1,
+            "unit": "kt",
         },
         "Forestry": {
             "exiobase_keys": [
@@ -400,6 +140,7 @@ GHG_AND_MATERIALS_PARAM={
                 "Domestic Extraction Used - Forestry - Raw materials other than wood"
             ],
             "weight": 1,
+            "unit": "kt",
         },
         "Primary Crops" : { 
             "exiobase_keys": [
@@ -571,20 +312,425 @@ GHG_AND_MATERIALS_PARAM={
                 "Domestic Extraction Used - Primary Crops - Yautia"
             ],
             "weight": 1,
+            "unit": "kt",
+        },
+        "Cropland": {
+            "exiobase_keys": [
+                "Cropland - Cereal grains nec",
+                "Cropland - Crops nec",
+                "Cropland - Fodder crops-Cattle",
+                "Cropland - Fodder crops-Meat animals nec",
+                "Cropland - Fodder crops-Pigs",
+                "Cropland - Fodder crops-Poultry",
+                "Cropland - Fodder crops-Raw milk",
+                "Cropland - Oil seeds",
+                "Cropland - Paddy rice",
+                "Cropland - Plant-based fibers",
+                "Cropland - Sugar cane, sugar beet",
+                "Cropland - Vegetables, fruit, nuts",
+                "Cropland - Wheat",
+            ],
+            "weight": 1,
+            "unit": "km2",
+        },
+        "Forests": {
+            "exiobase_keys": [
+                "Forest area - Forestry",
+                "Forest area - Marginal use",
+            ],
+            "weight": 1,
+            "unit": "km2",
+        },
+        "Pastures": {
+            "exiobase_keys": [
+                "Permanent pastures - Grazing-Cattle",
+                "Permanent pastures - Grazing-Meat animals nec",
+                "Permanent pastures - Grazing-Raw milk",
+            ],
+            "weight": 1,
+            "unit": "km2",
+        },
+        "Infrastructures": {
+            "exiobase_keys": ["Infrastructure land"],
+            "weight": 1,
+            "unit": "km2",
+        },
+        "Other land Use": {
+            "exiobase_keys": ["Other land Use: Total"],
+            "weight": 1,
+            "unit": "km2",
+        },
+}
+
+# USEFUL CATEGORIES FOR DATA PLOTS
+
+GHG_STRESSOR_NAMES=[
+                    "CO2 - combustion",
+                    "CO2 - other",
+                    "CH4",
+                    "PFC",
+                    "N2O",
+                    "SF6",
+                    "HFC"
+                    ]
+
+MATERIAL_STRESSOR_NAMES=[
+                    "Metal Ores",
+                    "Forestry",
+                    "Primary Crops",
+                    "Non-Metallic Minerals",
+                    "Fossil Fuels"
+                    ]
+
+BIOMASS_STRESSOR_NAMES=[
+                    "Forestry",
+                    "Primary Crops"
+                    ]
+
+LANDUSE_STRESSOR_NAMES=[
+                    "Cropland",
+                    "Forests",
+                    "Pastures",
+                    "Infrastructures",
+                    "Other land Use"
+                    ]
+
+
+# STRESSOR_DICT_GHG_MAT={"GES":GHG_STRESSOR_NAMES, 
+#                        "Matières premières":MATERIAL_STRESSOR_NAMES,
+#                        "Minerais métalliques":["Metal Ores"],
+#                        "Minéraux non-métalliques":["Non-Metallic Minerals"],
+#                        "Biomasse" : BIOMASS_STRESSOR_NAMES,
+#                        "Combustibles fossiles": ["Fossil Fuels"]
+#                        }
+
+STRESSORS_DICT_DEF = {
+                 "full":{
+                        "dict": list(ALL_STRESSORS.keys()), 
+                        "unit": "multiple units",
+                        "name_EN": "all_stressors"
+                        },
+                 "GES":{
+                        "dict": GHG_STRESSOR_NAMES, 
+                        "unit": "kgCO2eq",
+                        "name_EN": "GHG"
+                        },
+                "Matières premières":{
+                       "dict": MATERIAL_STRESSOR_NAMES, 
+                       "unit": "kt",
+                       "name_EN": "Materials"
+                       },
+                "Minerais métalliques":{
+                       "dict": ["Metal Ores"],
+                       "unit": "kt",
+                       "name_EN": "Metal_Ores"
+                       },
+                "Minéraux non-métalliques":{
+                       "dict": ["Non-Metallic Minerals"], 
+                       "unit": "kt",
+                       "name_EN": "NonMetallic_Minerals"
+                       },
+                "Biomasse" : {
+                       "dict": BIOMASS_STRESSOR_NAMES, 
+                       "unit": "kt",
+                       "name_EN": "Biomass"
+                       },
+                "Combustibles fossiles":{
+                       "dict": ["Fossil Fuels"], 
+                       "unit": "kt",
+                       "name_EN": "Fossil_Fuels"
+                       },
+                "Usage des sols":{
+                       "dict": LANDUSE_STRESSOR_NAMES ,
+                       "unit": "km2",
+                       "name_EN": "Land_use"
+                       }
+                }
+
+
+
+
+
+
+# OTHER USEFUL DICTIONNARY
+
+MATERIAL_STRESSORS = {
+        "Bauxite et aluminium": {
+            "exiobase_keys": [
+                "Domestic Extraction Used - Metal Ores - Bauxite and aluminium ores",
+                "Unused Domestic Extraction - Metal Ores - Bauxite and aluminium ores",
+            ],
+            "weight": 1,
+            "unit": "kt",
+        },
+        "Cuivre": {
+            "exiobase_keys": [
+                "Domestic Extraction Used - Metal Ores - Copper ores",
+                "Unused Domestic Extraction - Metal Ores - Copper ores",
+            ],
+            "weight": 1,
+            "unit": "kt",
+        },
+        "Or": {
+            "exiobase_keys": [
+                "Domestic Extraction Used - Metal Ores - Gold ores",
+                "Unused Domestic Extraction - Metal Ores - Gold ores",
+            ],
+            "weight": 1,
+            "unit": "kt",
+        },
+        "Fer": {
+            "exiobase_keys": [
+                "Domestic Extraction Used - Metal Ores - Iron ores",
+                "Unused Domestic Extraction - Metal Ores - Iron ores",
+            ],
+            "weight": 1,
+            "unit": "kt",
+        },
+        "Plomb": {
+            "exiobase_keys": [
+                "Domestic Extraction Used - Metal Ores - Lead ores",
+                "Unused Domestic Extraction - Metal Ores - Lead ores",
+            ],
+            "weight": 1,
+            "unit": "kt",
+        },
+        "Nickel": {
+            "exiobase_keys": [
+                "Domestic Extraction Used - Metal Ores - Nickel ores",
+                "Unused Domestic Extraction - Metal Ores - Nickel ores",
+            ],
+            "weight": 1,
+            "unit": "kt",
+        },
+        "Autres métaux non-ferreux": {
+            "exiobase_keys": [
+                "Domestic Extraction Used - Metal Ores - Other non-ferrous metal ores",
+                "Unused Domestic Extraction - Metal Ores - Other non-ferrous metal ores",
+            ],
+            "weight": 1,
+            "unit": "kt",
+        },
+        "Platine": {
+            "exiobase_keys": [
+                "Domestic Extraction Used - Metal Ores - PGM ores",
+                "Unused Domestic Extraction - Metal Ores - PGM ores",
+            ],
+            "weight": 1,
+            "unit": "kt",
+        },
+        "Argent": {
+            "exiobase_keys": [
+                "Domestic Extraction Used - Metal Ores - Silver ores",
+                "Unused Domestic Extraction - Metal Ores - Silver ores",
+            ],
+            "weight": 1,
+            "unit": "kt",
+        },
+        "Cassitérite": {
+            "exiobase_keys": [
+                "Domestic Extraction Used - Metal Ores - Tin ores",
+                "Unused Domestic Extraction - Metal Ores - Tin ores",
+            ],
+            "weight": 1,
+            "unit": "kt",
+        },
+        "Uranium et thorium": {
+            "exiobase_keys": [
+                "Domestic Extraction Used - Metal Ores - Uranium and thorium ores",
+                "Unused Domestic Extraction - Metal Ores - Uranium and thorium ores",
+            ],
+            "weight": 1,
+            "unit": "kt",
+        },
+        "Zinc": {
+            "exiobase_keys": [
+                "Domestic Extraction Used - Metal Ores - Zinc ores",
+                "Unused Domestic Extraction - Metal Ores - Zinc ores",
+            ],
+            "weight": 1,
+            "unit": "kt",
+        },
+        "Pierre de construction": {
+            "exiobase_keys": [
+                "Domestic Extraction Used - Non-Metallic Minerals - Building stones",
+                "Unused Domestic Extraction - Non-Metallic Minerals - Building stones",
+            ],
+            "weight": 1,
+            "unit": "kt",
+        },
+        "Minéraux chimiques et d'engrais": {
+            "exiobase_keys": [
+                "Domestic Extraction Used - Non-Metallic Minerals - Chemical and fertilizer minerals",
+                "Unused Domestic Extraction - Non-Metallic Minerals - Chemical and fertilizer minerals",
+            ],
+            "weight": 1,
+            "unit": "kt",
+        },
+        "Argiles et kaolin": {
+            "exiobase_keys": [
+                "Domestic Extraction Used - Non-Metallic Minerals - Clays and kaolin",
+                "Unused Domestic Extraction - Non-Metallic Minerals - Clays and kaolin",
+            ],
+            "weight": 1,
+            "unit": "kt",
+        },
+        "Gravier et sable": {
+            "exiobase_keys": [
+                "Domestic Extraction Used - Non-Metallic Minerals - Gravel and sand",
+                "Unused Domestic Extraction - Non-Metallic Minerals - Gravel and sand",
+            ],
+            "weight": 1,
+            "unit": "kt",
+        },
+        "Calcaire, gypse, craie, dolomite": {
+            "exiobase_keys": [
+                "Domestic Extraction Used - Non-Metallic Minerals - Limestone, gypsum, chalk, dolomite",
+                "Unused Domestic Extraction - Non-Metallic Minerals - Limestone, gypsum, chalk, dolomite",
+            ],
+            "weight": 1,
+            "unit": "kt",
+        },
+        "Autres minéraux": {
+            "exiobase_keys": [
+                "Domestic Extraction Used - Non-Metallic Minerals - Other minerals",
+                "Unused Domestic Extraction - Non-Metallic Minerals - Other minerals",
+            ],
+            "weight": 1,
+            "unit": "kt",
+        },
+        "Sel": {
+            "exiobase_keys": [
+                "Domestic Extraction Used - Non-Metallic Minerals - Salt",
+                "Unused Domestic Extraction - Non-Metallic Minerals - Salt",
+            ],
+            "weight": 1,
+            "unit": "kt",
+        },
+        "Ardoise": {
+            "exiobase_keys": [
+                "Domestic Extraction Used - Non-Metallic Minerals - Slate",
+                "Unused Domestic Extraction - Non-Metallic Minerals - Slate",
+            ],
+            "weight": 1,
+            "unit": "kt",
+        },
+}
+
+
+GHG_PARAMS = {
+    "name_FR": "GES",
+    "name_EN": "GHG",
+    "unit": "kgCO2eq",
+    "proxy": {
+        "CO2 - combustion": {
+            "exiobase_keys": [
+                "CO2 - combustion - air",
+            ],
+            "weight": 1,
+        },
+        "CO2 - other": {
+            "exiobase_keys": [
+                "CO2 - non combustion - Cement production - air",
+                "CO2 - non combustion - Lime production - air",
+                "CO2 - agriculture - peat decay - air",
+                "CO2 - waste - biogenic - air",
+                "CO2 - waste - fossil - air",
+            ],
+            "weight": 1,
+        },
+        "CH4": {
+            "exiobase_keys": [
+                "CH4 - combustion - air",
+                "CH4 - non combustion - Extraction/production of (natural) gas - air",
+                "CH4 - non combustion - Extraction/production of crude oil - air",
+                "CH4 - non combustion - Mining of antracite - air",
+                "CH4 - non combustion - Mining of bituminous coal - air",
+                "CH4 - non combustion - Mining of coking coal - air",
+                "CH4 - non combustion - Mining of lignite (brown coal) - air",
+                "CH4 - non combustion - Mining of sub-bituminous coal - air",
+                "CH4 - non combustion - Oil refinery - air",
+                "CH4 - agriculture - air",
+                "CH4 - waste - air",
+            ],
+            "weight": 28,
+        },
+        "N2O": {
+            "exiobase_keys": ["N2O - combustion - air", "N2O - agriculture - air"],
+            "weight": 265,
+        },
+        "SF6": {
+            "exiobase_keys": ["SF6 - air"],
+            "weight": 23500,
+        },
+        "HFC": {
+            "exiobase_keys": ["HFC - air"],
+            "weight": 1,
+        },
+        "PFC": {
+            "exiobase_keys": ["PFC - air"],
+            "weight": 1,
         },
     },
 }
 
+# COPPER_PARAMS = {
+#     "name_FR": "cuivre",
+#     "name_EN": "copper",
+#     "unit": "kt",
+#     "proxy": {
+#         "Cuivre": {
+#             "exiobase_keys": [
+#                 "Domestic Extraction Used - Metal Ores - Copper ores",
+#                 "Unused Domestic Extraction - Metal Ores - Copper ores",
+#             ],
+#             "weight": 1,
+#         },
+#     },
+# }
 
-GHG_STRESSOR_NAMES=["CO2 - combustion","CO2 - other","CH4","PFC","N2O","SF6","HFC"]
-
-MATERIAL_STRESSOR_NAMES=["Metal Ores","Forestry","Primary Crops","Non-Mettalic Minerals","Fossil Fuels"]
-
-BIOMASS_STRESSOR_NAMES=["Forestry","Primary Crops"]
-
-
-STRESSOR_DICT_GHG_MAT={"GHG":GHG_STRESSOR_NAMES,"Materials":MATERIAL_STRESSOR_NAMES}
-
-STRESSOR_DICT_GHG_MAT_DETAIL={"GHG":GHG_STRESSOR_NAMES,"Metal Ores":["Metal Ores"],"Non-Mettalic Minerals":["Non-Mettalic Minerals"],
-                              "Biomass" : BIOMASS_STRESSOR_NAMES, "Fossil Fuels": ["Fossil Fuels"]}
-
+# LANDUSE_PARAMS = {
+#     "name_FR": "usage des sols",
+#     "name_EN": "land_use",
+#     "unit": "km2",
+#     "proxy": {
+#         "cultures": {
+#             "exiobase_keys": [
+#                 "Cropland - Cereal grains nec",
+#                 "Cropland - Crops nec",
+#                 "Cropland - Fodder crops-Cattle",
+#                 "Cropland - Fodder crops-Meat animals nec",
+#                 "Cropland - Fodder crops-Pigs",
+#                 "Cropland - Fodder crops-Poultry",
+#                 "Cropland - Fodder crops-Raw milk",
+#                 "Cropland - Oil seeds",
+#                 "Cropland - Paddy rice",
+#                 "Cropland - Plant-based fibers",
+#                 '"Cropland - Sugar cane, sugar beet"',
+#                 '"Cropland - Vegetables, fruit, nuts"',
+#                 "Cropland - Wheat",
+#             ],
+#             "weight": 1,
+#         },
+#         "forêts": {
+#             "exiobase_keys": [
+#                 "Forest area - Forestry",
+#                 "Forest area - Marginal use",
+#             ],
+#             "weight": 1,
+#         },
+#         "pâturages": {
+#             "exiobase_keys": [
+#                 "Permanent pastures - Grazing-Cattle",
+#                 "Permanent pastures - Grazing-Meat animals nec",
+#                 "Permanent pastures - Grazing-Raw milk",
+#             ],
+#             "weight": 1,
+#         },
+#         "infrastructures": {
+#             "exiobase_keys": ["Infrastructure land"],
+#             "weight": 1,
+#         },
+#         "autres usages": {"exiobase_keys": ["Other land Use: Total"], "weight": 1},
+#     },
+# }

@@ -1,0 +1,21 @@
+0. Installation
+
+1. Structure du répertoire
+
+2. La classe Model
+
+3. Les scénarios
+commerce
+(merdouille scénario imaclim)
+=>rajouter proprement imaclim
+
+4. Figures
+(merdouille imaclim)
+
+5. Améliorer la lisibilité des figures
+mappers
+
+6. Endogénéisation de la conso de capital
+utilisation des arguments, plot k_comp
+
+7. Etudier d'autres stressors

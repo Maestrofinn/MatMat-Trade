@@ -7,13 +7,17 @@ from typing import Callable, Dict, List, Tuple
 from src.utils import recal_stressor_per_region
 from src.advance import extract_data
 from src.model import Model
-from src.stressors import GHG_STRESSOR_NAMES
+from src.stressors import STRESSORS_DICT_DEF
+from src.settings import CAP_IMPORTS_INCREASE_PARAM, ALLIES, OPPONENTS, DEFAULT_SCENAR_STRESSORS
 
 ### AUXILIARY FUNCTIONS FOR SCENARIOS ###
 
 
 def moves_final_demand_from_sorted_index_by_sector(
-    model, sector: str, regions_index: List[int], reloc: bool = False
+    model,
+    sector: str,
+    regions_index: List[int],
+    reloc: bool = False
 ) -> Tuple[pd.DataFrame,pd.DataFrame]:
     """Allocates french final demand importations for a sector in the order given by region_index
         #firectly adapated from moves_from_sorted_index_by_sector hence the ressemblance and some weird approaches
@@ -46,7 +50,7 @@ def moves_final_demand_from_sorted_index_by_sector(
 
     # export capacities of each regions the two parameters determine how much production each region/sector can do for France
     INCREASE_OVERALL=0
-    INCREASE_FRENCH_EXPORT=120/100 # if under 1 and INCREASE_OVERALL=0, reduces amounts available for france 
+    INCREASE_FRENCH_EXPORT=1+CAP_IMPORTS_INCREASE_PARAM # if under 1 and INCREASE_OVERALL=0, reduces amounts available for france 
     export_capacities = {
         reg:  Y.drop(columns=reg, level=0).sum(axis=1).loc[(reg, sector)]*INCREASE_OVERALL
         + Y["FR"].sum(axis=1).loc[(reg, sector)]*INCREASE_FRENCH_EXPORT
@@ -78,7 +82,11 @@ def moves_final_demand_from_sorted_index_by_sector(
 
 
 def moves_from_sorted_index_by_sector(
-    model, sector: str, regions_index: List[int], reloc: bool = False, coeff_increase_by_region_sector=None,increase_french_import=20/100
+    model, sector: str,
+    regions_index: List[int],
+    reloc: bool = False,
+    coeff_increase_by_region_sector=None,
+    increase_french_import=CAP_IMPORTS_INCREASE_PARAM
 ) -> Tuple[pd.DataFrame,pd.DataFrame]:
     """Allocates french importations for a sector in the order given by region_index
  
@@ -207,11 +215,12 @@ def moves_final_demand_from_sort_rule(
 
 def moves_from_sort_rule(
     model,
-    sorting_rule_by_sector: Callable[[Model,str, bool], List[int]],
+    sorting_rule_by_sector: Callable[[Model,str, bool, int, str], List[int]],
     reloc: bool = False,
     scope:int =3,
     coeff_increase_by_region_sector : pd.DataFrame = None,
-    increase_french_import:float = 20/100
+    increase_french_import:float = CAP_IMPORTS_INCREASE_PARAM,
+    scenar_stressors: str = DEFAULT_SCENAR_STRESSORS
 ) -> pymrio.IOSystem:
     """Allocates french importations for all sectors, sorting the regions with a given rule for each sector
 
@@ -220,10 +229,14 @@ def moves_from_sort_rule(
         sorting_rule_by_sector (Callable[[str, bool], List[int]]): given a sector name and the reloc value, returns a sorted list of regions' indices
         reloc (bool, optional): True if relocation is allowed. Defaults to False
         coeff_increase_by_region_sector (pd.DataFrame, optional) : values per region and sector (with same aggregation as iot) of the possible amount of import increase from each foreign sector/region.
+        increase_french_import (float): parameter to cap maximal increase of imports from France
+        scenar_stressors (str): name of the stressors group to perform the sorting on (see predefined keys in STRESSORS_DICT_DEF variable in src/stressors.py)
 
     Returns:
         pymrio.IOSystem: modified pymrio model
     """
+
+    stressors_used = STRESSORS_DICT_DEF[scenar_stressors]["dict"]
 
     sectors_list = model.sectors
     new_Z = model.iot.Z.copy()
@@ -234,7 +247,7 @@ def moves_from_sort_rule(
     
 
     for sector in sectors_list:
-        regions_index = sorting_rule_by_sector(model, sector, reloc,scope)
+        regions_index = sorting_rule_by_sector(model, sector, reloc, scope, stressors_used)
         new_inter_imports, new_final_imports = moves_from_sorted_index_by_sector(
             model=model, sector=sector, regions_index=regions_index, reloc=reloc,coeff_increase_by_region_sector=coeff_increase_by_region_sector,
             increase_french_import=increase_french_import
@@ -258,7 +271,7 @@ def moves_from_sort_rule(
     return iot
 
 
-def sort_by_content(model, sector: str, reloc: bool = False,scope: int = 3,stressors_used:List[str] = GHG_STRESSOR_NAMES) -> List[int]:
+def sort_by_content(model, sector: str, reloc: bool = False,scope: int = 3,stressors_used: List[str]= None) -> List[int]:
     """Ascendantly sorts all regions by stressor content of a sector
 
     Args:
@@ -266,16 +279,18 @@ def sort_by_content(model, sector: str, reloc: bool = False,scope: int = 3,stres
         sector (str): name of a product (or industry)
         reloc (bool, optional): True if relocation is allowed. Defaults to False.
         scope (int , optional): defines the scope of the content (1 or 3) 2 might needs special implementation based on energy sector aggregations
+        stressors_used (str): list of the stressors names to perform the sorting on (see STRESSORS_DICT_DEF variable in stressors.py)
 
     Returns:
         np.array: array of indices of regions sorted by stressor content
     """
+    
     if scope ==3:
-        content=model.iot.stressor_extension.M.loc[GHG_STRESSOR_NAMES].sum(axis=0)
+        content=model.iot.stressor_extension.M.loc[stressors_used].sum(axis=0)
     elif scope ==1:
-        content=model.iot.stressor_extension.S.loc[GHG_STRESSOR_NAMES].sum(axis=0)
+        content=model.iot.stressor_extension.S.loc[stressors_used].sum(axis=0)
     elif scope == 1.5:
-        S=model.iot.stressor_extension.S.loc[GHG_STRESSOR_NAMES].sum(axis=0)
+        S=model.iot.stressor_extension.S.loc[stressors_used].sum(axis=0)
         content=S+model.iot.A.dot(S)
         
     if not reloc:
@@ -288,14 +303,24 @@ def sort_by_content(model, sector: str, reloc: bool = False,scope: int = 3,stres
 ### BEST AND WORST SCENARIOS ###
 
 
-def scenar_best(model: Model, reloc: bool = False,scope:int =3,coeff_increase_by_region_sector : pd.DataFrame = None,
-                increase_french_import: float =20/100) -> pymrio.IOSystem:
+def scenar_best(
+        model: Model,
+        reloc: bool = False,
+        scope:int =3,
+        coeff_increase_by_region_sector : pd.DataFrame = None,
+        # increase_french_import: float =CAP_IMPORTS_INCREASE_PARAM,
+        scenar_stressors: str=DEFAULT_SCENAR_STRESSORS
+        ) -> pymrio.IOSystem:
     """Finds the least stressor-intense imports reallocation for all sectors
 
 
     Args:
         model (Model): object Model defined in model.py
         reloc (bool, optional): True if relocation is allowed. Defaults to False.
+        scope (int, optional): if sorting_rule_by_sector==sort_by_content, possible scope values = {3, 1, 1.5} (see sort_by_content function).
+        coeff_increase_by_region_sector (pd.DataFrame, optional) : values per region and sector (with same aggregation as iot) of the possible amount of import increase from each foreign sector/region.
+        scenar_stressors (str): name of the stressors group to perform the sorting on (see predefined keys in STRESSORS_DICT_DEF variable in src/stressors.py)
+
 
     Returns:
         Tuple[pd.DataFrame]: tuple with 2 elements :
@@ -304,18 +329,30 @@ def scenar_best(model: Model, reloc: bool = False,scope:int =3,coeff_increase_by
     """
 
     return moves_from_sort_rule(
-        model=model, sorting_rule_by_sector=sort_by_content, reloc=reloc,scope=scope,coeff_increase_by_region_sector=coeff_increase_by_region_sector,
-        increase_french_import=increase_french_import
+        model=model,
+        sorting_rule_by_sector=sort_by_content,
+        reloc=reloc,
+        scope=scope,
+        coeff_increase_by_region_sector=coeff_increase_by_region_sector,
+        scenar_stressors=scenar_stressors
+        # increase_french_import=increase_french_import,
     )
 
 
-def scenar_worst(model: Model, reloc: bool = False) -> pymrio.IOSystem:
+def scenar_worst(model: Model,
+                 reloc: bool = False,
+                 scope:int =3,
+                 scenar_stressors: str=DEFAULT_SCENAR_STRESSORS,
+                 # increase_french_import: float =CAP_IMPORTS_INCREASE_PARAM,
+                 ) -> pymrio.IOSystem:
     """Finds the most stressor-intense imports reallocation for all sectors
 
 
     Args:
         model (Model): object Model defined in model.py
         reloc (bool, optional): True if relocation is allowed. Defaults to False.
+        scope (int, optional): if sorting_rule_by_sector==sort_by_content, possible scope values = {3, 1, 1.5} (see sort_by_content function).
+        scenar_stressors (str): name of the stressors group to perform the sorting on (see predefined keys in STRESSORS_DICT_DEF variable in src/stressors.py)
 
     Returns:
         Tuple[pd.DataFrame]: tuple with 2 elements :
@@ -326,14 +363,17 @@ def scenar_worst(model: Model, reloc: bool = False) -> pymrio.IOSystem:
     return moves_from_sort_rule(
         model=model,
         sorting_rule_by_sector=lambda *args: sort_by_content(*args)[::-1],
-        reloc=reloc
+        scope=scope,
+        reloc=reloc,
+        scenar_stressors=scenar_stressors,
+        # increase_french_import=increase_french_import,
     )
 
 
 ### BEST AND WORST SCENARIOS FOR FINAL DEMAND###
 
 
-def scenar_best_final_demand(model: Model, reloc: bool = False,scope:int =3) -> pymrio.IOSystem:
+def scenar_best_final_demand(model: Model, reloc: bool = False, scope:int =3) -> pymrio.IOSystem:
     """Finds the least stressor-intense imports reallocation for all sectors
 
 
@@ -375,7 +415,7 @@ def scenar_worst_final_demand(model: Model, reloc: bool = False) -> pymrio.IOSys
 ### PREFERENCE SCENARIOS ###
 
 
-def scenar_pref(model, allies: List[str], reloc: bool = False) -> pymrio.IOSystem:
+def scenar_pref(model, allies: List[str]=ALLIES, reloc: bool = False) -> pymrio.IOSystem:
     """Finds imports reallocation in order to trade as much as possible with the allies
 
     Args:
@@ -552,7 +592,7 @@ def scenar_pref_eu(model: Model, reloc: bool = False) -> pymrio.IOSystem:
 ### TRADE WAR SCENARIOS ###
 
 
-def scenar_tradewar(model: Model, opponents: List[str], reloc: bool = False) -> pymrio.IOSystem:
+def scenar_tradewar(model: Model, opponents: List[str]=OPPONENTS, reloc: bool = False) -> pymrio.IOSystem:
     """Finds imports reallocation in order to exclude a list of opponents as much as possible
 
     Args:
@@ -611,12 +651,12 @@ def scenar_dummy(model, reloc: bool = False) -> pymrio.IOSystem:
 
 
 
-def emissivity_imaclim(model,year:int = 2050,scenario="INDC",except_FR=True,**kwargs) -> pymrio.IOSystem:
+def emissivity_imaclim(model,year:int = 2050,scenario:str="INDC",except_FR=True,**kwargs) -> pymrio.IOSystem:
     """Import emissivity changes predicted by IMACLIM model into the iot model, more precisely into the emissivity matrix S
     
     Args:
         model (Model): object Model defined in model.py
-        year (int, optional) : The year of the scenario we want to create. Allows to choose the right emissiviy as IMACLIM preidtcion are on a annual basis. 
+        year (int, optional) : The year of the scenario we want to create. Allows to choose the right emissivity as IMACLIM predictions are given.on an annual basis. 
         scenario (str, optional) : The IMACLIM scenario from which the changes are taken from. 
 
     Returns:
@@ -804,18 +844,21 @@ def consumption_change_imaclim(model,year:int = 2050, scenario:str = "INDC", Y_r
             iot=iot,recalc_F_Y=True)
     return iot
 
+
 ### AVAILABLE SCENARIOS ###
 
 DICT_SCENARIOS = {
     "best": scenar_best,
-    "best final demand":scenar_best_final_demand,
+    #"best final demand":scenar_best_final_demand,
     "worst": scenar_worst,
-    "worst final demand": scenar_worst_final_demand,
-    "pref_eu": scenar_pref_eu,
-    "tradewar_china": scenar_tradewar_china,
+    #"worst final demand": scenar_worst_final_demand,
+    #"pref_eu": scenar_pref_eu,
+    "pref_region": scenar_pref,
+    #"tradewar_china": scenar_tradewar_china,
+    "tradewar_region":scenar_tradewar,
     "dummy":scenar_dummy,
     "emissivity_IMACLIM":emissivity_imaclim,
     "technical_change_IMACLIM":tech_change_imaclim,
-    "production_change_IMACLIM":production_change_imaclim,
-    "consumption_change_imaclim":consumption_change_imaclim,
+    #"production_change_IMACLIM":production_change_imaclim,
+    #"consumption_change_imaclim":consumption_change_imaclim,
 }

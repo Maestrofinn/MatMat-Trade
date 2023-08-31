@@ -28,13 +28,13 @@ Consumption_components=['Residential','Transportation|Passenger|Road|LDV']
 
 
 def extract_data(aggregation,folder=folder_default):
-	"""Extract the usefull data from IMACLIM results and either reformat it or builds the tools to do so using the corresponding file
+	"""Extracts the usefull data from IMACLIM results and either reformats it or builds the tools to do so using the corresponding file
 
 	Args:
 		folder (str): The folder where IMACLIM results are stored.
-			There should be the outputs of imaclims as well as a '/template_data_output.xlsx' file and a  '/scenario_names.xlsx' which translate outputs number into the corresponding scenario names
+			There should be the outputs of IMACLIM as well as a '/template_data_output.xlsx' file and a  '/scenario_names.xlsx' which translate outputs number into the corresponding scenario names
 		aggregation (str): the name of the aggregation file
-			There should be a correspoding file named "data/IMACLIM_equivalent/"+aggregation+"_equivalent.xlsx" with the correspondance matrix for both the sectors and the regions, bewteen IMACLIM and MATMAT-Trade
+			There should be a corresponding file named "data/IMACLIM_equivalent/"+aggregation+"_equivalent.xlsx" with the correspondance matrix for both the sectors and the regions, bewteen IMACLIM and MATMAT-Trade
 	"""
 
 	imaclim_equivalent_file_name="data/IMACLIM_equivalent/"+aggregation+"_equivalent.xlsx"

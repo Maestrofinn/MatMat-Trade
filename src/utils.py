@@ -11,11 +11,13 @@ from scipy.io import loadmat
 from typing import Dict,List
 import warnings
 import wget
-
+from unidecode import unidecode
+import logging as log
 
 
 from src.settings import AGGREGATION_DIR
-from src.stressors import GHG_STRESSOR_NAMES,MATERIAL_STRESSOR_NAMES,STRESSOR_DICT_GHG_MAT_DETAIL
+# from src.stressors import GHG_STRESSOR_NAMES,MATERIAL_STRESSOR_NAMES,STRESSOR_DICT_GHG_MAT,GHG_AND_MATERIALS_PARAM,STRESSORS_DICT_DEF, ALL_STRESSORS
+from src.stressors import GHG_STRESSOR_NAMES,MATERIAL_STRESSOR_NAMES,STRESSORS_DICT_DEF, ALL_STRESSORS
 
 
 # remove pandas warning related to pymrio future deprecations
@@ -143,7 +145,7 @@ def get_very_detailed_emissions(iot: pymrio.IOSystem,stressors_groups: Dict =Non
 
 
 def get_total_imports_region(iot: pymrio.IOSystem,region:str,otherY=None)-> pd.Series:
-    """Computes the amount imported goods by types of demands (intermediate and final). 
+    """Computes the amount of imported goods by types of demands (intermediate and final). 
     
     Args:
         iot (pymrio.IOSystem): pymrio MRIO object
@@ -305,7 +307,7 @@ def build_reference_data(model) -> pymrio.IOSystem:
             )
             with open(model.exiobase_dir / model.exiobase_pickle_file_name, "wb") as f:
                 pkl.dump(iot, f)
-        if not model.exiobase_vanilla:
+        if model.recalib_capital:
             # Pre-treatment of capital data
             Kbar = load_Kbar(
                 year=model.base_year,
@@ -464,7 +466,7 @@ def build_counterfactual_data(
     Returns:
         pymrio.IOSystem: modified pymrio model
     """
-    
+
     iot=scenar_function(model=model,**kwargs)
     
     iot.calc_all()
@@ -752,7 +754,7 @@ def footprint_extractor(model, region: str = "FR",stressor_list=GHG_STRESSOR_NAM
     }
 
 def multi_footprints_extractor(iot: pymrio.IOSystem,region : str = "FR", stressor_lists : Dict ={"GHG":GHG_STRESSOR_NAMES,"MATERIAL":MATERIAL_STRESSOR_NAMES}):
-    """Computes region's footprint indicators : D_imp, D_cba, D_pba,D_exp, Footprint for several groups of stressors. 
+    """Computes region's footprint indicators : D_imp, D_cba, D_pba, D_exp, Footprint for several groups of stressors. 
 
     Args:
         model (Union[Model, Counterfactual]): object Model or Counterfactual defined in model.py
@@ -778,7 +780,7 @@ def multi_footprints_extractor(iot: pymrio.IOSystem,region : str = "FR", stresso
         
     return Footprints
 
-def save_footprints(model,path:str,region : str = "FR", stressor_lists : Dict =STRESSOR_DICT_GHG_MAT_DETAIL):
+def save_footprints(model,path:str,region : str, stressor_lists : Dict):
     Footprints=multi_footprints_extractor(model.iot,region=region, stressor_lists=stressor_lists)
     
     with pd.ExcelWriter(path) as writer:
@@ -806,7 +808,8 @@ def save_Coef_Row(model,Transition_money_hybrid,path, region : str = "FR", stres
                 Coef_Row[stressors_name]=Coef_Row_hyb
             Coef_Row.to_excel(writer,sheet_name=counterfactual)
 
-### AUXILIARY FUNCTIONS FOR FIGURES EDITING ###
+
+### AUXILIARY FUNCTIONS FOR FIGURES EDITING AND DATA SAVING ###
 
 
 def build_description(model, counterfactual_name: str = None) -> str:
@@ -825,9 +828,9 @@ def build_description(model, counterfactual_name: str = None) -> str:
         output = ""
     else:
         output = f"Scénario : {counterfactual_name}\n"
+        output += f"Scénarisation sur: {model.counterfactuals[counterfactual_name].scenar_stressors}\n"
     output += f"Année : {model.base_year}\n"
     output += f"Système : {model.system}\n"
-    output += f"Stressor : {model.stressor_name}\n"
     output += f"Base de données : Exiobase {model.iot.meta.version}\n"
     if model.capital:
         output += "Modèle à capital endogène"
@@ -842,18 +845,36 @@ def build_description(model, counterfactual_name: str = None) -> str:
 
 
 
+def shortnaming(stressor_params:str) -> str:
+    
+    stressor_shortname = unidecode(''.join(elt[:4] +'_' for elt in stressor_params.split(' '))[:-1])
+    
+    return stressor_shortname
 
 
+def subsetting(stressor_subset:str) -> set:
+    
+    PARAMS_SUBSET = {elt: ALL_STRESSORS[elt] for elt in STRESSORS_DICT_DEF[stressor_subset]['dict']}
+    
+    return PARAMS_SUBSET
 
 
+def check_coherent_units(stressors_to_display, stressor_unit):
+    
+    for elt in STRESSORS_DICT_DEF[stressors_to_display]['dict']:
+        if ALL_STRESSORS[elt]['unit'] != stressor_unit:
+            log.warning(f'Unit of {elt} stressor is not equal to the aggregated unit given for {stressors_to_display} in STRESSORS_DICT_DEF variable.')
+
+    return None
 
 
+def find_stressor_unit(stressors_to_display:str) -> str:
+    
+    # stressor_unit = GHG_AND_MATERIALS_PARAM["proxy"][STRESSOR_DICT_GHG_MAT[stressors_to_display][0]]["unit"]
+    stressor_unit = STRESSORS_DICT_DEF[stressors_to_display]["unit"]
+    check_coherent_units(stressors_to_display, stressor_unit)
 
-
-
-
-
-
+    return stressor_unit
 
 
 

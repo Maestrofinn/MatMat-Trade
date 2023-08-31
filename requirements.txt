@@ -11,3 +11,6 @@ seaborn==0.11.2
 Unidecode==1.1.1
 wget==3.2
 plotly
+pypi
+tqdm
+kaleido
