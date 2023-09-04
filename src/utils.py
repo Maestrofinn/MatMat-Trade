@@ -15,7 +15,7 @@ from unidecode import unidecode
 import logging as log
 
 
-from src.settings import AGGREGATION_DIR
+from src.settings import AGGREGATION_DIR, OUTPUTS_DIR, DATA_DIR
 # from src.stressors import GHG_STRESSOR_NAMES,MATERIAL_STRESSOR_NAMES,STRESSOR_DICT_GHG_MAT,GHG_AND_MATERIALS_PARAM,STRESSORS_DICT_DEF, ALL_STRESSORS
 from src.stressors import GHG_STRESSOR_NAMES,MATERIAL_STRESSOR_NAMES,STRESSORS_DICT_DEF, ALL_STRESSORS
 
@@ -790,23 +790,70 @@ def save_footprints(model,path:str,region : str, stressor_lists : Dict):
             Footprints.to_excel(writer,sheet_name=counterfactual)
         pd.DataFrame.from_dict(stressor_lists,orient='index').T.to_excel(writer,sheet_name="Stressor_groups",index=False)
         
-def save_Coef_Row(model,Transition_money_hybrid,path, region : str = "FR", stressor_lists : Dict ={"GHG":GHG_STRESSOR_NAMES,"MATERIAL":MATERIAL_STRESSOR_NAMES}):
-    
-    with pd.ExcelWriter(path) as writer:
-        Coef_Row=pd.DataFrame()
-        for stressors_name,stressors in stressor_lists.items():
-            Coef_Row_mon=get_import_mean_stressor(model.iot,region).loc[stressors].groupby("sector").sum().reindex(model.agg_sectors)
-            Coef_Row_hyb=Coef_Row_mon*Transition_money_hybrid
-            Coef_Row[stressors_name]=Coef_Row_hyb
-        Coef_Row.to_excel(writer,sheet_name="base_year")
         
+def save_CoefRoW(model,
+                region : str, #region to compute the CoefRoW's
+                stressors_list : list, # list of the calibrated stressors to save
+                SRIO_filename :str, # name of the file where MatMat data are stored
+                # stressors_list : Dict ={"GHG":GHG_STRESSOR_NAMES,"MATERIAL":MATERIAL_STRESSOR_NAMES}
+                ):
+    
+    # import MatMat SRIO data
+    SRIO_hyb=pd.read_excel(DATA_DIR/("MatMat/{}.xlsx".format(SRIO_filename)),sheet_name="hybride",header=[0,1,2],index_col=[0,1,2,3])
+    SRIO_monetary=pd.read_excel(DATA_DIR/("MatMat/{}.xlsx".format(SRIO_filename)),sheet_name="monetaire",header=[0,1,2],index_col=[0,1,2,3])
+    
+    # isolating the gross outputs
+    X_hyb=SRIO_hyb.loc[:,(slice(None),slice(None),"x")]
+    X_monetary=SRIO_monetary.loc[:,(slice(None),slice(None),"x")]
+
+    # compute conversation factors monetary <-> hybrid
+    conversion_hybrid_monetary_RoW=(X_monetary/X_hyb).fillna(0).loc["RoW"]
+    conversion_hybrid_monetary_RoW=conversion_hybrid_monetary_RoW.reset_index(["category","sub_category"])[("Supply","Supply","x")].fillna(0)
+
+
+    # compute CoefRoW for model and its all couterfactuals, in absolute and relative variations
+    CoefRoW = dict()
+    for stressors_category in stressors_list:
+        
+        stressors = STRESSORS_DICT_DEF[stressors_category]['dict']
+        stressors_short_name = STRESSORS_DICT_DEF[stressors_category]['name_EN']
+        
+        CoefRoW[stressors_short_name] = pd.DataFrame()
+        
+        CoefRoW[stressors_short_name]['base_year'] = get_import_mean_stressor(model.iot,region)\
+                .loc[stressors].groupby("sector").sum().reindex(model.agg_sectors)
         for counterfactual in model.get_counterfactuals_list():
-            Coef_Row=pd.DataFrame()
-            for stressors_name,stressors in stressor_lists.items():
-                Coef_Row_mon=get_import_mean_stressor(model.counterfactuals[counterfactual].iot,region).loc[stressors].groupby("sector").sum().reindex(model.agg_sectors)
-                Coef_Row_hyb=Coef_Row_mon*Transition_money_hybrid
-                Coef_Row[stressors_name]=Coef_Row_hyb
-            Coef_Row.to_excel(writer,sheet_name=counterfactual)
+            CoefRoW[stressors_short_name][counterfactual] = get_import_mean_stressor(model.counterfactuals[counterfactual].iot,region)\
+                    .loc[stressors].groupby("sector").sum().reindex(model.agg_sectors)
+        
+        CoefRoW[stressors_short_name + '_relat'] = (CoefRoW[stressors_short_name].divide(CoefRoW[stressors_short_name]['base_year'], axis = 0)-1).fillna(0)
+        
+        # CoefRoW[stressors_short_name]['unit'] = find_stressor_unit(stressors_category)+'/M€'
+        
+        CoefRoW[stressors_short_name] = CoefRoW[stressors_short_name].mul(conversion_hybrid_monetary_RoW, axis = 0)\
+                                        /(1E3 if find_stressor_unit(stressors_category) == 'kgCO2eq' else 1)
+   
+    # CoefRoW['unit'] = pd.DataFrame(['(tCO2eq or kt) / MatMat\'s sector unit (kt or ktoe or M€)'])
+
+    CoefRoW['unit'] = pd.DataFrame(
+        [find_stressor_unit(stressors_category) for stressors_category in stressors_list],
+        index = [stressors_list],
+        columns = ['unit']
+        ).where(lambda x: x!='kgCO2eq', 'tCO2eq')
+    
+    
+    #save CoefRoW
+    path = OUTPUTS_DIR/'CoefRoW'
+    path.mkdir(exist_ok = True)
+    path = path/('CoefRoW_'+model.summary_long+'.xlsx')
+    
+    # with pd.ExcelWriter(path/("CoefRow_{}.xlsx".format(model.summary_long))) as writer:
+    with pd.ExcelWriter(path) as writer:
+        for key in CoefRoW.keys():
+            CoefRoW[key].to_excel(writer,sheet_name=key)
+
+    return None #Coef_Row
+
 
 
 ### AUXILIARY FUNCTIONS FOR FIGURES EDITING AND DATA SAVING ###

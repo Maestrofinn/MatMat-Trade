@@ -20,6 +20,7 @@ EXIOBASE_DIR = DATA_DIR / "exiobase"
 MODELS_DIR = DATA_DIR / "models"
 FIGURES_DIR = BASE_DIR / "figures"
 FIGURES_MULTIMODEL_DIR = FIGURES_DIR / "multimodel"
+OUTPUTS_DIR = BASE_DIR/"outputs"
 
 for path in [
     DATA_DIR,
@@ -28,6 +29,7 @@ for path in [
     MODELS_DIR,
     FIGURES_DIR,
     FIGURES_MULTIMODEL_DIR,
+    OUTPUTS_DIR
 ]:
     if not os.path.isdir(path):
         os.mkdir(path)
@@ -47,7 +49,7 @@ COLORS_NO_FR = COLORS[1:]
 ######################
 
 ## max increase of french imports param
-CAP_IMPORTS_INCREASE_PARAM= 30/100
+CAP_IMPORTS_INCREASE_PARAM= 20/100
 
 ## pref_region and tradewar_region default regions
 ALLIES="EU"
