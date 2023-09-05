@@ -20,7 +20,7 @@ from src.settings import (
 # from src.stressors import STRESSOR_DICT_GHG_MAT, GHG_AND_MATERIALS_PARAM
 from src.stressors import STRESSORS_DICT_DEF
 
-from src.utils import build_reference_data, build_counterfactual_data, reverse_mapper, subsetting, save_CoefRow 
+from src.utils import build_reference_data, build_counterfactual_data, reverse_mapper, subsetting, save_CoefRoW 
 
 
 class Model:
@@ -462,10 +462,10 @@ class Model:
             stressors_to_display=stressors_to_display,
             )
     
-    def save_CoefRow(
+    def save_CoefRoW(
             self,
             region : str = "FR",
-            stressor_lists : list= ['GES', 'Matières premières'],
+            stressors_list : list= ['GES', 'Matières premières'],
             SRIO_filename : str = "SRIO_FR_2015_Transitions"
             )->None:
         """" Compute and save CoefRoW for MatMat in outputs/CoefRoW folder.
@@ -475,7 +475,7 @@ class Model:
             stressor_lists (list of str): list of the calibrated stressors to save (see STRESSORS_DICT_DEF variable in src/stressors)
             SRIO_filename (str): name of the file in folder data/MatMat/ where SRIO from MatMat are stored (without ".xlsx" at the end !!).
         """
-        save_CoefRoW(model=self,region=region, stressor_lists=stressor_lists, SRIO_filename=SRIO_filename)
+        save_CoefRoW(model=self,region=region, stressors_list=stressors_list, SRIO_filename=SRIO_filename)
 
 
 

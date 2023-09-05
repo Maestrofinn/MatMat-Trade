@@ -294,7 +294,7 @@ def sort_by_content(model, sector: str, reloc: bool = False,scope: int = 3,stres
         content=S+model.iot.A.dot(S)
         
     if not reloc:
-        content=content.drop("FR", level = 0)
+        content=content.drop("FR")
     regions_index = np.argsort(content[:, sector].values)
     return regions_index # type: ignore
 
