@@ -135,8 +135,12 @@ dmypy.json
 data/capital_consumption/*
 data/exiobase/*
 data/models/*
+data/aggregation/*
+data/IMACLIM_equivalent/*
+data/MatMat/*
 figures/
 figures/*
 importations_of_co2_scenarios_fixed.xlsx
 main_perso.ipynb
-outputs/*
+outputs/CoefRoW/*
+src/settings.py

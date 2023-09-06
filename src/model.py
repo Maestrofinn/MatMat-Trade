@@ -385,7 +385,7 @@ class Model:
         for counterfactual_name in self.get_counterfactuals_list():
             self.plot_stressor_synthesis(counterfactual_name=counterfactual_name, stressors_to_display=stressors_to_display)
 
-    def plot_substressors_synthesis_all(self, stressors_to_display: str) -> None:
+    def plot_substressor_synthesis_all(self, stressors_to_display: str) -> None:
         """Plots the french emissions per substressor for a given counterfactual
         
         Args:
@@ -405,7 +405,7 @@ class Model:
         #self.compare_scenarios()
         self.plot_trade_synthesis_all()
         self.plot_stressor_synthesis_all(stressors_to_display)
-        self.plot_substressors_synthesis_all(stressors_to_display)
+        self.plot_substressor_synthesis_all(stressors_to_display)
         self.plot_footprint_FR(stressors_to_display)
         self.plot_stressor_content_heatmap_all(stressors_to_display)
         self.plot_stressor_content_production(stressors_to_display)
