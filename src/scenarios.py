@@ -730,7 +730,7 @@ def tech_change_imaclim(model,year:int = 2050,scenario="INDC",except_FR=True,**k
     iot.Y=Y
     iot.x = None
     iot.L=None
-    
+    #iot.Z = None # no change because reset_to_coefficients() does it already.
     
     #some checks and safeguards might be needed here in order to prevent coefficient sums in each columns of A to be greater than 1 (which can lead to negative results of consumption/production etc)
     columns_problem=iot.A.sum(axis=0)>1

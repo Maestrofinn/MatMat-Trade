@@ -990,13 +990,17 @@ def plot_sector_import_distrib_full(model ,sectors: list,country_importing="FR",
 
 def get_emmissiv_and_quantity(iot,country : str ,stressor_list: list=GHG_STRESSOR_NAMES,scope=3):
     if scope ==1:
-        emissiv_df=pd.DataFrame([iot.stressor_extension.S.loc[stressor_list].sum(),get_total_imports_region(iot,country)],index=["emissivity","quantity"]).T
-    else : emissiv_df=pd.DataFrame([iot.stressor_extension.M.loc[stressor_list].sum(),get_total_imports_region(iot,country)],index=["emissivity","quantity"]).T
+        emissiv_df=pd.DataFrame([iot.stressor_extension.S.loc[stressor_list].sum(),get_total_imports_region(iot,country, scope=scope)],index=["emissivity","quantity"]).T
+        # emissiv_df=pd.DataFrame([iot.stressor_extension.S.loc[stressor_list].sum(),iot.Y[region].sum(axis = 1)[region]=0]],index=["emissivity","quantity"]).T
+    else :
+        emissiv_df=pd.DataFrame([iot.stressor_extension.M.loc[stressor_list].sum(),get_total_imports_region(iot,country, scope=scope)],index=["emissivity","quantity"]).T
+        # emissiv_df=pd.DataFrame([iot.stressor_extension.M.loc[stressor_list].sum(),get_total_imports_region(iot,country, scope=scope)],index=["emissivity","quantity"]).T
     return emissiv_df
 
 
 def get_emissions_and_quantity(iot,country : str ,stressor_list: list=GHG_STRESSOR_NAMES,scope=3):
     emissions_and_quantity=get_emmissiv_and_quantity(iot,country=country,stressor_list=stressor_list,scope=scope)
+    emissions_and_quantity.loc[country]=0
     emissions_and_quantity["emissions"]=emissions_and_quantity["emissivity"]*emissions_and_quantity["quantity"]
     return emissions_and_quantity.drop("emissivity",axis=1)
 
@@ -1042,15 +1046,18 @@ def plot_emission_location_import_distrib_full(model ,sectors: list,country_impo
 
 def get_local_emissions_and_quantity(iot, country_importing : str, stressor_list: list=GHG_STRESSOR_NAMES):
     imports=iot.Y.sum(axis=1,level=0)*0
-    country_imports=get_total_imports_region(iot,country_importing)
+    country_imports=get_total_imports_region(iot,country_importing, scope=3)
     imports[country_importing]=country_imports
     imports_total_diag=diagonalize_columns_to_sectors(imports)[country_importing]
     prod_imports_diag=iot.L@imports_total_diag
     
-    local_emissions=get_very_detailed_emissions(iot,stressors_groups={"GHG":stressor_list},production_diag=prod_imports_diag).loc[(slice(None),slice(None),"GHG")].sum(axis=0,level=0)
+    prod_imports_diag.loc[country_importing, country_importing]=0
+    
+    local_emissions=get_very_detailed_emissions(iot,stressors_groups={"extensions":stressor_list},production_diag=prod_imports_diag).loc[(slice(None),slice(None),"extensions")].sum(axis=0,level=0)
     local_emissions=pd.DataFrame(local_emissions.to_numpy().flatten(),index=pd.MultiIndex.from_product([local_emissions.index,local_emissions.columns]))[0]
 
     return pd.DataFrame([local_emissions,local_emissions],index=["emissivity","quantity"]).T
+
 
 
 def plot_impacts_by_location_for_one_product(
@@ -1111,12 +1118,189 @@ def plot_impacts_by_location_for_one_product(
     if model.save_figures:
         save_dir = model.figures_dir / ("Impacts_by_location_for_"+country_importing)/stressors_name_EN
         save_dir.mkdir(exist_ok = True, parents = True)
-        fig.write_image(save_dir/f"{stressors_name_EN}_imported_footprint_by_location_for_{sector}.png")
-    
-    
+        fig.write_image(save_dir/f"{stressors_name_EN}_total_imports_imported_footprint_by_location_for_{sector}.png")
 
 
-def plot_impacts_by_exporting_country_for_one_product(
+def get_Dimp_extensions_for_country(
+        model,
+        country_importing, 
+        # sector, 
+        stressor_list
+        ):
+    
+    Dimp_extensions = model.iot.stressor_extension.D_imp[country_importing]
+    # Dimp_extensions = model.iot.stressor_extension.D_imp[(country_importing, sector)]
+    # Dimp_extensions = model.iot.stressor_extension.D_imp.xs(sector, level = 1, axis = 1)
+
+    Dimp_extensions = pd.concat(
+        [Dimp_extensions.loc[region].loc[stressor_list] for region in model.regions],
+        axis = 0,
+        keys= model.regions
+        )
+    
+    Dimp_extensions = Dimp_extensions.groupby(level=0, axis=0, sort=False).sum()
+
+    # Dimp_extensions = pd.concat(
+    #     [Dimp_extensions.xs(extension, level = 1, axis = 0) for extension in stressor_list],
+    #     axis = 0,
+    #     keys = stressor_list
+    #     )
+    
+    return Dimp_extensions
+
+
+
+def plot_impacts_by_location_for_one_product_FD(
+        model,
+        sector: str,
+        country_importing="FR",
+        scenarios=None,
+        stressors_to_display: str='GES',
+        ):
+    """" Plots imported impacts by location of impacts. 
+        Impacts occuring along the entire value chain are attributed to the region(s) where there actually happened.
+    
+    Args:
+        model (Model): object Model defined in model.py
+        sector (str): final demand product whose imported impacts will be displayed 
+        country_importing (str): importing country of the above product
+        scenarios (list of str): scenarios to display. Default to all existing counterfactuals (cf. model.get_counterfactuals_list()).
+        stressors_to_display (str): impacts to display (to be defined in variable STRESSORS_DICT_DEF in stresors.py).
+    """
+    
+    stressor_list = STRESSORS_DICT_DEF[stressors_to_display]['dict']
+    stressors_name_EN = STRESSORS_DICT_DEF[stressors_to_display]['name_EN']
+
+    dict_df_to_print={}
+
+    dict_df_to_print["base"]= get_Dimp_extensions_for_country(model,country_importing, stressor_list) 
+
+
+    if scenarios is None : 
+        scenarios_list = model.get_counterfactuals_list()
+    else:
+        scenarios_list = scenarios.copy()
+
+    for counterfactual in scenarios_list:
+        dict_df_to_print[counterfactual]=get_Dimp_extensions_for_country(model.counterfactuals[counterfactual],country_importing,stressor_list)
+    
+    scenarios_list = ['base']+scenarios_list
+
+    df_to_print=pd.concat([dict_df_to_print[scenario] for scenario in scenarios_list],keys=scenarios_list,names=("scenario","regions"))
+    
+    df_to_print = df_to_print.reset_index()
+    
+    # sector_needed_emssiv=df_to_print.loc[df_to_print.index.get_level_values("sector")==sector].reset_index()
+    # sector_needed_emssiv=sector_needed_emssiv.drop(index=sector_needed_emssiv.loc[sector_needed_emssiv["quantity"]==0].index)
+    df_to_print['scenario'] = pd.Categorical(df_to_print.scenario, categories = scenarios_list, ordered = True)
+
+    fig=px.bar(df_to_print.sort_values(by='scenario', kind="stable"),y=sector,color="regions",x="scenario",
+                hover_name="regions",color_discrete_map=dict(zip(model.regions, COLORS[:len(model.regions)])))
+    #.sort_values(ascending=False,by="emissivity",axis=0)
+    
+    fig.update_layout(
+                title = f"Localisation des impacts importés par {country_importing} ({sector})",
+                xaxis_title = "Scenarios",
+                yaxis_title = f'{stressors_to_display}, en {find_stressor_unit(stressors_to_display)}'
+                )
+    
+    fig.show()
+    
+    if model.save_figures:
+        save_dir = model.figures_dir / ("Impacts_by_location_for_"+country_importing)/stressors_name_EN
+        save_dir.mkdir(exist_ok = True, parents = True)
+        fig.write_image(save_dir/f"{stressors_name_EN}_final_demand_imported_footprint_by_location_for_{sector}.png")
+    
+    
+# def plot_impacts_by_exporting_country_for_one_product(
+#         model,
+#         sector: str,
+#         country_importing="FR",
+#         scenarios=None,
+#         stressors_to_display: str="GES",
+#         scope:int=3
+#         ):
+#     """" Plots imported impacts by origin(s) of the imported good.
+#         Impacts occuring along the entire value chain (in case of scope=3) or direct impacts (scope = 1) of the selected product are attributed to last exporter of the product.
+    
+#     Args:
+#         model (Model): object Model defined in model.py
+#         sector (str): imported product whose impacts will be displayed 
+#         country_importing (str): importing country of the above product
+#         scenarios (list of str): scenarios to display. Default to all existing counterfactuals (cf. model.get_counterfactuals_list()).
+#         stressors_to_display (str): impacts to display (to be defined in variable STRESSORS_DICT_DEF in stresors.py).
+#         scope (int): 1 (direct impacts of production only) or 3 (impacts of the entire value chain).
+#     """
+    
+#     stressor_list = STRESSORS_DICT_DEF[stressors_to_display]['dict']
+#     stressors_name_EN = STRESSORS_DICT_DEF[stressors_to_display]['name_EN']
+    
+#     dict_df_to_print={}
+
+#     dict_df_to_print["base"]=get_emissions_and_quantity(model.iot,country=country_importing,stressor_list=stressor_list, scope=scope)
+
+#     if scenarios is None : 
+#         scenarios_list = model.get_counterfactuals_list()
+#     else:
+#         scenarios_list = scenarios.copy()
+    
+#     for counterfactual in scenarios_list:
+#         dict_df_to_print[counterfactual]=get_emissions_and_quantity(model.counterfactuals[counterfactual].iot,country=country_importing,stressor_list=stressor_list, scope=scope)
+    
+#     scenarios_list = ['base']+scenarios_list
+    
+#     df_to_print=pd.concat([dict_df_to_print[scenario] for scenario in scenarios_list],keys=scenarios_list,names=("scenario","regions","sector"))
+    
+#     sector_needed_emssiv=df_to_print.loc[df_to_print.index.get_level_values("sector")==sector].reset_index()
+
+#     sector_needed_emssiv['scenario'] = pd.Categorical(sector_needed_emssiv.scenario, categories = scenarios_list, ordered = True)
+    
+#     fig=px.bar(sector_needed_emssiv.sort_values(by="scenario",kind="stable"),y="emissions",color="regions",x="scenario",
+#                 hover_name="regions",color_discrete_map=dict(zip(model.regions, COLORS[:len(model.regions)])))
+#     #.sort_values(ascending=False,by="emissions",axis=0)
+
+#     if scope==3:
+#         title_detail = f"Empreintes importées (scope{str(scope)})"
+#     else:
+#         title_detail = "Impacts importés (scope{str(scope)})"
+
+#     fig.update_layout(
+#                 title = f"{title_detail} par {country_importing} ({sector}) par origine d\'approvisionnement",
+#                 xaxis_title = "Scenarios",
+#                 yaxis_title = f'{stressors_to_display}, en {find_stressor_unit(stressors_to_display)}'
+#                 )
+
+#     fig.show()
+    
+    
+#     if model.save_figures:
+#         save_dir = model.figures_dir / ("Impacts_per_exporting_regions_to_"+country_importing)/stressors_name_EN
+#         save_dir.mkdir(exist_ok = True, parents = True)
+#         fig.write_image(save_dir/(f"{stressors_name_EN}_scope{str(scope)}_impacts_by_exp_reg_for_{sector}.png"))
+
+def get_extensions_by_exporting_for_country(
+        model,
+        country_importing,
+        stressor_list,
+        scope:int=3
+        ):
+    
+    if scope==1:
+        stressor = model.iot.stressor_extension.S
+    if scope==3:
+        stressor = model.iot.stressor_extension.M
+    
+    extensions_by_exporting = stressor * get_total_imports_region(model.iot,region=country_importing, scope=scope)
+    extensions_by_exporting=extensions_by_exporting.loc[stressor_list].sum()
+
+    # extensions_by_exporting.name = 'extension'
+    extensions_by_exporting = extensions_by_exporting.unstack('sector')
+    extensions_by_exporting= extensions_by_exporting.reindex(index=model.regions)
+     
+    return extensions_by_exporting
+
+
+def plot_impacts_by_exporting_country_for_one_product_2(
         model,
         sector: str,
         country_importing="FR",
@@ -1141,7 +1325,7 @@ def plot_impacts_by_exporting_country_for_one_product(
     
     dict_df_to_print={}
 
-    dict_df_to_print["base"]=get_emissions_and_quantity(model.iot,country=country_importing,stressor_list=stressor_list, scope=scope)
+    dict_df_to_print["base"]=get_extensions_by_exporting_for_country(model,country_importing,stressor_list, scope)
 
     if scenarios is None : 
         scenarios_list = model.get_counterfactuals_list()
@@ -1149,24 +1333,24 @@ def plot_impacts_by_exporting_country_for_one_product(
         scenarios_list = scenarios.copy()
     
     for counterfactual in scenarios_list:
-        dict_df_to_print[counterfactual]=get_emissions_and_quantity(model.counterfactuals[counterfactual].iot,country=country_importing,stressor_list=stressor_list, scope=scope)
+        dict_df_to_print[counterfactual]=get_extensions_by_exporting_for_country(model.counterfactuals[counterfactual],country_importing,stressor_list,scope)
     
     scenarios_list = ['base']+scenarios_list
     
-    df_to_print=pd.concat([dict_df_to_print[scenario] for scenario in scenarios_list],keys=scenarios_list,names=("scenario","regions","sector"))
+    df_to_print=pd.concat([dict_df_to_print[scenario] for scenario in scenarios_list],keys=scenarios_list,names=("scenario","regions"))
     
-    sector_needed_emssiv=df_to_print.loc[df_to_print.index.get_level_values("sector")==sector].reset_index()
+    df_to_print = df_to_print.reset_index()
+    
+    df_to_print['scenario'] = pd.Categorical(df_to_print.scenario, categories = scenarios_list, ordered = True)
 
-    sector_needed_emssiv['scenario'] = pd.Categorical(sector_needed_emssiv.scenario, categories = scenarios_list, ordered = True)
-    
-    fig=px.bar(sector_needed_emssiv.sort_values(by="scenario",kind="stable"),y="emissions",color="regions",x="scenario",
+    fig=px.bar(df_to_print.sort_values(by="scenario",kind="stable"),y=sector,color="regions",x="scenario",
                 hover_name="regions",color_discrete_map=dict(zip(model.regions, COLORS[:len(model.regions)])))
     #.sort_values(ascending=False,by="emissions",axis=0)
 
     if scope==3:
         title_detail = f"Empreintes importées (scope{str(scope)})"
     else:
-        title_detail = "Impacts importés (scope{str(scope)})"
+        title_detail = f"Impacts importés (scope{str(scope)})"
 
     fig.update_layout(
                 title = f"{title_detail} par {country_importing} ({sector}) par origine d\'approvisionnement",
@@ -1176,9 +1360,9 @@ def plot_impacts_by_exporting_country_for_one_product(
 
     fig.show()
     
+    
     if model.save_figures:
         save_dir = model.figures_dir / ("Impacts_per_exporting_regions_to_"+country_importing)/stressors_name_EN
         save_dir.mkdir(exist_ok = True, parents = True)
         fig.write_image(save_dir/(f"{stressors_name_EN}_scope{str(scope)}_impacts_by_exp_reg_for_{sector}.png"))
-
-
+    

@@ -144,7 +144,7 @@ def get_very_detailed_emissions(iot: pymrio.IOSystem,stressors_groups: Dict =Non
     return DPDS.reorder_levels(["region","sector","stressor"])
 
 
-def get_total_imports_region(iot: pymrio.IOSystem,region:str,otherY=None)-> pd.Series:
+def get_total_imports_region(iot: pymrio.IOSystem,region:str,otherY=None, scope:int=3)-> pd.Series:
     """Computes the amount of imported goods by types of demands (intermediate and final). 
     
     Args:
@@ -153,31 +153,36 @@ def get_total_imports_region(iot: pymrio.IOSystem,region:str,otherY=None)-> pd.S
 
     Returns:
         pd.Series : A Series of the stressor coefficient MultiIndexed by sector of final demand and stressor names
-    """
-    
-    L = iot.L
-    A_made_in_region=iot.A.copy()
-    for region_A in A_made_in_region.drop(region,axis=1).columns.get_level_values("region").unique():
-        A_made_in_region.loc[(slice(None),slice(None)),(region_A,slice(None))]=0
-    A_made_in_region.loc[("FR",slice(None)),("FR",slice(None))]=0
+    """ 
     
     
     if otherY is None:
-        Y_vect = iot.Y.sum(axis=1,level=0)
+        Y_vect = iot.Y.sum(axis=1,level=0)[region]
+        # Y_vect = iot.Y
     else : 
-        Y_vect=otherY
+        Y_vect = otherY[region]
 
-    # we isolate the imported final demand 
-    imported_final=Y_vect[region].copy() # gets the final demand that goes to the region of interest
-    imported_final[region]=0                                                    # ignore the amount of goods that is locally produced
-    
+    if scope==1:
+        total_imports = iot.Z[region].sum(axis = 1) + Y_vect   # includes also all intermediate inputs used to produce exports of region 'region'
+        total_imports[region]=0
 
+    if scope==3:
+        ## we isolate the imported final demand 
+        imported_final=Y_vect.copy() # gets the final demand that goes to the region of interest
+        imported_final[region]=0    # ignore the amount of goods that is locally produced
+        
+        ## we calculate the imported intermediairy inputs used to produce domestic final demand (without exports)
+        A_made_in_region=iot.A.copy()
+        for other_region in A_made_in_region.columns.get_level_values("region").unique().drop(region):
+            A_made_in_region[other_region]=0
+        A_made_in_region.loc[region, region]=0 # ignore the amount of goods that is locally produced
+        imported_intermediate=(A_made_in_region @ iot.L @ Y_vect)
+        
+        total_imports=imported_final + imported_intermediate # for some reason the dataframe imported_intermediate has one column named 0, but in practice it is simply one vector
     
-    imported_intermediate=(A_made_in_region@L@Y_vect.sum(axis=1))
     
-    total_imports=imported_final+imported_intermediate # for some reason the dataframe imported_intermediate has one column named 0, but in practice it is simply one vector
     return total_imports
-    
+
 
 def get_import_mean_stressor(iot: pymrio.IOSystem,region:str,otherY=None,scope:int =3)-> pd.Series:
     """Computes the average stressor impact of imported goods by types of demands (intermediate and final). 
@@ -196,7 +201,7 @@ def get_import_mean_stressor(iot: pymrio.IOSystem,region:str,otherY=None,scope:i
     S = iot.stressor_extension.S
     L = iot.L
     
-    total_imports=get_total_imports_region(iot,region,otherY=otherY)
+    total_imports=get_total_imports_region(iot,region,otherY=otherY, scope=1)
     
     # Know those totals imports are used to get a weighted average of stressor impact per industry over the different import sources
     

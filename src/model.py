@@ -429,7 +429,7 @@ class Model:
             stressors_to_display (str): impacts to display (to be defined in variable STRESSORS_DICT_DEF in stresors.py).
             scope (int): 1 (direct impacts of production only) or 3 (impacts of the entire value chain).
         """
-        figures.plot_impacts_by_exporting_country_for_one_product(
+        figures.plot_impacts_by_exporting_country_for_one_product_2(
             model=self,
             sector= sector,
             country_importing=country_importing,
@@ -444,6 +444,7 @@ class Model:
             country_importing: str,
             scenarios: List[str],
             stressors_to_display: str,
+            option: str = 'MRIO'
             ) -> None:
         """" Plots imported impacts by location of impacts. 
             Impacts occuring along the entire value chain are attributed to the region(s) where there actually happened.
@@ -454,14 +455,26 @@ class Model:
             scenarios (list of str): scenarios to display. Default to all existing counterfactuals (cf. model.get_counterfactuals_list()).
             stressors_to_display (str): impacts to display (to be defined in variable STRESSORS_DICT_DEF in stresors.py).
         """
-        figures.plot_impacts_by_location_for_one_product(
-            model=self,
-            sector= sector,
-            country_importing=country_importing,
-            scenarios=scenarios,
-            stressors_to_display=stressors_to_display,
-            )
-    
+        if option=='final demand':
+            figures.plot_impacts_by_location_for_one_product_FD(
+                model=self,
+                sector= sector,
+                country_importing=country_importing,
+                scenarios=scenarios,
+                stressors_to_display=stressors_to_display,
+                )
+        elif option=='total imports':
+            figures.plot_impacts_by_location_for_one_product(
+                model=self,
+                sector= sector,
+                country_importing=country_importing,
+                scenarios=scenarios,
+                stressors_to_display=stressors_to_display,
+                )
+        else:
+            print('WARNING: "option" argument must be "final demand" or "total imports".')
+
+
     def save_CoefRoW(
             self,
             region : str = "FR",
