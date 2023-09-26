@@ -312,8 +312,9 @@ def build_reference_data(model) -> pymrio.IOSystem:
             )
             with open(model.exiobase_dir / model.exiobase_pickle_file_name, "wb") as f:
                 pkl.dump(iot, f)
-        if model.recalib_capital:
-            # Pre-treatment of capital data
+
+        ## Pre-treatment of capital data
+        if model.capital or model.recalib_capital:
             Kbar = load_Kbar(
                 year=model.base_year,
                 system=model.system,
@@ -323,7 +324,8 @@ def build_reference_data(model) -> pymrio.IOSystem:
             Kbar = CCF*(Kbar.divide(Kbar.sum(axis = 0), axis = 1))
             Kbar = Kbar.fillna(0)
 
-            # replace GFCF vector by pseudo-GFCF calculated from Kbar
+        ## replace GFCF vector by pseudo-GFCF calculated from Kbar
+        if model.recalib_capital:
             Kvector = Kbar.groupby(axis=1, level=0).sum()
             Kvector.columns = pd.MultiIndex.from_arrays(
                                     [
@@ -342,39 +344,39 @@ def build_reference_data(model) -> pymrio.IOSystem:
             iot.satellite.F = None
             iot.satellite.F_Y = None
             iot.calc_all()
+        
+        
+        ## endogenizes capital except for residential buildings (most of the investments made by real_estate_services sector)
+        if model.capital:
+            Real_estate_services = Kbar.xs('Real estate services (70)', axis = 1, level = 1, drop_level = True)
+            Real_estate_services = pd.concat([Real_estate_services], axis = 1, keys = ['Gross fixed capital formation'])
+            Real_estate_services = Real_estate_services.reorder_levels([1, 0], axis = 1)
+            Kbar.loc[slice(None), (slice(None), "Real estate services (70)")] = 0
             
+            iot.Z += Kbar
+            iot.A = None
+            iot.L = None
+            # removes endogenized capital from final demand:
+            iot.Y.loc[slice(None), (slice(None), "Gross fixed capital formation")] = 0
+            iot.Y.update(Real_estate_services)
+            iot.calc_all() # A is therefore recalculated with previously modified x value.
             
-            if model.capital:
-                # endogenizes capital except for residential buildings (most of the investments made by real_estate_services sector)
-                Real_estate_services = Kbar.xs('Real estate services (70)', axis = 1, level = 1, drop_level = True)
-                Real_estate_services = pd.concat([Real_estate_services], axis = 1, keys = ['Gross fixed capital formation'])
-                Real_estate_services = Real_estate_services.reorder_levels([1, 0], axis = 1)
-                Kbar.loc[slice(None), (slice(None), "Real estate services (70)")] = 0
-                
-                iot.Z += Kbar
-                iot.A = None
-                iot.L = None
-                # removes endogenized capital from final demand:
-                iot.Y.loc[slice(None), (slice(None), "Gross fixed capital formation")] = 0
-                iot.Y.update(Real_estate_services)
-                iot.calc_all() # A is therefore recalculated with previously modified x value.
-                
-                # capital endogenization check
-                # supply = iot.Y.sum(axis=1)+ iot.Z.sum(axis=1)
-                # use = (
-                #     iot.Z.sum(axis=0)
-                #     + iot.satellite.F.iloc[:9].sum(axis=0)
-                #     - iot.satellite.F.loc["Operating surplus: Consumption of fixed capital"]
-                # )
-                # print(
-                #     "--- Vérification de l'équilibre emplois/ressources après endogénéisation du capital ---"
-                # )
-                # print(f"Le R² des vecteurs emplois/ressources est de {supply.corr(use)}.")
-                # print(f"Emplois - Ressources = {use.sum() - supply.sum()}")
-                # print(
-                #     f"abs(Emplois - Ressources) / Emplois = {abs(use.sum() - supply.sum()) / use.sum()}"
-                # )
-                # print(f"max(Emplois - Ressources) = {max(use - supply)}")
+            # capital endogenization check
+            # supply = iot.Y.sum(axis=1)+ iot.Z.sum(axis=1)
+            # use = (
+            #     iot.Z.sum(axis=0)
+            #     + iot.satellite.F.iloc[:9].sum(axis=0)
+            #     - iot.satellite.F.loc["Operating surplus: Consumption of fixed capital"]
+            # )
+            # print(
+            #     "--- Vérification de l'équilibre emplois/ressources après endogénéisation du capital ---"
+            # )
+            # print(f"Le R² des vecteurs emplois/ressources est de {supply.corr(use)}.")
+            # print(f"Emplois - Ressources = {use.sum() - supply.sum()}")
+            # print(
+            #     f"abs(Emplois - Ressources) / Emplois = {abs(use.sum() - supply.sum()) / use.sum()}"
+            # )
+            # print(f"max(Emplois - Ressources) = {max(use - supply)}")
 
         # extract emissions
         extension_list = list()

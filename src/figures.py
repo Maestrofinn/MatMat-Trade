@@ -528,7 +528,8 @@ def plot_df_synthesis(
     compare_impacts_by_region_FR = pd.DataFrame(
         {
             "Référence": ref_impacts_by_region_FR,
-            f"Scénario {scenario_name}": scen_impacts_by_region_FR,
+            f"Scénario": scen_impacts_by_region_FR,
+            # f"Scénario {scenario_name}": scen_impacts_by_region_FR,
         }
     )
     compare_impacts_by_region_FR.T.plot.barh(
@@ -572,14 +573,15 @@ def plot_df_synthesis(
             index=pd.MultiIndex.from_arrays(
                 [
                     sum([2 * [sec] for sec in sectors], []),
-                    len(sectors) * ["Référence", f"Scénario {scenario_name}"],
+                    len(sectors) * ["Référence", f"Scénario"],
+                    # len(sectors) * ["Référence", f"Scénario {scenario_name}"],
                 ],
                 names=("sector", "scenario"),
             ),
         )
         for sec in sectors:
             df_to_display.loc[(sec, "Référence"), :] = df_ref.loc[(slice(None), sec)]
-            df_to_display.loc[(sec, f"Scénario {scenario_name}"), :] = df_scen.loc[
+            df_to_display.loc[(sec, f"Scénario"), :] = df_scen.loc[
                 (slice(None), sec)
             ]
         fig, axes = plt.subplots(
@@ -721,8 +723,10 @@ def plot_trade_synthesis(
     reference_trade = ref_Y["FR"].sum(axis=1) + ref_Z["FR"].sum(axis=1)
     counterfactual_trade = count_Y["FR"].sum(axis=1) + count_Z["FR"].sum(axis=1)
     
-    reference_trade.drop('FR', axis=0, level=0, inplace=True)
-    counterfactual_trade.drop('FR', axis=0, level=0, inplace=True)
+    # reference_trade.drop('FR', axis=0, level=0, inplace=True)
+    # counterfactual_trade.drop('FR', axis=0, level=0, inplace=True)
+    reference_trade.loc['FR'] = 0
+    counterfactual_trade.loc['FR'] = 0
     
     plot_df_synthesis(
         reference_df=reference_trade,
@@ -819,9 +823,9 @@ def plot_substressor_synthesis(
     
     emissions_types = {
         "D_cba": f"empreinte de la France en {stressors_to_display}",
-        # "D_pba": f"impact territorial de la France en {stressors_to_display}",
-        # "D_imp": f"empreinte importée par la France en {stressors_to_display}",
-        # "D_exp": f"impact exporté par la France en {stressors_to_display}",
+        "D_pba": f"impact territorial de la France en {stressors_to_display}",
+        "D_imp": f"empreinte importée par la France en {stressors_to_display}",
+        "D_exp": f"impact exporté par la France en {stressors_to_display}",
     }
 
     for name, description in emissions_types.items():
@@ -860,9 +864,12 @@ def plot_substressor_synthesis(
             plot_method='by_stressors'
         )
 
-def plot_stressor_synthesis_k_comp(
+def plot_stressor_synthesis_comp_between_models(
     model,
-    model_k,
+    model_2,
+    stressors_to_display: str,
+    counterfactual_name: str=None,
+    counterfactual_name_2: str=None,
 ) -> None:
     """Plots the french emissions of stressors by sector for a given counterfactual
 
@@ -870,7 +877,10 @@ def plot_stressor_synthesis_k_comp(
         model (Model): object Model defined in model.py
         model_k (Model): object Model defined in model.py
     """
-    if model.stressor_name == 'GES':
+    
+    stressors_to_plot = STRESSORS_DICT_DEF[stressors_to_display]["name_EN"]
+
+    if stressors_to_display == 'GES':
         emissions_types = {
             "D_cba": f"empreinte de la France en {model.stressor_name}",
             "D_pba": f"émissions territoriales de la France en {model.stressor_name}",
@@ -879,43 +889,57 @@ def plot_stressor_synthesis_k_comp(
         }
     else:
         emissions_types = {
-            "D_cba": f"empreinte de la France en {model.stressor_name}",
-            "D_pba": f"impact territorial de la France en {model.stressor_name}",
-            "D_imp": f"impact importé par la France en {model.stressor_name}",
-            "D_exp": f"impact exporté par la France en {model.stressor_name}",
+        "D_cba": f"empreinte de la France en {stressors_to_display}",
+        "D_pba": f"impact territorial de la France en {stressors_to_display}",
+        "D_imp": f"empreinte importée par la France en {stressors_to_display}",
+        "D_exp": f"impact exporté par la France en {stressors_to_display}",
         }
+    
+    if counterfactual_name !=None:
+        reference = model.counterfactuals[counterfactual_name]
+    else:
+        reference = model
+   
+    if counterfactual_name_2 !=None:
+        counterfactual = model_2.counterfactuals[counterfactual_name_2]
+    else:
+        counterfactual = model_2
+    
     
     for name, description in emissions_types.items():
 
         ref_df = aggregate_sum_2levels_on_axis1_level0_on_axis0(
-            df=getattr(model.iot.stressor_extension, name),
+            df=getattr(reference.iot.stressor_extension, name),
             new_index_0=model.new_regions_index,
             new_index_1=model.new_sectors_index,
             reverse_mapper_0=model.rev_regions_mapper,
             reverse_mapper_1=model.rev_sectors_mapper,
         )
-        ref_k_df = aggregate_sum_2levels_on_axis1_level0_on_axis0(
-            df=getattr(model_k.iot.stressor_extension, name),
-            new_index_0=model.new_regions_index,
-            new_index_1=model.new_sectors_index,
-            reverse_mapper_0=model.rev_regions_mapper,
-            reverse_mapper_1=model.rev_sectors_mapper,
+        count_df = aggregate_sum_2levels_on_axis1_level0_on_axis0(
+            df=getattr(counterfactual.iot.stressor_extension, name),
+            new_index_0=model_2.new_regions_index,
+            new_index_1=model_2.new_sectors_index,
+            reverse_mapper_0=model_2.rev_regions_mapper,
+            reverse_mapper_1=model_2.rev_sectors_mapper,
         )
 
-        reference_trade = ref_df["FR"].sum(level=0).stack()
-        reference_k_trade = ref_k_df["FR"].sum(level=0).stack()
+        reference_trade = ref_df["FR"].swaplevel(0,1, axis=0).loc[STRESSORS_DICT_DEF[stressors_to_display]['dict']].swaplevel(0,1, axis = 0).sum(level=0).stack()
+        counterfactual_trade = count_df["FR"].swaplevel(0,1, axis=0).loc[STRESSORS_DICT_DEF[stressors_to_display]['dict']].swaplevel(0,1, axis = 0).sum(level=0).stack()
 
         plot_df_synthesis(
             reference_df=reference_trade,
-            counterfactual_df=reference_k_trade,
+            counterfactual_df=counterfactual_trade,
             account_name=name,
             account_description=description,
-            account_unit=model.stressor_unit,
+            account_unit=find_stressor_unit(stressors_to_display),
             scenario_name='endo_capital',
-            output_dir=(model_k.figures_dir)/'comparaison_k',
+            output_dir=(model_2.figures_dir)/'comparaison_between_models',
             description=build_description(
-                model=model, counterfactual_name=None
+                model=model_2, counterfactual_name=counterfactual_name_2
             ),
+            save_figures=model_2.save_figures,
+            stressors_to_plot=stressors_to_plot,
+            plot_method='by_products'
         )
         
         
