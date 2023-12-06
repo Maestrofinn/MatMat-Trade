@@ -387,17 +387,19 @@ def build_reference_data(model) -> pymrio.IOSystem:
 
             for elt in ["F", "F_Y", "unit"]:
 
-                component = getattr(iot.satellite, elt).loc[
-                    model.stressor_dict[stressor]["exiobase_keys"]
-                ]
-
                 if elt == "unit":
+                    
                     component = pd.DataFrame(
-                        component.values[0],
+                        model.stressor_dict[stressor]["unit"],
                         index=pd.Index([stressor]),
                         columns=["unit"],
                     )
                 else:
+                    
+                    component = getattr(iot.satellite, elt).loc[
+                        model.stressor_dict[stressor]["exiobase_keys"]
+                    ]
+    
                     component = (
                         component.sum(axis=0).to_frame(stressor).T
                         * model.stressor_dict[stressor]["weight"]
