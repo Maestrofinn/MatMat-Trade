@@ -1,3 +1,4 @@
+## /!\ extensions different between EXIOBASE 3.8 and 3.8.2
 ALL_STRESSORS={
         "CO2 - combustion": {
             "exiobase_keys": [
@@ -17,9 +18,15 @@ ALL_STRESSORS={
             "weight": 1,
             "unit": "kgCO2eq",
         },
-        "CH4": {
+        "CH4 - combustion": {
             "exiobase_keys": [
-                "CH4 - combustion - air",
+                "CH4 - combustion - air"
+            ],
+            "weight": 28,
+            "unit": "kgCO2eq",
+        },
+        "CH4 - other": {
+            "exiobase_keys": [
                 "CH4 - non combustion - Extraction/production of (natural) gas - air",
                 "CH4 - non combustion - Extraction/production of crude oil - air",
                 "CH4 - non combustion - Mining of antracite - air",
@@ -34,8 +41,17 @@ ALL_STRESSORS={
             "weight": 28,
             "unit": "kgCO2eq",
         },
-        "N2O": {
-            "exiobase_keys": ["N2O - combustion - air", "N2O - agriculture - air"],
+        "N2O - combustion": {
+            "exiobase_keys": [
+                "N2O - combustion - air"
+            ],
+            "weight": 265,
+            "unit": "kgCO2eq",
+        },
+        "N2O - other": {
+            "exiobase_keys": [
+                "N2O - agriculture - air"
+            ],
             "weight": 265,
             "unit": "kgCO2eq",
         },
@@ -106,18 +122,82 @@ ALL_STRESSORS={
             "weight": 1,
             "unit": "kt",
         },
-        "Fossil Fuels": {
+        # "Fossil Fuels": {
+        #     "exiobase_keys": [
+        #         "Domestic Extraction Used - Fossil Fuel: Total",
+        #         "Unused Domestic Extraction - Fossil Fuels - Anthracite",
+        #         "Unused Domestic Extraction - Fossil Fuels - Coking coal",
+        #         "Unused Domestic Extraction - Fossil Fuels - Crude oil",
+        #         "Unused Domestic Extraction - Fossil Fuels - Lignite/brown coal",
+        #         "Unused Domestic Extraction - Fossil Fuels - Natural gas",
+        #         "Unused Domestic Extraction - Fossil Fuels - Natural gas liquids",
+        #         "Unused Domestic Extraction - Fossil Fuels - Other bituminous coal",
+        #         "Unused Domestic Extraction - Fossil Fuels - Peat",
+        #         "Unused Domestic Extraction - Fossil Fuels - Sub-bituminous coal"
+        #     ],
+        #     "weight": 1,
+        #     "unit": "kt",
+        # },
+        # "Fossil Fuels": {
+        #     "exiobase_keys": [
+        #         "Domestic Extraction Used - Fossil Fuels - Anthracite",
+        #         "Domestic Extraction Used - Fossil Fuels - Coking coal",
+        #         "Domestic Extraction Used - Fossil Fuels - Crude oil",
+        #         "Domestic Extraction Used - Fossil Fuels - Lignite/brown coal",
+        #         "Domestic Extraction Used - Fossil Fuels - Natural gas",
+        #         "Domestic Extraction Used - Fossil Fuels - Natural gas liquids",
+        #         "Domestic Extraction Used - Fossil Fuels - Oil shale and oil sands",
+        #         "Domestic Extraction Used - Fossil Fuels - Other bituminous coal",
+        #         "Domestic Extraction Used - Fossil Fuels - Other hydrocarbons",
+        #         "Domestic Extraction Used - Fossil Fuels - Peat",
+        #         "Domestic Extraction Used - Fossil Fuels - Sub-bituminous coal",
+        #         "Unused Domestic Extraction - Fossil Fuels - Anthracite",
+        #         "Unused Domestic Extraction - Fossil Fuels - Coking coal",
+        #         "Unused Domestic Extraction - Fossil Fuels - Crude oil",
+        #         "Unused Domestic Extraction - Fossil Fuels - Lignite/brown coal",
+        #         "Unused Domestic Extraction - Fossil Fuels - Natural gas",
+        #         "Unused Domestic Extraction - Fossil Fuels - Natural gas liquids",
+        #         "Unused Domestic Extraction - Fossil Fuels - Other bituminous coal",
+        #         "Unused Domestic Extraction - Fossil Fuels - Peat",
+        #         "Unused Domestic Extraction - Fossil Fuels - Sub-bituminous coal"
+        #     ],
+        #     "weight": 1,
+        #     "unit": "kt",
+        # },
+        "Crude_coal": {
             "exiobase_keys": [
-                "Domestic Extraction Used - Fossil Fuel: Total",
+                "Domestic Extraction Used - Fossil Fuels - Anthracite",
+                "Domestic Extraction Used - Fossil Fuels - Coking coal",
+                "Domestic Extraction Used - Fossil Fuels - Lignite/brown coal",
+                "Domestic Extraction Used - Fossil Fuels - Oil shale and oil sands",
+                "Domestic Extraction Used - Fossil Fuels - Other bituminous coal",
+                "Domestic Extraction Used - Fossil Fuels - Peat",
+                "Domestic Extraction Used - Fossil Fuels - Sub-bituminous coal",
                 "Unused Domestic Extraction - Fossil Fuels - Anthracite",
                 "Unused Domestic Extraction - Fossil Fuels - Coking coal",
-                "Unused Domestic Extraction - Fossil Fuels - Crude oil",
                 "Unused Domestic Extraction - Fossil Fuels - Lignite/brown coal",
-                "Unused Domestic Extraction - Fossil Fuels - Natural gas",
-                "Unused Domestic Extraction - Fossil Fuels - Natural gas liquids",
                 "Unused Domestic Extraction - Fossil Fuels - Other bituminous coal",
                 "Unused Domestic Extraction - Fossil Fuels - Peat",
                 "Unused Domestic Extraction - Fossil Fuels - Sub-bituminous coal"
+            ],
+            "weight": 1,
+            "unit": "kt",
+        },
+        "Crude_oil": {
+            "exiobase_keys": [
+                "Domestic Extraction Used - Fossil Fuels - Crude oil",
+                "Domestic Extraction Used - Fossil Fuels - Other hydrocarbons",
+                "Unused Domestic Extraction - Fossil Fuels - Crude oil",
+            ],
+            "weight": 1,
+            "unit": "kt",
+        },
+        "Natural_gas": {
+            "exiobase_keys": [
+                "Domestic Extraction Used - Fossil Fuels - Natural gas",
+                "Domestic Extraction Used - Fossil Fuels - Natural gas liquids",
+                "Unused Domestic Extraction - Fossil Fuels - Natural gas",
+                "Unused Domestic Extraction - Fossil Fuels - Natural gas liquids",
             ],
             "weight": 1,
             "unit": "kt",
@@ -355,11 +435,20 @@ ALL_STRESSORS={
             "weight": 1,
             "unit": "km2",
         },
+        # "Other land Use": {
+        #     "exiobase_keys": ["Other land Use: Total"],
+        #     "weight": 1,
+        #     "unit": "km2",
+        # },
         "Other land Use": {
-            "exiobase_keys": ["Other land Use: Total"],
+            "exiobase_keys": [
+                "Other land - Grazing",
+                "Other land - Marginal use"
+            ],
             "weight": 1,
             "unit": "km2",
         },
+
 }
 
 # USEFUL CATEGORIES FOR DATA PLOTS
@@ -367,11 +456,20 @@ ALL_STRESSORS={
 GHG_STRESSOR_NAMES=[
                     "CO2 - combustion",
                     "CO2 - other",
-                    "CH4",
+                    "CH4 - combustion",
+                    "CH4 - other",
+                    "N2O - combustion",
+                    "N2O - other",
                     "PFC",
-                    "N2O",
                     "SF6",
                     "HFC"
+                    ]
+
+
+FOSSIL_FUELS_STRESSOR_NAMES = [
+                    "Crude_coal",
+                    "Crude_oil",
+                    "Natural_gas",
                     ]
 
 MATERIAL_STRESSOR_NAMES=[
@@ -379,8 +477,8 @@ MATERIAL_STRESSOR_NAMES=[
                     "Forestry",
                     "Primary Crops",
                     "Non-Metallic Minerals",
-                    "Fossil Fuels"
-                    ]
+                    # "Fossil Fuels"
+                    ] + FOSSIL_FUELS_STRESSOR_NAMES
 
 BIOMASS_STRESSOR_NAMES=[
                     "Forestry",
@@ -436,7 +534,8 @@ STRESSORS_DICT_DEF = {
                        "name_EN": "Biomass"
                        },
                 "Combustibles fossiles":{
-                       "dict": ["Fossil Fuels"], 
+                       # "dict": ["Fossil Fuels"], 
+                       "dict" : FOSSIL_FUELS_STRESSOR_NAMES,
                        "unit": "kt",
                        "name_EN": "Fossil_Fuels"
                        },
@@ -446,8 +545,6 @@ STRESSORS_DICT_DEF = {
                        "name_EN": "Land_use"
                        }
                 }
-
-
 
 
 

@@ -826,29 +826,51 @@ def save_CoefRoW(model,
         
         stressors = STRESSORS_DICT_DEF[stressors_category]['dict']
         stressors_short_name = STRESSORS_DICT_DEF[stressors_category]['name_EN']
-        
+
         CoefRoW[stressors_short_name] = pd.DataFrame()
         
-        CoefRoW[stressors_short_name]['base_year'] = get_import_mean_stressor(model.iot,region)\
-                .loc[stressors].groupby("sector").sum().reindex(model.agg_sectors)
+        # CoefRoW[stressors_short_name] = pd.concat(
+        #     [get_import_mean_stressor(model.iot,region).loc[stressors].unstack(0)],
+        #     keys= ['base_year'],
+        #     axis = 1
+        #     )
+                # .groupby("sector").sum().reindex(model.agg_sectors)
+        CoefRoW[stressors_short_name]['base_year'] = get_import_mean_stressor(model.iot,region).loc[stressors]
+
         for counterfactual in model.get_counterfactuals_list():
             CoefRoW[stressors_short_name][counterfactual] = get_import_mean_stressor(model.counterfactuals[counterfactual].iot,region)\
-                    .loc[stressors].groupby("sector").sum().reindex(model.agg_sectors)
+                    .loc[stressors]
+                    # .groupby("sector").sum().reindex(model.agg_sectors)
         
+        CoefRoW[stressors_short_name] = pd.concat(
+                [
+                    CoefRoW[stressors_short_name],
+                    pd.concat(
+                        [CoefRoW[stressors_short_name].groupby(level = "sector", axis = 0).sum()],
+                        axis = 0,
+                        keys = ['total_' + stressors_short_name]
+                        )
+                ],
+                axis = 0
+                )
+            
         CoefRoW[stressors_short_name + '_relat'] = (CoefRoW[stressors_short_name].divide(CoefRoW[stressors_short_name]['base_year'], axis = 0)-1).fillna(0)
+        
+        CoefRoW[stressors_short_name] = CoefRoW[stressors_short_name].unstack(0).reindex(model.agg_sectors)
+        CoefRoW[stressors_short_name + '_relat'] =CoefRoW[stressors_short_name + '_relat'].unstack(0).reindex(model.agg_sectors)
         
         # CoefRoW[stressors_short_name]['unit'] = find_stressor_unit(stressors_category)+'/M€'
         
         CoefRoW[stressors_short_name] = CoefRoW[stressors_short_name].mul(conversion_hybrid_monetary_RoW, axis = 0)\
-                                        /(1E3 if find_stressor_unit(stressors_category) == 'kgCO2eq' else 1)
-   
+                                        /(1E6 if find_stressor_unit(stressors_category) == 'kgCO2eq' else 1)
+       
     # CoefRoW['unit'] = pd.DataFrame(['(tCO2eq or kt) / MatMat\'s sector unit (kt or ktoe or M€)'])
 
     CoefRoW['unit'] = pd.DataFrame(
         [find_stressor_unit(stressors_category) for stressors_category in stressors_list],
         index = [stressors_list],
         columns = ['unit']
-        ).where(lambda x: x!='kgCO2eq', 'tCO2eq')
+        ).where(lambda x: x!='kgCO2eq', 'ktCO2eq')
     
     
     #save CoefRoW
