@@ -808,9 +808,10 @@ def save_CoefRoW(model,
                 ):
     
     # import MatMat SRIO data
-    SRIO_hyb=pd.read_excel(DATA_DIR/("MatMat/{}.xlsx".format(SRIO_filename)),sheet_name="hybride",header=[0,1,2],index_col=[0,1,2,3])
-    SRIO_monetary=pd.read_excel(DATA_DIR/("MatMat/{}.xlsx".format(SRIO_filename)),sheet_name="monetaire",header=[0,1,2],index_col=[0,1,2,3])
-    
+    SRIO_hyb=pd.read_excel(DATA_DIR/("MatMat/{}.xlsx".format(SRIO_filename)),sheet_name="hybrid",header=[0,1,2],index_col=[0,1,2,3])
+    SRIO_monetary=pd.read_excel(DATA_DIR/("MatMat/{}.xlsx".format(SRIO_filename)),sheet_name="monetary",header=[0,1,2],index_col=[0,1,2,3])
+    unit_hyb=pd.read_excel(DATA_DIR/("MatMat/{}.xlsx".format(SRIO_filename)),sheet_name="hybrid_unit",header=[0],index_col=[0,1,2])
+
     # isolating the gross outputs
     X_hyb=SRIO_hyb.loc[:,(slice(None),slice(None),"x")]
     X_monetary=SRIO_monetary.loc[:,(slice(None),slice(None),"x")]
@@ -822,6 +823,8 @@ def save_CoefRoW(model,
 
     # compute CoefRoW for model and its all couterfactuals, in absolute and relative variations
     CoefRoW = dict()
+    CoefRoW['unit'] = pd.DataFrame()
+    
     for stressors_category in stressors_list:
         
         stressors = STRESSORS_DICT_DEF[stressors_category]['dict']
@@ -829,12 +832,6 @@ def save_CoefRoW(model,
 
         CoefRoW[stressors_short_name] = pd.DataFrame()
         
-        # CoefRoW[stressors_short_name] = pd.concat(
-        #     [get_import_mean_stressor(model.iot,region).loc[stressors].unstack(0)],
-        #     keys= ['base_year'],
-        #     axis = 1
-        #     )
-                # .groupby("sector").sum().reindex(model.agg_sectors)
         CoefRoW[stressors_short_name]['base_year'] = get_import_mean_stressor(model.iot,region).loc[stressors]
 
         for counterfactual in model.get_counterfactuals_list():
@@ -858,19 +855,29 @@ def save_CoefRoW(model,
         
         CoefRoW[stressors_short_name] = CoefRoW[stressors_short_name].unstack(0).reindex(model.agg_sectors)
         CoefRoW[stressors_short_name + '_relat'] =CoefRoW[stressors_short_name + '_relat'].unstack(0).reindex(model.agg_sectors)
-        
-        # CoefRoW[stressors_short_name]['unit'] = find_stressor_unit(stressors_category)+'/M€'
-        
+                
         CoefRoW[stressors_short_name] = CoefRoW[stressors_short_name].mul(conversion_hybrid_monetary_RoW, axis = 0)\
                                         /(1E6 if find_stressor_unit(stressors_category) == 'kgCO2eq' else 1)
        
-    # CoefRoW['unit'] = pd.DataFrame(['(tCO2eq or kt) / MatMat\'s sector unit (kt or ktoe or M€)'])
-
-    CoefRoW['unit'] = pd.DataFrame(
-        [find_stressor_unit(stressors_category) for stressors_category in stressors_list],
-        index = [stressors_list],
-        columns = ['unit']
-        ).where(lambda x: x!='kgCO2eq', 'ktCO2eq')
+        CoefRoW['unit'] = pd.concat(
+                                [
+                                    CoefRoW['unit'], 
+                                    pd.concat(
+                                        [
+                                            find_stressor_unit(stressors_category).replace('kgCO2eq', 'ktCO2eq') + '/' + unit_hyb
+                                        ],
+                                        axis = 1,
+                                        keys = [stressors_short_name]
+                                        )
+                                ],
+                                axis = 1
+                                )
+        
+    # CoefRoW['unit'] = pd.DataFrame(
+    #     [find_stressor_unit(stressors_category) for stressors_category in stressors_list],
+    #     index = [stressors_list],
+    #     columns = ['unit']
+    #     ).where(lambda x: x!='kgCO2eq', 'ktCO2eq')
     
     
     #save CoefRoW
@@ -881,6 +888,7 @@ def save_CoefRoW(model,
     # with pd.ExcelWriter(path/("CoefRow_{}.xlsx".format(model.summary_long))) as writer:
     with pd.ExcelWriter(path) as writer:
         for key in CoefRoW.keys():
+            CoefRoW[key].fillna(0, inplace = True)
             CoefRoW[key].to_excel(writer,sheet_name=key)
 
     return None #Coef_Row
