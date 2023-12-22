@@ -52,8 +52,8 @@ COLORS_NO_FR = COLORS[1:]
 CAP_IMPORTS_INCREASE_PARAM= 20/100
 
 ## pref_region and tradewar_region default regions
-ALLIES="EU"
-OPPONENTS="China"
+ALLIES=["EU"]
+OPPONENTS=["China"]
 
 ## scenar_stressors by default
 DEFAULT_SCENAR_STRESSORS = 'GES'
