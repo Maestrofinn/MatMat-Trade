@@ -179,3 +179,27 @@ def endogenous_capital_comparison(
     )
 
     return models
+    
+def apply_scenarios_from_excel(model, file_path, counterfactual_name):
+    df = pd.read_excel(file_path)  # Lecture du fichier Excel
+     # Crée le contrefactuel initial si nécessaire
+    if counterfactual_name not in model.get_counterfactuals_list():
+        model.new_counterfactual(counterfactual_name, lambda model: model.iot)  # Fonction neutre pour initialiser
+
+    for index, row in df.iterrows():
+        scenario_name = row['Scénario']
+        sectors_list = row.get('SectorsList', None)
+        if sectors_list is not None:
+            sectors_list = sectors_list.split(',')  
+        percentage_change = row.get('PourcentageChange', None)
+    reloc = row.get('Reloc', False)
+
+        if scenario_name in DICT_SCENARIOS:
+            scenario_func = DICT_SCENARIOS[scenario_name]
+
+            # Modifie le contrefactuel existant
+            model.modify_counterfactual(counterfactual_name, scenario_func, reloc=reloc, sectors_list=sectors_list, percentage_change=percentage_change)
+        else:
+            print(f"Scénario non reconnu: {scenario_name}")
+
+    model.save()
